@@ -24,7 +24,42 @@ type ID = string & As<'ID'>;
 type Card = {name: string; id: ID} & Data;
 type FieldCard = Card & {facedown: boolean; data: number};
 
-type Location = 'monsters' | 'spells' | 'hand' | 'graveyard' | 'deck';
+type Location = 'monsters' | 'spells' | 'hand' | 'graveyard'; // NOT deck, as deck isn't sorted
+
+const subsets = <T>(s: T[], k: number): T[][] => {
+  if (k > s.length || k <= 0) return [];
+  if (k === s.length) return [s];
+  if (k == 1) {
+    const ss = [];
+    for (let i = 0; i < s.length; i++) {
+      ss.push([s[i]]);
+    }
+    return ss;
+  }
+
+  const ss = [];
+  for (let i = 0; i < s.length - k + 1; i++) {
+    const head = s.slice(i, i + 1);
+    const tail = subsets(s.slice(i + 1), k - 1);
+    for (let j = 0; j < tail.length; j++) {
+      ss.push(head.concat(tail[j]));
+    }
+  }
+  return ss;
+}
+
+// NOTE: this still potentially returns redundant subsets
+const isubsets = <T>(s: T[], k: number): number[][] => {
+  const unique = new Map<T, number>();
+  const is: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const u = unique.get(s[i]);
+    if (u && u >= k) continue;
+    unique.set(s[i], (u || 0) + 1);
+    is.push(i);
+  }
+  return subsets(is, k);
+}
 
 const MONSTER: Data['play'] = (state, location, i, next, card) => {
   const s = state.clone();
@@ -33,17 +68,22 @@ const MONSTER: Data['play'] = (state, location, i, next, card) => {
   next.add(s.toString());
 };
 
-const SPELL: (cnd?: (s: State) => boolean, fn?: (s: State, c: Card) => void) => Data['play'] =
-  (cnd?: (s: State) => boolean, fn?: (s: State, c: Card) => void) =>
+const SPELL: (cnd?: (s: State, l: Location) => boolean, fn?: (s: State, c: Card) => void) => Data['play'] =
+  (cnd?: (s: State, l: Location) => boolean, fn?: (s: State, c: Card) => void) =>
     (state, location, i, next, card) => {
-      if (cnd && !cnd(state)) return;
+      if (cnd && !cnd(state, location)) return;
       const s = state.clone();
-      if ('subType' in card && card.subType === 'Continuous') {
+      if ('subType' in card && (card.subType === 'Continuous' || card.subType === 'Equip')) {
+        // NOTE: cnd should already check a monster exists, and since facedown monsters aren't
+        // supported we know we should always be able to equip to the monster in question
+        const id = card.subType === 'Equip' ? `${card.id}1` as ID : card.id;
         if (location === 'hand') {
           s.remove(location, i);
-          s.add('spells', card.id);
+          s.add('spells', id);
         } else {
-          s.spells[i] = card.id;
+          // Flipping a facedown necessitates a re-sorting
+          s.remove('spells', i);
+          s.add('spells', id);
         }
       } else {
         s.remove(location, i);
@@ -59,30 +99,62 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
     play(state, location, i, next) {
+      if (!state.graveyard.length || (state.hand.length < 2 && location === 'hand')) return;
+      const targets = {discard: new Set<ID>(), graveyard: new Set<ID>() };
+      for (let j = 0; j < state.hand.length; j++) {
+        const hid = state.hand[j];
+        if (targets.discard.has(hid)) continue;
+        if (location === 'hand' && i === j) continue;
+
+        for (let k = 0; k < state.graveyard.length; k++) {
+          const gid = state.graveyard[k];
+          if (targets.graveyard.has(gid)) continue;
+          targets.graveyard.add(gid);
+          const s = state.clone();
+          if (location === 'hand') {
+            s.remove('hand', i < j ? [i, j] : [j, i]);
+          } else {
+            s.remove(location, i);
+            s.remove('hand', j);
+          }
+          s.remove('graveyard', k);
+          s.deck.push(gid);
+          s.inc();
+          next.add(s.toString());
+        }
+      }
     },
   },
-  // TODO data = 1 if activated none otherwise
   'Archfiend\'s Oath': {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
     play(state, location, i, next) {
+      // TODO(1) data = 1 if activated none otherwise
     },
   },
-  // TODO data = zone of who is attached to = activated
   'Black Pendant': {
     type: 'Spell',
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
-    play(state, location, i, next) {
-    },
+    play: SPELL(s => !!s.monsters.length),
   },
   'Card Destruction': {
     type: 'Spell',
     subType: 'Normal',
     text: 'Both players discard as many cards as possible from their hands, then each player draws the same number of cards they discarded.',
-    play(state, location, i, next) {
-    },
+    play: SPELL((s, loc) => {
+      const h = (loc === 'hand' ? 1 : 0);
+      return s.hand.length > h && s.deck.length >= s.hand.length - h;
+    }, s => {
+      // NOTE: Card Destruction has already been removed from the hand/field at this point
+      const len = s.hand.length;
+      for (const id of s.hand) {
+        s.add('graveyard', id);
+      }
+      s.hand = [];
+      s.draw(len);
+    }),
   },
   'Convulsion of Nature': {
     type: 'Spell',
@@ -104,17 +176,29 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
     play(state, location, i, next) {
-      // FIXME need to flip convulsion back
+      // FIXME2 need to flip convulsion back
     },
   },
   'Graceful Charity': {
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
-    play: SPELL(s => s.deck.length >= 3, s => {
-      s.draw(3);
-      // TODO discard 2 - need unique subsets...
-    }),
+    play(state, location, i, next) {
+      if (state.deck.length < 3) return;
+      // isubsets might still return redundant subsets but we count on state deduping to handle it
+      for (const [j, k] of isubsets(state.hand, 2)) {
+        if (location === 'hand' && (i === j || i === k)) continue;
+        const s = state.clone();
+        if (location === 'hand') {
+          s.remove('hand', [i, j, k].sort());
+        } else {
+          s.remove(location, i);
+          s.remove('hand', [j, k]); // PRECONDITION: j < k
+        }
+        s.inc();
+        next.add(s.toString());
+      }
+    }
   },
   'Level Limit - Area B': {
     type: 'Spell',
@@ -148,7 +232,7 @@ const MAIN: { [name: string]: Data } = {
           const zone = s.add('monsters', id);
           s.add('spells', `${card.id}${zone}` as ID);
           s.inc();
-          next.add(state.toString());
+          next.add(s.toString());
         }
       }
     },
@@ -157,19 +241,26 @@ const MAIN: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Quick-Play',
     text: 'Send all cards from your hand to the Deck, then shuffle. Then, draw the same number of cards you added to the Deck.',
-    play(state, location, i, next) {
-      // XXX: Can you reload with 0 cards in hand?
-    },
+    play: SPELL((s, loc) => {
+      const h = (loc === 'hand' ? 1 : 0);
+      return s.hand.length > h && s.deck.length >= s.hand.length - h;
+    }, s => {
+      // NOTE: Reload has already been removed from the hand/field at this point
+      const len = s.hand.length;
+      s.deck.push(...s.hand);
+      s.random.shuffle(s.deck);
+      s.hand = [];
+      s.draw(len);
+    }),
   },
   'Reversal Quiz': {
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
     play(state, location, i, next) {
-      // FIXME need to flip convulsion back
+      // FIXME4 need to flip convulsion back
     },
   },
-  // TODO data = spell counters
   'Royal Magical Library': {
     type: 'Effect Monster',
     attribute: 'Light',
@@ -193,6 +284,41 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
     play(state, location, i, next) {
+      const h = (location === 'hand' ? 1 : 0);
+      if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
+
+      let spells!: Set<[number, number]>;
+      const targets = new Set<ID>();
+      for (let j = 0; j < state.graveyard.length; j++) {
+        const id = state.graveyard[j];
+        if (targets.has(id)) continue;
+        const target = State.decode(id);
+        if (target.type === 'Spell') {
+          targets.add(id);
+          if (!spells) {
+            spells = new Set();
+            for (const [j, k] of isubsets(state.hand, 2)) {
+              if (location === 'hand' && (i === j || i === k)) continue;
+              if (State.decode(state.hand[j]).type !== 'Spell') continue;
+              if (State.decode(state.hand[k]).type !== 'Spell') continue;
+              spells.add([j, k])
+            }
+            if (!spells.size) return;
+          }
+          // There might still return redundant subsets but we count on state deduping to handle it
+          for (const [j, k] of spells) {
+            const s = state.clone();
+            if (location === 'hand') {
+              s.remove('hand', [i, j, k].sort());
+            } else {
+              s.remove(location, i);
+              s.remove('hand', [j, k]); // PRECONDITION: j < k
+            }
+            s.inc();
+            next.add(s.toString());
+          }
+        }
+      }
     },
   },
   'Thunder Dragon': {
@@ -203,6 +329,7 @@ const MAIN: { [name: string]: Data } = {
     def: 1500,
     text: 'Thunder/Effect – You can discard this card; add up to 2 "Thunder Dragon" from your Deck to your hand.',
     play(state, location, i, next) {
+      // TODO 6
     },
   },
   'Toon Table of Contents': {
@@ -210,6 +337,28 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
     play(state, location, i, next) {
+      const targets = new Set<ID>();
+      for (let j = 0; j < state.deck.length; j++) {
+        const id = state.deck[j];
+        if (targets.has(id)) continue;
+        if (State.decode(id).name.startsWith('Toon')) {
+          targets.add(id);
+          const s = state.clone();
+          s.remove(location, i);
+          s.add('hand', s.deck.splice(j, 1)[0]);
+          s.random.shuffle(s.deck);
+          s.inc();
+          next.add(s.toString());
+        }
+      }
+      // Failure to find
+      if (!targets.size) {
+        const s = state.clone();
+        s.remove(location, i);
+        s.random.shuffle(s.deck);
+        s.inc();
+        next.add(s.toString());
+      }
     },
   },
   'Toon World': {
@@ -365,8 +514,16 @@ class State {
     return i;
   }
 
-  remove(location: Location, i: number) {
-    return this[location].splice(i, 1);
+  remove(location: Location, is: number | number[]) {
+    if (typeof is === 'number') {
+      this[location].splice(is, 1);
+    } else {
+      // PRECONDITION: sorted is
+      let removed = 0;
+      for (const i of is) {
+        this[location].splice(i - removed++, 1);
+      }
+    }
   }
 
   inc() {
@@ -374,6 +531,7 @@ class State {
       const id = this.monsters[i];
       if (id !== LIBRARY) continue;
       const card = State.decode(id);
+      // NOTE: since we are incrementing *all* Library counter cards we don't alter the ordering
       if (card.data < 3) this.monsters[i] = `${id}${card.data + 1}` as ID;
     }
   }
@@ -388,7 +546,8 @@ class State {
       // NOTE: Library is never facedown so no need to check
       if (card.data === 3 && this.deck.length) {
         const next = this.clone();
-        next.monsters[i] = card.id; // reset counters
+        next.monsters[i] = card.id;
+        next.monsters.sort(); // Could have A2 A3 A3 -> A A2 A3
         next.draw();
         states.add(next.toString());
         break; // don't care about others due to symmetry
@@ -550,7 +709,7 @@ class State {
 }
 
 
-const s = State.create(new Random(4));
-console.log(s.toString());
-console.log(State.fromString(s.toString()).toString());
-console.log(s.equals(State.fromString(s.toString())));
+// const s = State.create(new Random(4));
+// console.log(s.toString());
+// console.log(State.fromString(s.toString()).toString());
+// console.log(s.equals(State.fromString(s.toString())));
