@@ -57,6 +57,12 @@ const ID = new class {
     const name = data ? `${card.name}:${data}` : card.name;
     return this.facedown(id) ? `(${name})` : name;
   }
+  names(ids: (ID | FieldID | DeckID)[]) {
+    const names = ids.map(id => `"${this.decode(id).name}"`);
+    if (names.length === 1) return names[0];
+    const last = names.pop()!;
+    return `${names.join(', ')} and ${last}`;
+  }
 };
 
 const subsets = <T>(s: T[], k: number): T[][] => {
@@ -95,6 +101,7 @@ const isubsets = <T>(s: T[], k: number): number[][] => {
 const MONSTER: Data['play'] = (state, location, i, next, card) => {
   const s = state.clone();
   s.remove(location, i);
+  s.major(`Summon "${card.name}" in Attack Position`);
   s.summon(card.id);
   next.set(s.toString(), s);
 };
@@ -105,8 +112,9 @@ const SPELL: (cnd?: (s: State, l: Location) => boolean, fn?: (s: State) => void)
       if (cnd && !cnd(state, location)) return;
       const s = state.clone();
       s.remove(location, i);
+      s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
       if (card.type === 'Spell' && card.subType === 'Continuous') {
-        // Flipping a facedown may require a sort so we always remove + add
+        // Flipping a face-down may require a sort so we always remove + add
         s.add('spells', card.id);
       } else {
         s.add('graveyard', card.id);
@@ -121,8 +129,9 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
 
   if (state.known()) {
     const known = state.clone();
+    known.major(`Pay 500 LP (${known.lifepoints} -> ${known.lifepoints - 500}) to activate effect of "${card.name}"`);
+    known.minor(`Declare "${ID.decode(known.deck[known.deck.length - 1]).name}"`);
     known.lifepoints -= 500;
-    known.remove(location, i);
     known.add('spells', `${card.id}1` as FieldID);
     known.draw();
     known.inc();
@@ -131,8 +140,9 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
 
   // If you just want to pay 500 you might simply guess something impossible and mill one
   const unknown = state.clone();
+  unknown.major(`Pay 500 LP (${unknown.lifepoints} -> ${unknown.lifepoints - 500}) to activate effect of "${card.name}"`);
+  unknown.minor('Declare "Blue-Eyes White Dragon"');
   unknown.lifepoints -= 500;
-  unknown.remove(location, i);
   unknown.add('spells', `${card.id}1` as FieldID);
   unknown.add('graveyard', ID.id(unknown.deck.pop()!));
   unknown.inc();
@@ -157,6 +167,9 @@ const MAIN: { [name: string]: Data } = {
           if (targets.graveyard.has(gid)) continue;
           targets.graveyard.add(gid);
           const s = state.clone();
+          s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+          s.minor(`Discard "${ID.decode(hid).name}"`);
+          s.minor(`Return "${ID.decode(gid).name}" in the Graveyard to the top of the Deck`);
           if (location === 'hand') {
             s.discard(i < j ? [i, j] : [j, i]);
           } else {
@@ -178,6 +191,7 @@ const MAIN: { [name: string]: Data } = {
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
     play(state, location, i, next, card) {
       const unactivated = state.clone();
+      unactivated.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
       unactivated.remove(location, i);
       unactivated.add('spells', card.id);
       unactivated.inc();
@@ -194,6 +208,7 @@ const MAIN: { [name: string]: Data } = {
       for (let j = 0; j < state.monsters.length; j++) {
         const s = state.clone();
         s.remove(location, i);
+        s.major(`${location === 'spells' ? `Flip face-down "${card.name}" and equip` : `Equip ${card.name}"`} to "${ID.decode(s.monsters[j]).name}"`);
         s.add('spells', `${card.id}${j}` as FieldID);
         s.inc();
         next.set(s.toString(), s);
@@ -213,6 +228,7 @@ const MAIN: { [name: string]: Data } = {
       for (const id of s.hand) {
         s.add('graveyard', id);
       }
+      s.minor(`Discard ${ID.names(s.hand)}`);
       s.hand = [];
       s.draw(len);
     }),
@@ -243,6 +259,7 @@ const MAIN: { [name: string]: Data } = {
         s.add('hand', card.id);
         if (card.name === 'Convulsion of Nature') s.reverse(true);
       }
+      s.minor(`Return ${ID.names(s.spells)} to hand`);
       s.spells = [];
     }),
   },
@@ -252,10 +269,14 @@ const MAIN: { [name: string]: Data } = {
     text: 'Draw 3 cards, then discard 2 cards.',
     play(state, location, i, next, card) {
       if (state.deck.length < 3) return;
+      const draw = state.clone();
+      draw.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      draw.draw(3);
       // isubsets might still return redundant subsets but we count on state deduping to handle it
-      for (const [j, k] of isubsets(state.hand, 2)) {
+      for (const [j, k] of isubsets(draw.hand, 2)) {
         if (location === 'hand' && (i === j || i === k)) continue;
-        const s = state.clone();
+        const s = draw.clone();
+        s.minor(`Discard "${ID.decode(draw.hand[j]).name}" and "${ID.decode(draw.hand[k]).name}"`);
         if (location === 'hand') {
           s.discard([i, j, k].sort());
         } else {
@@ -294,6 +315,8 @@ const MAIN: { [name: string]: Data } = {
         if (target.type.endsWith('Monster')) {
           targets.add(id);
           const s = state.clone();
+          s.major(`Pay 800 LP (${s.lifepoints} -> ${s.lifepoints - 800}) to activate effect of "${card.name}"`);
+          s.minor(`Special Summon "${target.name}" in Attack Position from Graveyard`);
           s.lifepoints -= 800;
           s.remove('graveyard', j);
           const zone = s.summon(id, true);
@@ -316,6 +339,7 @@ const MAIN: { [name: string]: Data } = {
       // NOTE: Reload has already been removed from the hand/field at this point
       const len = s.hand.length;
       s.deck.push(...s.hand);
+      s.minor(`Return ${ID.names(s.hand)} to Deck`);
       s.shuffle();
       s.hand = [];
       s.draw(len);
@@ -326,24 +350,35 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
     // NOTE: we are not supporting the case where we actually guess correctly prematurely
-    play(state, location, i, next) {
+    play(state, location, i, next, self) {
+      if (!state.deck.length) return;
       let sangan = false;
       const s = state.clone();
+      s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${self.name}"`);
+      s.minor(`Send ${ID.names(s.hand)} from hand to Graveyard`);
+      s.minor(`Send ${ID.names([...s.monsters, ...s.spells])} from field to Graveyard`);
+
       s.graveyard.push(...s.hand);
+
       for (const id of s.monsters) {
         const card = ID.decode(id);
         if (card.name === 'Sangan') sangan = true;
         s.graveyard.push(card.id);
       }
+
       s.monsters = [];
       for (const id of s.spells) {
         const card = ID.decode(id);
         if (card.name === 'Convulsion of Nature') s.reverse(true);
         s.graveyard.push(card.id);
       }
+
       s.monsters = [];
       s.graveyard.sort();
       if (!sangan) {
+        const reveal = s.deck[s.deck.length - 1];
+        if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
+        s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
         next.set(s.toString(), s);
         return;
       }
@@ -355,15 +390,23 @@ const MAIN: { [name: string]: Data } = {
         const card = ID.decode(id);
         if ('attribute' in card && card.attribute === 'Dark' && card.atk <= 1500) {
           const t = s.clone();
+          s.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
           t.add('hand', ID.id(s.deck.splice(j, 1)[0]));
           t.shuffle();
+          const reveal = t.deck[t.deck.length - 1];
+          if (!ID.known(reveal)) t.deck[t.deck.length - 1] = `(${reveal})` as DeckID;
+          t.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
           next.set(t.toString(), t);
         }
       }
       // Failure to find
       if (!targets.size) {
         const t = s.clone();
+        t.minor('Fail to find "Sangan" target in Deck');
         t.shuffle();
+        const reveal = t.deck[t.deck.length - 1];
+        if (!ID.known(reveal)) t.deck[t.deck.length - 1] = `(${reveal})` as DeckID;
+        t.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
         next.set(t.toString(), t);
       }
     },
@@ -416,6 +459,8 @@ const MAIN: { [name: string]: Data } = {
           // There might still return redundant subsets but we count on state deduping to handle it
           for (const [j, k] of spells) {
             const s = state.clone();
+            s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+            s.minor(`Discard "${ID.decode(s.hand[j]).name}" and "${ID.decode(s.hand[k]).name}"`);
             const gid = s.remove('graveyard', g);
             if (location === 'hand') {
               s.discard([i, j, k].sort());
@@ -424,6 +469,7 @@ const MAIN: { [name: string]: Data } = {
               s.add('graveyard', card.id);
               s.discard([j, k]); // PRECONDITION: j < k
             }
+            s.minor(`Add "${ID.decode(gid).name}" in the Graveyard to hand`);
             s.add('hand', gid);
             s.inc();
             next.set(s.toString(), s);
@@ -465,6 +511,8 @@ const MAIN: { [name: string]: Data } = {
         if (target.name.startsWith('Toon')) {
           targets.add(target.id);
           const s = state.clone();
+          s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+          s.minor(`Add "${target.name}" from Deck to hand`);
           s.remove(location, i);
           s.add('graveyard', target.id);
           s.add('hand', ID.id(s.deck.splice(j, 1)[0]));
@@ -476,6 +524,8 @@ const MAIN: { [name: string]: Data } = {
       // Failure to find
       if (!targets.size) {
         const s = state.clone();
+        s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+        s.minor('Fail to find "Toon" card in Deck');
         s.remove(location, i);
         s.add('graveyard', card.id);
         s.shuffle();
@@ -488,7 +538,10 @@ const MAIN: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Activate this card by paying 1000 Life Points.',
-    play: SPELL(s => s.lifepoints > 1000, s => { s.lifepoints -= 1000; }),
+    play: SPELL(s => s.lifepoints > 1000, s => {
+      s.minor(`Pay 1000 LP (${s.lifepoints} -> ${s.lifepoints - 1000})`);
+      s.lifepoints -= 1000;
+    }),
   },
   'Upstart Goblin': {
     type: 'Spell',
@@ -606,7 +659,7 @@ class State {
     random.shuffle(deck);
 
     const state = new State(random, 8000, false, [], [], [], [], deck, false, []);
-    state.draw(6);
+    state.draw(6, true);
     return state;
   }
 
@@ -631,6 +684,7 @@ class State {
     this.graveyard = graveyard;
     this.deck = deck;
     this.reversed = reversed;
+
     this.trace = trace;
   }
 
@@ -669,8 +723,12 @@ class State {
     return zone;
   }
 
-  log(s: string) {
+  major(s: string) {
     this.trace.push(s);
+  }
+
+  minor(s: string) {
+    this.trace.push(`  ${s}`);
   }
 
   discard(indices: number[]) {
@@ -685,16 +743,21 @@ class State {
   inc() {
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
-      if (ID.facedown(id) || ID.id(id) !== LIBRARY) continue;
+      const card = ID.decode(id);
+      if (ID.facedown(id) || card.name !== 'Royal Magical Library') continue;
       const data = ID.data(id);
       // NOTE: since we are incrementing *all* Library counter cards we don't alter the ordering
-      if (data < 3) this.monsters[i] = `${ID.id(id)}${data + 1}` as FieldID;
+      if (data < 3) {
+        this.monsters[i] = `${card.id}${data + 1}` as FieldID;
+        this.minor(`Add Spell Counter to "${card.name}" (${data} -> ${data + 1})`);
+      }
     }
   }
 
   shuffle() {
     this.deck = this.deck.map(id => ID.id(id));
     this.random.shuffle(this.deck);
+    this.minor('Shuffle Deck');
   }
 
   reverse(revert = false) {
@@ -703,10 +766,12 @@ class State {
       this.reversed = false;
       this.deck.reverse();
       if (!ID.known(this.deck[0])) this.deck[0] = `(${this.deck[0]})` as DeckID;
+      this.minor(`Turn Deck back face-down ("${ID.decode(this.deck[0]).name}" on bottom)`);
     } else {
       if (this.reversed) return;
       this.reversed = true;
       this.deck.reverse();
+      this.minor(`Turn Deck face up ("${ID.decode(this.deck[this.deck.length - 1]).name}" revealed)`);
     }
   }
 
@@ -740,6 +805,7 @@ class State {
       const card = ID.decode(id);
       if (!ID.facedown(id) && ID.data(id) === 3 && this.deck.length) {
         const s = this.clone();
+        s.major(`Remove 3 Spell Counters from "${card.name}"`);
 
         // XXX FIXME equip reorder
         s.monsters[i] = card.id;
@@ -750,6 +816,7 @@ class State {
         next.set(s.toString(), s);
       }
     }
+
     const spells = new Set<FieldID>();
     for (let i = 0; i < this.spells.length; i++) {
       const id = this.spells[i];
@@ -762,6 +829,7 @@ class State {
         ARCHFIEND(this, 'spells', i, next, card);
       }
     }
+
     const hand = new Set<ID>();
     for (let i = 0; i < this.hand.length; i++) {
       const id = this.hand[i];
@@ -770,6 +838,7 @@ class State {
       const card = ID.decode(id);
       if (card.type === 'Spell' && this.spells.length < 5) {
         const set = this.clone();
+        set.major(`Set "${card.name}" face-down`);
         set.add('spells', `(${id})` as FieldID);
         set.remove('hand', i);
         next.set(set.toString(), set);
@@ -779,6 +848,7 @@ class State {
         // TODO: add support for setting Cyber Jar in multi-turn scenarios
         // if (card.name === 'Cyber Jar') {
         //   const set = this.clone();
+        //   set.major(`Set "${card.name}" face-down in Defense Position`);
         //   set.summon(`(${id})` as FieldID);
         //   set.remove('hand', i);
         //   next.set(set.toString(), set);
@@ -791,6 +861,8 @@ class State {
         }
         if (targets.length === 2) {
           const s = this.clone();
+          s.major(`Discard "${card.name}"`);
+          s.minor(`Add 2 "${card.name}" from Deck to hand`);
           s.remove('hand', i);
           s.add('graveyard', card.id);
           // PRECONDITION: targets[0] < targets[1]
@@ -800,6 +872,8 @@ class State {
           next.set(s.toString(), s);
         } else if (targets.length === 1) {
           const s = this.clone();
+          s.major(`Discard "${card.name}"`);
+          s.minor(`Add "${card.name}" from Deck to hand`);
           s.remove('hand', i);
           s.add('graveyard', card.id);
           // Due to symmetry it doesn't matter which we choose
@@ -809,6 +883,8 @@ class State {
         } else {
           // Failure to find
           const s = this.clone();
+          s.major(`Discard "${card.name}"`);
+          s.minor(`Fail to find "${card.name}" in Deck`);
           s.remove('hand', i);
           s.add('graveyard', card.id);
           s.shuffle();
@@ -835,10 +911,18 @@ class State {
     );
   }
 
-  draw(n = 1) {
+  draw(n = 1, initial = false) {
     if (n > this.deck.length) throw new Error('Deck out');
+    const ids = [];
     for (let i = 0; i < n; i++) {
-      this.add('hand', ID.id(this.deck.pop()!));
+      const id = ID.id(this.deck.pop()!);
+      ids.push(id);
+      this.add('hand', id);
+    }
+    if (initial) {
+      this.major(`Opening hand contains ${ID.names(ids)}`);
+    } else {
+      this.minor(`Draw ${ID.names(ids)}`);
     }
   }
 
