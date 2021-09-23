@@ -487,17 +487,37 @@ const MAIN: { [name: string]: Data } = {
     def: 1500,
     text: 'Thunder/Effect – You can discard this card; add up to 2 "Thunder Dragon" from your Deck to your hand.',
     // NOTE: discard effect handled directly in State#next
-    play(state, location, i, next) {
-      if (!state.monsters.length) return;
-      // XXX FIXME tribute summon behavior only (maybe destroy equips + proc sangan)
-      // const targets = new Set<ID>();
-      // for (let j = 0; j < state.monsters.length; j++) {
-      //   const id = state.monsters[j];
-      //   if (targets.has(id)) continue;
-      //   const target = State.decode(id);
-      //   targets.add(id);
-      // }
-      // / XXX FIXME
+    play(state, location, i, next, self) {
+      for (let j = 0; j < state.monsters.length; j++) {
+        const s = state.clone();
+        const target = ID.decode(state.monsters[j]);
+        s.major(`Tribute "${target.name}" to Summon "${self.name}"`);
+        s.tribute(j, i);
+        if (target.name === 'Sangan') {
+          const targets = new Set<ID>();
+          for (let k = 0; k < state.deck.length; k++) {
+            const id = ID.id(state.deck[k]);
+            if (targets.has(id)) continue;
+            const card = ID.decode(id);
+            if ('attribute' in card && card.attribute === 'Dark' && card.atk <= 1500) {
+              const t = s.clone();
+              s.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
+              t.add('hand', ID.id(s.deck.splice(k, 1)[0]));
+              t.shuffle();
+              next.set(t.toString(), t);
+            }
+          }
+          // Failure to find
+          if (!targets.size) {
+            const t = s.clone();
+            t.minor('Fail to find "Sangan" target in Deck');
+            t.shuffle();
+            next.set(t.toString(), t);
+          }
+        } else {
+          next.set(s.toString(), s);
+        }
+      }
     },
   },
   'Toon Table of Contents': {
@@ -711,9 +731,8 @@ class State {
     return this[location].splice(i, 1)[0];
   }
 
-  summon(id: ID | FieldID, special = false) {
-    this.summoned = !special;
-    const zone = this.add('monsters' as any, id); // "I know what I'm doing"
+  madd(id: ID | FieldID) {
+    const zone = this.add('monsters' as any, id); // "I know what I'm doing" (hand equips below)
     for (let i = 0; i < this.spells.length; i++) {
       const card = ID.decode(this.spells[i]);
       if (!ID.facedown(this.spells[i]) && card.type === 'Spell' && card.subType === 'Equip') {
@@ -723,6 +742,57 @@ class State {
       }
     }
     return zone;
+  }
+
+  mremove(i: number) {
+    const id = ID.id(this.remove('monsters' as any, i)); // "I am very smrt" (handle equips below)
+    const equips: ID[] = [];
+    const spells: FieldID[] = [];
+    for (const spell of this.spells) {
+      const card = ID.decode(spell);
+      if (!ID.facedown(spell) && card.type === 'Spell' && card.subType === 'Equip') {
+        const data = ID.data(spell);
+        // NOTE: only one of each equip so don't need to worry about sort order being affected
+        if (data > i) {
+          spells.push(`${card.id}${data - 1}` as FieldID);
+        } else if (data === i) {
+          equips.push(card.id);
+        } else {
+          spells.push(spell);
+        }
+      } else {
+        spells.push(spell);
+      }
+    }
+    this.spells = spells;
+
+    return {id, equips};
+  }
+
+  mclear(i: number) {
+    const {id, equips} = this.mremove(i);
+    const zone = this.madd(ID.id(id));
+    for (const equip of equips) {
+      this.add('spells', `${equip}${zone}` as FieldID);
+    }
+  }
+
+  summon(id: ID | FieldID, special = false) {
+    this.summoned = !special;
+    return this.madd(id);
+  }
+
+  tribute(fi: number, hi: number) {
+    const {id, equips} = this.mremove(fi);
+    this.add('graveyard', id);
+    for (const equip of equips) {
+      this.add('graveyard', equip);
+    }
+    if (equips.length) {
+      this.minor(`Sending ${ID.names(equips)} equipped to "${ID.decode(id).name}" to the graveyard`);
+    }
+    const h = this.remove('hand', hi);
+    return this.summon(h);
   }
 
   major(s: string) {
@@ -780,7 +850,7 @@ class State {
   known(quiz = false) {
     if (!this.deck.length) return false;
     if (!quiz && this.reversed) return true;
-    if (!this.reversed &&  ID.known(this.deck[this.deck.length - 1])) return true;
+    if (!this.reversed && ID.known(this.deck[this.deck.length - 1])) return true;
 
     const unknown = new Set<ID>();
     const types = new Set<'Monster' | 'Spell'>();
@@ -825,12 +895,7 @@ class State {
       if (!ID.facedown(id) && ID.data(id) === 3 && this.deck.length) {
         const s = this.clone();
         s.major(`Remove 3 Spell Counters from "${card.name}"`);
-
-        // XXX FIXME equip reorder
-        s.monsters[i] = card.id;
-        s.monsters.sort(); // Could have A2 A3 A3 -> A A2 A3
-        // XXX FIXME
-
+        s.mclear(i);
         s.draw();
         next.set(s.toString(), s);
       }
