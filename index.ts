@@ -1,4 +1,3 @@
-
 import * as util from 'util';
 
 type Type = 'Normal Monster' | 'Effect Monster' | 'Ritual Monster' | 'Fusion Monster' | 'Token Monster' | 'Spell' | 'Trap';
@@ -12,7 +11,7 @@ type ID = string & As<'ID'>;
 type FieldID = ID | string & As<'FieldID'>;
 type DeckID = ID | string & As<'DeckID'>;
 
-type Card = {name: string; id: ID} & Data;
+type Card = { name: string; id: ID } & Data;
 
 type Data = {
   text: string;
@@ -33,6 +32,8 @@ type Data = {
   atk: number;
   def: number;
 });
+
+const DEBUG = !!process.env.DEBUG;
 
 const ID = new class {
   facedown(id: FieldID | DeckID) {
@@ -552,7 +553,7 @@ const MAIN: { [name: string]: Data } = {
   },
 };
 
-const DECK: {[name: string]: number} = {
+const DECK: { [name: string]: number } = {
   'A Feather of the Phoenix': 3,
   'Archfiend\'s Oath': 3,
   'Black Pendant': 1,
@@ -626,7 +627,9 @@ for (const name in MAIN) {
   DATA[id] = {...MAIN[name], name, id};
 }
 
+const BLACK_PENDANT = IDS['Black Pendant'];
 const LIBRARY = IDS['Royal Magical Library'];
+const REVERSAL_QUIZ = IDS['Reversal Quiz'];
 const THUNDER_DRAGON = IDS['Thunder Dragon'];
 
 const equals = <T>(a: T[], b: T[]) => {
@@ -637,7 +640,6 @@ const equals = <T>(a: T[], b: T[]) => {
   return true;
 };
 
-// TODO: terminal states, win conditions, traces
 class State {
   random: Random;
   lifepoints: number;
@@ -775,9 +777,10 @@ class State {
     }
   }
 
-  known(exact = true) {
+  known(quiz = false) {
     if (!this.deck.length) return false;
-    if (this.reversed || ID.known(this.deck[this.deck.length - 1])) return true;
+    if (!quiz && this.reversed) return true;
+    if (!this.reversed &&  ID.known(this.deck[this.deck.length - 1])) return true;
 
     const unknown = new Set<ID>();
     const types = new Set<'Monster' | 'Spell'>();
@@ -790,10 +793,26 @@ class State {
       unknown.add(card.id);
       types.add(card.type === 'Spell' ? 'Spell' : 'Monster');
 
-      if (exact && unknown.size > 1) return false;
-      if (!exact && (unknown.size > 1 && types.size > 1)) return false;
+      if (!quiz && unknown.size > 1) return false;
+      if (!quiz && (unknown.size > 1 && types.size > 1)) return false;
     }
     return true;
+  }
+
+  search(visited = new Set<string>(), path: string[] = []): { visited: number } | { state: State; path: string[]; visited: number } {
+    visited.add(this.toString());
+    if (DEBUG) {
+      const errors = State.verify(this);
+      if (errors.length) {
+        console.error(`INVALID STATE ${visited.size}:\n\n${errors.join('\n')}`);
+        process.exit(1);
+      }
+    }
+    for (const [s, state] of this.next().entries()) {
+      if (state.win()) return {state, path, visited: visited.size};
+      if (!visited.has(s)) return state.search(visited, [...path, s]);
+    }
+    return {visited: visited.size};
   }
 
   next() {
@@ -896,6 +915,34 @@ class State {
     return next;
   }
 
+  win() {
+    if (this.lifepoints > 500) return false;
+    if (!this.monsters.length) return false;
+    if (!this.known(true)) return false;
+    const hand = {pendant: false, quiz: false};
+    for (const id of this.hand) {
+      if (id === BLACK_PENDANT) {
+        hand.pendant = true;
+      } else if (id === REVERSAL_QUIZ) {
+        hand.quiz = true;
+      }
+    }
+    if (hand.pendant && hand.quiz && this.spells.length <= 3) return true;
+    const spells = {pendant: false, quiz: false};
+    for (const fid of this.spells) {
+      const id = ID.id(fid);
+      if (id === BLACK_PENDANT) {
+        spells.pendant = true;
+      } else if (id === REVERSAL_QUIZ) {
+        spells.quiz = true;
+      }
+    }
+    if (spells.quiz && spells.pendant) return true;
+    if (hand.pendant && this.spells.length <= 4 && spells.quiz) return true;
+    if (hand.quiz && this.spells.length <= 4 && spells.pendant) return true;
+    return false;
+  }
+
   clone() {
     return new State(
       new Random(this.random.seed),
@@ -928,14 +975,14 @@ class State {
 
   equals(s: State) {
     return (this.random.seed === s.random.seed &&
-        this.lifepoints === s.lifepoints &&
-        this.summoned === s.summoned &&
-        this.reversed === s.reversed &&
-        equals(this.monsters, s.monsters) &&
-        equals(this.spells, s.spells) &&
-        equals(this.hand, s.hand) &&
-        equals(this.graveyard, s.graveyard) &&
-        equals(this.deck, s.deck));
+      this.lifepoints === s.lifepoints &&
+      this.summoned === s.summoned &&
+      this.reversed === s.reversed &&
+      equals(this.monsters, s.monsters) &&
+      equals(this.spells, s.spells) &&
+      equals(this.hand, s.hand) &&
+      equals(this.graveyard, s.graveyard) &&
+      equals(this.deck, s.deck));
   }
 
   toString() {
@@ -1100,4 +1147,13 @@ class State {
       reversed: this.reversed,
     }, {colors: true, breakLength: 200, maxStringLength: Infinity});
   }
+}
+
+const STATE = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+const RESULT = STATE.search();
+if (!('state' in RESULT)) {
+  console.error(`Unsuccessfully searched ${RESULT.visited} states`);
+  process.exit(1);
+} else {
+  console.log(`Found a path after searching ${RESULT.visited} states:\n\n${RESULT.state.trace.join('\n')}`);
 }
