@@ -1,3 +1,5 @@
+import 'source-map-support/register';
+
 import * as util from 'util';
 
 type Type = 'Monster' | 'Spell' | 'Trap';
@@ -11,9 +13,10 @@ type ID = string & As<'ID'>;
 type FieldID = ID | string & As<'FieldID'>;
 type DeckID = ID | string & As<'DeckID'>;
 
-type Card = { name: string; id: ID } & Data;
+type Card = { name: string; } & Data;
 
 type Data = {
+  id: ID,
   type: Type;
   text: string;
   play(
@@ -66,6 +69,36 @@ const ID = new class {
     return `${names.join(', ')} and ${last}`;
   }
 };
+
+
+// github.com/nodejs/node#37320
+class SuperSet<T> {
+  private sets: Set<T>[];
+
+  constructor() {
+    this.sets = [new Set<T>()];
+  }
+
+  get size() {
+    let size = 0;
+    for (const set of this.sets) {
+      size += set.size;
+    }
+    return size;
+  }
+
+  add(v: T) {
+    if (this.sets[this.sets.length-1].size === 16777000) this.sets.push(new Set());
+    return this.sets[this.sets.length-1].add(v);
+  }
+
+  has(v: T) {
+    for (const set of this.sets) {
+      if (set.has(v)) return true;
+    }
+    return false;
+  }
+}
 
 const subsets = <T>(s: T[], k: number): T[][] => {
   if (k > s.length || k <= 0) return [];
@@ -134,6 +167,7 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
     known.major(`Pay 500 LP (${known.lifepoints} -> ${known.lifepoints - 500}) to activate effect of "${card.name}"`);
     known.minor(`Declare "${ID.decode(known.deck[known.deck.length - 1]).name}"`);
     known.lifepoints -= 500;
+    known.remove(location, i);
     known.add('spells', `${card.id}1` as FieldID);
     known.draw();
     known.inc();
@@ -145,6 +179,7 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   unknown.major(`Pay 500 LP (${unknown.lifepoints} -> ${unknown.lifepoints - 500}) to activate effect of "${card.name}"`);
   unknown.minor('Declare "Blue-Eyes White Dragon"');
   unknown.lifepoints -= 500;
+  unknown.remove(location, i);
   unknown.add('spells', `${card.id}1` as FieldID);
   const reveal = ID.decode(unknown.deck.pop()!);
   unknown.minor(`Excavate "${reveal.name}"`);
@@ -153,8 +188,14 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   next.set(unknown.toString(), unknown);
 };
 
-const MAIN: { [name: string]: Data } = {
+const BLACK_PENDANT = 'B' as ID;
+const LIBRARY = 'L' as ID;
+const REVERSAL_QUIZ = 'Q' as ID;
+const THUNDER_DRAGON = 'X' as ID;
+
+const CARDS: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
+    id: 'F' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
@@ -174,6 +215,7 @@ const MAIN: { [name: string]: Data } = {
           s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
           s.minor(`Discard "${ID.decode(hid).name}"`);
           s.minor(`Return "${ID.decode(gid).name}" in the Graveyard to the top of the Deck`);
+          s.remove('graveyard', k);
           if (location === 'hand') {
             s.discard(i < j ? [i, j] : [j, i]);
           } else {
@@ -181,7 +223,6 @@ const MAIN: { [name: string]: Data } = {
             s.add('graveyard', card.id);
             s.add('graveyard', s.remove('hand', j));
           }
-          s.remove('graveyard', k);
           s.deck.push(`(${gid})` as DeckID);
           s.inc();
           next.set(s.toString(), s);
@@ -190,21 +231,23 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Archfiend\'s Oath': {
+    id: 'O' as ID,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
     play(state, location, i, next, card) {
+      ARCHFIEND(state, location, i, next, card);
+
       const unactivated = state.clone();
       unactivated.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
       unactivated.remove(location, i);
       unactivated.add('spells', card.id);
       unactivated.inc();
       next.set(unactivated.toString(), unactivated);
-
-      ARCHFIEND(state, location, i, next, card);
     },
   },
   'Black Pendant': {
+    id: BLACK_PENDANT,
     type: 'Spell',
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
@@ -220,6 +263,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Card Destruction': {
+    id: 'D' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Both players discard as many cards as possible from their hands, then each player draws the same number of cards they discarded.',
@@ -238,12 +282,14 @@ const MAIN: { [name: string]: Data } = {
     }),
   },
   'Convulsion of Nature': {
+    id: 'V' as ID,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
     play: SPELL(s => !!s.deck.length, s => s.reverse()),
   },
   'Cyber Jar': {
+    id: 'J' as ID,
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
@@ -253,6 +299,7 @@ const MAIN: { [name: string]: Data } = {
     play: MONSTER,
   },
   'Giant Trunade': {
+    id: 'T' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
@@ -268,6 +315,7 @@ const MAIN: { [name: string]: Data } = {
     }),
   },
   'Graceful Charity': {
+    id: 'G' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
@@ -294,18 +342,21 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Level Limit - Area B': {
+    id: 'A' as ID,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
     play: SPELL(),
   },
   'Pot of Greed': {
+    id: 'P' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 2 cards.',
     play: SPELL(s => s.deck.length >= 2, s => s.draw(2)),
   },
   'Premature Burial': {
+    id: 'K' as ID,
     type: 'Spell',
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
@@ -333,6 +384,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Reload': {
+    id: 'R' as ID,
     type: 'Spell',
     subType: 'Quick-Play',
     text: 'Send all cards from your hand to the Deck, then shuffle. Then, draw the same number of cards you added to the Deck.',
@@ -350,6 +402,7 @@ const MAIN: { [name: string]: Data } = {
     }),
   },
   'Reversal Quiz': {
+    id: REVERSAL_QUIZ,
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
@@ -367,22 +420,21 @@ const MAIN: { [name: string]: Data } = {
       }
 
       s.graveyard.push(...s.hand);
-
+      s.hand = [];
       for (const id of s.monsters) {
         const card = ID.decode(id);
         if (card.name === 'Sangan') sangan = true;
         s.graveyard.push(card.id);
       }
-
       s.monsters = [];
       for (const id of s.spells) {
         const card = ID.decode(id);
         if (card.name === 'Convulsion of Nature') s.reverse(true);
         s.graveyard.push(card.id);
       }
-
-      s.monsters = [];
+      s.spells = [];
       s.graveyard.sort();
+
       if (!sangan) {
         const reveal = s.deck[s.deck.length - 1];
         if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
@@ -420,6 +472,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Royal Magical Library': {
+    id: LIBRARY,
     type: 'Monster',
     attribute: 'Light',
     level: 4,
@@ -430,6 +483,7 @@ const MAIN: { [name: string]: Data } = {
     play: MONSTER,
   },
   'Sangan': {
+    id: 'S' as ID,
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
@@ -440,6 +494,7 @@ const MAIN: { [name: string]: Data } = {
     play: MONSTER,
   },
   'Spell Reproduction': {
+    id: 'Z' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
@@ -487,6 +542,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Thunder Dragon': {
+    id: THUNDER_DRAGON,
     type: 'Monster',
     attribute: 'Light',
     level: 5,
@@ -528,6 +584,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Toon Table of Contents': {
+    id: 'C' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
@@ -542,7 +599,7 @@ const MAIN: { [name: string]: Data } = {
           s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
           s.minor(`Add "${target.name}" from Deck to hand`);
           s.remove(location, i);
-          s.add('graveyard', target.id);
+          s.add('graveyard', card.id);
           s.add('hand', ID.id(s.deck.splice(j, 1)[0]));
           s.shuffle();
           s.inc();
@@ -563,6 +620,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Toon World': {
+    id: 'W' as ID,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Activate this card by paying 1000 Life Points.',
@@ -572,6 +630,7 @@ const MAIN: { [name: string]: Data } = {
     }),
   },
   'Upstart Goblin': {
+    id: 'U' as ID,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 1 card, then your opponent gains 1000 Life Points.',
@@ -595,8 +654,8 @@ const DECK: { [name: string]: number } = {
   'Reload': 3,
   'Reversal Quiz': 1,
   'Royal Magical Library': 3,
-  'Spell Reproduction': 3,
   'Sangan': 1,
+  'Spell Reproduction': 3,
   'Thunder Dragon': 3,
   'Toon Table of Contents': 3,
   'Toon World': 2,
@@ -645,19 +704,10 @@ class Random {
   }
 }
 
-const IDS: Record<string, ID> = {};
 const DATA: Record<ID, Card> = {};
-let nextid = 65;
-for (const name in MAIN) {
-  const id = String.fromCharCode(nextid++) as ID;
-  IDS[name] = id;
-  DATA[id] = {...MAIN[name], name, id};
+for (const name in CARDS) {
+  DATA[CARDS[name].id] = {...CARDS[name], name};
 }
-
-const BLACK_PENDANT = IDS['Black Pendant'];
-const LIBRARY = IDS['Royal Magical Library'];
-const REVERSAL_QUIZ = IDS['Reversal Quiz'];
-const THUNDER_DRAGON = IDS['Thunder Dragon'];
 
 const equals = <T>(a: T[], b: T[]) => {
   if (a.length !== b.length) return false;
@@ -683,7 +733,7 @@ class State {
   static create(random: Random) {
     const deck: ID[] = [];
     for (const name in DECK) {
-      for (let i = 0; i < DECK[name]; i++) deck.push(IDS[name]);
+      for (let i = 0; i < DECK[name]; i++) deck.push(CARDS[name].id);
     }
     random.shuffle(deck);
 
@@ -843,14 +893,18 @@ class State {
     if (revert) {
       if (!this.reversed) return;
       this.reversed = false;
-      this.deck.reverse();
-      if (!ID.known(this.deck[0])) this.deck[0] = `(${this.deck[0]})` as DeckID;
-      this.minor(`Turn Deck back face-down ("${ID.decode(this.deck[0]).name}" now on bottom)`);
+      if (this.deck.length) {
+        this.deck.reverse();
+        if (!ID.known(this.deck[0])) this.deck[0] = `(${this.deck[0]})` as DeckID;
+        this.minor(`Turn Deck back face-down ("${ID.decode(this.deck[0]).name}" now on bottom)`);
+      }
     } else {
       if (this.reversed) return;
       this.reversed = true;
-      this.deck.reverse();
-      this.minor(`Turn Deck face-up ("${ID.decode(this.deck[this.deck.length - 1]).name}" now on top)`);
+      if (this.deck.length) {
+        this.deck.reverse();
+        this.minor(`Turn Deck face-up ("${ID.decode(this.deck[this.deck.length - 1]).name}" now on top)`);
+      }
     }
   }
 
@@ -878,18 +932,26 @@ class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
-  search(visited = new Set<string>(), path: string[] = []): { visited: number } | { state: State; path: string[]; visited: number } {
+  search(visited = new SuperSet<string>(), path: string[] = []): { visited: number } | { state: State; path: string[]; visited: number } {
     visited.add(this.toString());
     if (DEBUG) {
       const errors = State.verify(this);
       if (errors.length) {
         console.error(`INVALID STATE ${visited.size}:\n\n${errors.join('\n')}`);
+        console.error(this);
+        console.error(this.trace.join('\n'));
         process.exit(1);
       }
     }
-    for (const [s, state] of this.next().entries()) {
+    if (visited.size % 100000 === 0) console.debug(new Date(), visited.size, this.toString());
+    const next = this.next();
+    // console.debug(this.toString(), Array.from(next.keys()).map(x => x.toString()));
+    for (const [s, state] of next.entries()) {
       if (state.end()) return {state, path, visited: visited.size};
-      if (!visited.has(s)) return state.search(visited, [...path, s]);
+      if (!visited.has(s)) {
+        const result =  state.search(visited, [...path, s]);
+        if ('state' in result) return result;
+      }
     }
     return {visited: visited.size};
   }
@@ -929,25 +991,7 @@ class State {
       if (hand.has(id)) continue;
       hand.add(id);
       const card = ID.decode(id);
-      if (card.type === 'Spell' && this.spells.length < 5) {
-        const set = this.clone();
-        set.major(`Set "${card.name}" face-down`);
-        set.add('spells', `(${id})` as FieldID);
-        set.remove('hand', i);
-        next.set(set.toString(), set);
-
-        card.play(this, 'hand', i, next, card);
-      } else if (card.type === 'Monster' && this.monsters.length < 5 && !this.summoned) {
-        // TODO: add support for setting Cyber Jar in multi-turn scenarios
-        // if (card.name === 'Cyber Jar') {
-        //   const set = this.clone();
-        //   set.major(`Set "${card.name}" face-down in Defense Position`);
-        //   set.summon(`(${id})` as FieldID);
-        //   set.remove('hand', i);
-        //   next.set(set.toString(), set);
-        // }
-        card.play(this, 'hand', i, next, card);
-      } else if (id === THUNDER_DRAGON) {
+      if (id === THUNDER_DRAGON) {
         const targets: number[] = [];
         for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
           if (ID.id(this.deck[j]) === THUNDER_DRAGON) targets.push(j);
@@ -985,6 +1029,25 @@ class State {
           s.shuffle();
           next.set(s.toString(), s);
         }
+      } else if (card.type === 'Monster' && this.monsters.length < 5 && !this.summoned) {
+        card.play(this, 'hand', i, next, card);
+
+        // TODO: add support for setting Cyber Jar in multi-turn scenarios
+        // if (card.name === 'Cyber Jar') {
+        //   const set = this.clone();
+        //   set.major(`Set "${card.name}" face-down in Defense Position`);
+        //   set.summon(`(${id})` as FieldID);
+        //   set.remove('hand', i);
+        //   next.set(set.toString(), set);
+        // }
+      } else if (card.type === 'Spell' && this.spells.length < 5) {
+        card.play(this, 'hand', i, next, card);
+
+        const set = this.clone();
+        set.major(`Set "${card.name}" face-down`);
+        set.add('spells', `(${id})` as FieldID);
+        set.remove('hand', i);
+        next.set(set.toString(), set);
       }
     }
 
@@ -1221,11 +1284,11 @@ class State {
       }
     }
 
-    // NOTE: start doesn't need to be sorted because its already alphabetized
     const start = [];
     for (const name in DECK) {
-      for (let i = 0; i < DECK[name]; i++) start.push(IDS[name]);
+      for (let i = 0; i < DECK[name]; i++) start.push(CARDS[name].id);
     }
+    start.sort();
     const now = [
       ...s.monsters.map(id => ID.id(id)),
       ...s.spells.map(id => ID.id(id)),
@@ -1257,6 +1320,7 @@ class State {
 }
 
 const STATE = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+console.debug(STATE);
 const RESULT = STATE.search();
 if (!('state' in RESULT)) {
   console.error(`Unsuccessfully searched ${RESULT.visited} states`);
