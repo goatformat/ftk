@@ -5,9 +5,16 @@
 </p>
 
 ```
-// TODO: include "probabalistic" Reversal Quiz in win % (do breakdown of with and without guessing)
-// - Archfiend could also blind guess probabilistically
+include "probabalistic" Reversal Quiz in win % (do breakdown of with and without guessing)
+ - Archfiend could also blind guess probabilistically
 
+when probabalistic guessing - can figure out exact ratio by figuring out cards in deck and dont need to try all possible states (other incorrect states are covered by blue eyes mill already)
+
+win condition for termination removes known check in probabalistic instance
+
+play out all paths to exhaustion, if can get non probabablistic win = good, otherwise need to figure out how to merge probabilities from all other paths
+
+---
 
 support multi turns
 - need to reset summoned limit

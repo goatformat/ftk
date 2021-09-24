@@ -1,8 +1,8 @@
 import * as util from 'util';
 
-type Type = 'Normal Monster' | 'Effect Monster' | 'Ritual Monster' | 'Fusion Monster' | 'Token Monster' | 'Spell' | 'Trap';
-type SubType = 'Continuous' | 'Counter' | 'Equip' | 'Field' | 'Normal' | 'Quick-Play' | 'Ritual';
-type Attribute = 'Dark' | 'Earth' | 'Fire' | 'Light' | 'Water' | 'Wind';
+type Type = 'Monster' | 'Spell' | 'Trap';
+type SubType = 'Continuous' | 'Equip' | 'Normal' | 'Quick-Play';
+type Attribute = 'Dark' | 'Light';
 
 type Location = 'monsters' | 'spells' | 'hand' | 'graveyard' | 'deck';
 
@@ -14,6 +14,7 @@ type DeckID = ID | string & As<'DeckID'>;
 type Card = { name: string; id: ID } & Data;
 
 type Data = {
+  type: Type;
   text: string;
   play(
     state: Readonly<State>,
@@ -26,7 +27,7 @@ type Data = {
   type: 'Spell' | 'Trap';
   subType: SubType;
 } | {
-  type: Exclude<Type, 'Spell' | 'Trap'>;
+  type: 'Monster';
   attribute: Attribute;
   level: number;
   atk: number;
@@ -145,7 +146,9 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   unknown.minor('Declare "Blue-Eyes White Dragon"');
   unknown.lifepoints -= 500;
   unknown.add('spells', `${card.id}1` as FieldID);
-  unknown.add('graveyard', ID.id(unknown.deck.pop()!));
+  const reveal = ID.decode(unknown.deck.pop()!);
+  unknown.minor(`Excavate "${reveal.name}"`);
+  unknown.add('graveyard', reveal.id);
   unknown.inc();
   next.set(unknown.toString(), unknown);
 };
@@ -156,7 +159,7 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
     play(state, location, i, next, card) {
-      if (!state.graveyard.length || (state.hand.length < 2 && location === 'hand')) return;
+      if (!state.graveyard.length || (state.hand.length < (location === 'hand' ? 2 : 1))) return;
       const targets = {discard: new Set<ID>(), graveyard: new Set<ID>()};
       for (let j = 0; j < state.hand.length; j++) {
         const hid = state.hand[j];
@@ -238,10 +241,10 @@ const MAIN: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
-    play: SPELL(undefined, s => s.reverse()),
+    play: SPELL(s => !!s.deck.length, s => s.reverse()),
   },
   'Cyber Jar': {
-    type: 'Effect Monster',
+    type: 'Monster',
     attribute: 'Dark',
     level: 3,
     atk: 900,
@@ -253,7 +256,7 @@ const MAIN: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
-    play: SPELL(undefined, s => {
+    play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
       // NOTE: The active Giant Trunade card has already been removed from hand/field
       for (const id of s.spells) {
         const card = ID.decode(id);
@@ -307,13 +310,13 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
     play(state, location, i, next, card) {
-      if (state.monsters.length === 5 || state.lifepoints <= 800) return;
+      if (state.monsters.length > 4 || state.lifepoints <= 800) return;
       const targets = new Set<ID>();
       for (let j = 0; j < state.graveyard.length; j++) {
         const id = state.graveyard[j];
         if (targets.has(id)) continue;
         const target = ID.decode(id);
-        if (target.type.endsWith('Monster')) {
+        if (target.type === 'Monster') {
           targets.add(id);
           const s = state.clone();
           s.major(`Pay 800 LP (${s.lifepoints} -> ${s.lifepoints - 800}) to activate effect of "${card.name}"`);
@@ -356,8 +359,12 @@ const MAIN: { [name: string]: Data } = {
       let sangan = false;
       const s = state.clone();
       s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${self.name}"`);
-      s.minor(`Send ${ID.names(s.hand)} from hand to Graveyard`);
-      s.minor(`Send ${ID.names([...s.monsters, ...s.spells])} from field to Graveyard`);
+      if (s.hand.length) {
+        s.minor(`Send ${ID.names(s.hand)} from hand to Graveyard`);
+      }
+      if (s.monsters.length || s.spells.length) {
+        s.minor(`Send ${ID.names([...s.monsters, ...s.spells])} from field to Graveyard`);
+      }
 
       s.graveyard.push(...s.hand);
 
@@ -413,7 +420,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Royal Magical Library': {
-    type: 'Effect Monster',
+    type: 'Monster',
     attribute: 'Light',
     level: 4,
     atk: 0,
@@ -423,7 +430,7 @@ const MAIN: { [name: string]: Data } = {
     play: MONSTER,
   },
   'Sangan': {
-    type: 'Effect Monster',
+    type: 'Monster',
     attribute: 'Dark',
     level: 3,
     atk: 1000,
@@ -437,8 +444,8 @@ const MAIN: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
     play(state, location, i, next, card) {
-      const h = (location === 'hand' ? 1 : 0);
-      if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
+      const h = (location === 'hand' ? 2 : 1);
+      if (!(state.graveyard.length && state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
 
       let spells!: Set<[number, number]>;
       const targets = new Set<ID>();
@@ -480,7 +487,7 @@ const MAIN: { [name: string]: Data } = {
     },
   },
   'Thunder Dragon': {
-    type: 'Effect Monster',
+    type: 'Monster',
     attribute: 'Light',
     level: 5,
     atk: 1600,
@@ -712,7 +719,7 @@ class State {
 
   add(location: 'spells', id: FieldID): number;
   add(location: 'hand' | 'graveyard', id: ID): number;
-  add(location: Exclude<Location, 'deck' | 'monsters'>, id: ID) {
+  add(location: Exclude<Location, 'deck' | 'monsters'>, id: ID /* | FieldID */) {
     let i = 0;
     for (; i < this[location].length; i++) {
       if (this[location][i] >= id) {
@@ -732,7 +739,7 @@ class State {
   }
 
   madd(id: ID | FieldID) {
-    const zone = this.add('monsters' as any, id); // "I know what I'm doing" (hand equips below)
+    const zone = this.add('monsters' as any, id); // "I know what I'm doing" (handle equips below)
     for (let i = 0; i < this.spells.length; i++) {
       const card = ID.decode(this.spells[i]);
       if (!ID.facedown(this.spells[i]) && card.type === 'Spell' && card.subType === 'Equip') {
@@ -838,23 +845,23 @@ class State {
       this.reversed = false;
       this.deck.reverse();
       if (!ID.known(this.deck[0])) this.deck[0] = `(${this.deck[0]})` as DeckID;
-      this.minor(`Turn Deck back face-down ("${ID.decode(this.deck[0]).name}" on bottom)`);
+      this.minor(`Turn Deck back face-down ("${ID.decode(this.deck[0]).name}" now on bottom)`);
     } else {
       if (this.reversed) return;
       this.reversed = true;
       this.deck.reverse();
-      this.minor(`Turn Deck face up ("${ID.decode(this.deck[this.deck.length - 1]).name}" revealed)`);
+      this.minor(`Turn Deck face-up ("${ID.decode(this.deck[this.deck.length - 1]).name}" now on top)`);
     }
   }
 
   known(quiz = false) {
-    if (!this.deck.length) return false;
+    if (!this.deck.length) return undefined;
     const top = this.deck[this.deck.length - 1];
     if (!quiz && this.reversed) return top;
     if (!this.reversed && ID.known(this.deck[this.deck.length - 1])) return top;
 
     const unknown = new Set<ID>();
-    const types = new Set<'Monster' | 'Spell'>();
+    const types = new Set<Type>();
 
     for (const id of this.deck) {
       // Could technically have known cards are the bottom which would still allow us to determine the card
@@ -862,10 +869,10 @@ class State {
 
       const card = ID.decode(id);
       unknown.add(card.id);
-      types.add(card.type === 'Spell' ? 'Spell' : 'Monster');
+      types.add(card.type);
 
-      if (!quiz && unknown.size > 1) return false;
-      if (!quiz && (unknown.size > 1 && types.size > 1)) return false;
+      if (!quiz && unknown.size > 1) return undefined;
+      if (!quiz && (unknown.size > 1 && types.size > 1)) return undefined;
     }
 
     return (quiz && this.reversed) ? this.deck[0] : top;
@@ -930,7 +937,7 @@ class State {
         next.set(set.toString(), set);
 
         card.play(this, 'hand', i, next, card);
-      } else if (card.type.endsWith('Monster') && this.monsters.length < 5 && !this.summoned) {
+      } else if (card.type === 'Monster' && this.monsters.length < 5 && !this.summoned) {
         // TODO: add support for setting Cyber Jar in multi-turn scenarios
         // if (card.name === 'Cyber Jar') {
         //   const set = this.clone();
@@ -956,7 +963,9 @@ class State {
           s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
           s.shuffle();
           next.set(s.toString(), s);
-        } else if (targets.length === 1) {
+        }
+        // NOTE: This also covers the case where there are 2 targets but we only retrieve 1
+        if (targets.length) {
           const s = this.clone();
           s.major(`Discard "${card.name}"`);
           s.minor(`Add "${card.name}" from Deck to hand`);
@@ -984,7 +993,7 @@ class State {
 
   end() {
     if (this.lifepoints > 500) return false;
-    if (!this.monsters.length) return false;
+    if (!this.monsters.length || !this.deck.length) return false;
     const known = this.known(true);
     if (!known) return false;
     const hand = {pendant: false, quiz: false};
@@ -1021,16 +1030,22 @@ class State {
 
   win(known: DeckID, facedown: {pendant: boolean; quiz: boolean}) {
     const monster = ID.decode(this.monsters[0]);
-    const type = ID.decode(known).type === 'Spell' ? 'Spell' : 'Monster';
     this.major(`${facedown.pendant ? 'Flip face-down "Black Pendant" and equip' : 'Equip "Black Pendant"'}  to "${monster.name}"`);
     this.major(`Activate${facedown.quiz ? ' face-down' : ''} "Reversal Quiz"`);
-    this.minor(`Send ${ID.names(this.hand)} from hand to Graveyard`);
-    this.minor(`Send ${ID.names([...this.monsters, ...this.spells])} from field to Graveyard`);
+    if (this.hand.length) {
+      this.minor(`Send ${ID.names(this.hand)} from hand to Graveyard`);
+    }
+    if (this.monsters.length || this.spells.length) {
+      this.minor(`Send ${ID.names([...this.monsters, ...this.spells])} from field to Graveyard`);
+    }
     for (const id of this.spells) {
       const card = ID.decode(id);
-      if (card.name === 'Convulsion of Nature') this.reverse(true);
+      if (card.name === 'Convulsion of Nature') {
+        this.reverse(true);
+        break;
+      }
     }
-    this.minor(`Call "${type}", reveal "${ID.decode(this.deck[this.deck.length - 1]).name}"`);
+    this.minor(`Call "${ID.decode(known).type}", reveal "${ID.decode(this.deck[this.deck.length - 1]).name}"`);
     this.major(`After exchanging Life Points, opponent has ${this.lifepoints} LP and then takes 500 damage from "Black Pendant" being sent from the field to the Graveyard`);
     return true;
   }
