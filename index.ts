@@ -192,6 +192,11 @@ const BLACK_PENDANT = 'B' as ID;
 const LIBRARY = 'L' as ID;
 const REVERSAL_QUIZ = 'Q' as ID;
 const THUNDER_DRAGON = 'X' as ID;
+const GRACEFUL_CHARITY = 'G' as ID;
+const POT_OF_GREED = 'P' as ID;
+const GIANT_TRUNADE = 'T' as ID;
+
+const POWER = [LIBRARY, GRACEFUL_CHARITY, POT_OF_GREED, GIANT_TRUNADE];
 
 const CARDS: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
@@ -299,7 +304,7 @@ const CARDS: { [name: string]: Data } = {
     play: MONSTER,
   },
   'Giant Trunade': {
-    id: 'T' as ID,
+    id: GIANT_TRUNADE,
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
@@ -315,7 +320,7 @@ const CARDS: { [name: string]: Data } = {
     }),
   },
   'Graceful Charity': {
-    id: 'G' as ID,
+    id: GRACEFUL_CHARITY,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
@@ -349,7 +354,7 @@ const CARDS: { [name: string]: Data } = {
     play: SPELL(),
   },
   'Pot of Greed': {
-    id: 'P' as ID,
+    id: POT_OF_GREED,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 2 cards.',
@@ -945,8 +950,8 @@ class State {
     }
     if (visited.size % 100000 === 0) console.debug(new Date(), visited.size, this.toString());
     const next = this.next();
-    // console.debug(this.toString(), Array.from(next.keys()).map(x => x.toString()));
-    for (const [s, state] of next.entries()) {
+    // console.debug(this.toString(), next.map(([_, s]) => s.toString()));
+    for (const [s, state] of next) {
       if (state.end()) return {state, path, visited: visited.size};
       if (!visited.has(s)) {
         const result =  state.search(visited, [...path, s]);
@@ -1051,7 +1056,27 @@ class State {
       }
     }
 
-    return next;
+    return Array.from(next.entries()).sort(State.compare) as [string, State][];
+  }
+
+  // TODO: Improve this heuristic
+  static compare(s: [string, State], t: [string, State]) {
+    const a = s[1];
+    const b = t[1];
+    // Prefer visiting states with the lowest lifepoints (closest to win condition)
+    if (a.lifepoints !== b.lifepoints) return a.lifepoints - b.lifepoints;
+    // Prefer visiting states with more power cards (sort higher ones lower)
+    return State.power(b) - State.power(a);
+  }
+
+  private static power(s: State) {
+    let score = 0;
+    for (const location of ['monsters', 'hand', 'spells'] as const) {
+      for (const card of s[location]) {
+        if (POWER.includes(ID.id(card))) score++;
+      }
+    }
+    return score;
   }
 
   end() {
