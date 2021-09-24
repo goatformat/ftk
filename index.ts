@@ -209,7 +209,7 @@ const MAIN: { [name: string]: Data } = {
       for (let j = 0; j < state.monsters.length; j++) {
         const s = state.clone();
         s.remove(location, i);
-        s.major(`${location === 'spells' ? `Flip face-down "${card.name}" and equip` : `Equip ${card.name}"`} to "${ID.decode(s.monsters[j]).name}"`);
+        s.major(`${location === 'spells' ? `Flip face-down "${card.name}" and equip` : `Equip "${card.name}"`} to "${ID.decode(s.monsters[j]).name}"`);
         s.add('spells', `${card.id}${j}` as FieldID);
         s.inc();
         next.set(s.toString(), s);
@@ -849,8 +849,9 @@ class State {
 
   known(quiz = false) {
     if (!this.deck.length) return false;
-    if (!quiz && this.reversed) return true;
-    if (!this.reversed && ID.known(this.deck[this.deck.length - 1])) return true;
+    const top = this.deck[this.deck.length - 1];
+    if (!quiz && this.reversed) return top;
+    if (!this.reversed && ID.known(this.deck[this.deck.length - 1])) return top;
 
     const unknown = new Set<ID>();
     const types = new Set<'Monster' | 'Spell'>();
@@ -866,7 +867,8 @@ class State {
       if (!quiz && unknown.size > 1) return false;
       if (!quiz && (unknown.size > 1 && types.size > 1)) return false;
     }
-    return true;
+
+    return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
   search(visited = new Set<string>(), path: string[] = []): { visited: number } | { state: State; path: string[]; visited: number } {
@@ -879,7 +881,7 @@ class State {
       }
     }
     for (const [s, state] of this.next().entries()) {
-      if (state.win()) return {state, path, visited: visited.size};
+      if (state.end()) return {state, path, visited: visited.size};
       if (!visited.has(s)) return state.search(visited, [...path, s]);
     }
     return {visited: visited.size};
@@ -980,10 +982,11 @@ class State {
     return next;
   }
 
-  win() {
+  end() {
     if (this.lifepoints > 500) return false;
     if (!this.monsters.length) return false;
-    if (!this.known(true)) return false;
+    const known = this.known(true);
+    if (!known) return false;
     const hand = {pendant: false, quiz: false};
     for (const id of this.hand) {
       if (id === BLACK_PENDANT) {
@@ -992,7 +995,9 @@ class State {
         hand.quiz = true;
       }
     }
-    if (hand.pendant && hand.quiz && this.spells.length <= 3) return true;
+    if (hand.pendant && hand.quiz && this.spells.length <= 3) {
+      return this.win(known, {pendant: false, quiz: false});
+    }
     const spells = {pendant: false, quiz: false};
     for (const fid of this.spells) {
       const id = ID.id(fid);
@@ -1002,10 +1007,32 @@ class State {
         spells.quiz = true;
       }
     }
-    if (spells.quiz && spells.pendant) return true;
-    if (hand.pendant && this.spells.length <= 4 && spells.quiz) return true;
-    if (hand.quiz && this.spells.length <= 4 && spells.pendant) return true;
+    if (spells.quiz && spells.pendant) {
+      return this.win(known, {pendant: true, quiz: true});
+    }
+    if (hand.pendant && this.spells.length <= 4 && spells.quiz) {
+      return this.win(known, {pendant: false, quiz: true});
+    }
+    if (hand.quiz && this.spells.length <= 4 && spells.pendant) {
+      return this.win(known, {pendant: true, quiz: false});
+    }
     return false;
+  }
+
+  win(known: DeckID, facedown: {pendant: boolean; quiz: boolean}) {
+    const monster = ID.decode(this.monsters[0]);
+    const type = ID.decode(known).type === 'Spell' ? 'Spell' : 'Monster';
+    this.major(`${facedown.pendant ? 'Flip face-down "Black Pendant" and equip' : 'Equip "Black Pendant"'}  to "${monster.name}"`);
+    this.major(`Activate${facedown.quiz ? ' face-down' : ''} "Reversal Quiz"`);
+    this.minor(`Send ${ID.names(this.hand)} from hand to Graveyard`);
+    this.minor(`Send ${ID.names([...this.monsters, ...this.spells])} from field to Graveyard`);
+    for (const id of this.spells) {
+      const card = ID.decode(id);
+      if (card.name === 'Convulsion of Nature') this.reverse(true);
+    }
+    this.minor(`Call "${type}", reveal "${ID.decode(this.deck[this.deck.length - 1]).name}"`);
+    this.major(`After exchanging Life Points, opponent has ${this.lifepoints} LP and then takes 500 damage from "Black Pendant" being sent from the field to the Graveyard`);
+    return true;
   }
 
   clone() {
