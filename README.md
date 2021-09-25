@@ -21,4 +21,10 @@ support multi turns
 - need to draw card
 - any state can have a turn inserted after it
 - need to actually implement flip (currently no way to tribute over a set jar because double summon)
+
+
+---
+
+Different Dimension Capsule
+Heavy Storm
 ```

@@ -937,7 +937,7 @@ class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
-  search(visited = new SuperSet<string>(), path: string[] = []): { visited: number } | { state: State; path: string[]; visited: number } {
+  search(visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
     visited.add(this.toString());
     if (DEBUG) {
       const errors = State.verify(this);
@@ -950,18 +950,18 @@ class State {
     }
     if (visited.size % 100000 === 0) console.debug(new Date(), visited.size, this.toString());
     const next = this.next();
-    // console.debug(this.toString(), next.map(([_, s]) => s.toString()));
     for (const [s, state] of next) {
       if (state.end()) return {state, path, visited: visited.size};
       if (!visited.has(s)) {
         const result =  state.search(visited, [...path, s]);
-        if ('state' in result) return result;
+        if (result.state) return result;
       }
     }
     return {visited: visited.size};
   }
 
   next() {
+    if (this.lifepoints <= 0) return [];
     const next = new Map<string, State>();
 
     for (let i = 0; i < this.monsters.length; i++) {
@@ -991,7 +991,7 @@ class State {
     }
 
     const hand = new Set<ID>();
-    for (let i = 0; i < this.hand.length; i++) {
+    for (let i = 0; i < this.hand.length; i++) { // FIXME remove during iteration
       const id = this.hand[i];
       if (hand.has(id)) continue;
       hand.add(id);
@@ -1059,25 +1059,28 @@ class State {
     return Array.from(next.entries()).sort(State.compare) as [string, State][];
   }
 
-  // TODO: Improve this heuristic
-  static compare(s: [string, State], t: [string, State]) {
-    const a = s[1];
-    const b = t[1];
-    // Prefer visiting states with the lowest lifepoints (closest to win condition)
-    if (a.lifepoints !== b.lifepoints) return a.lifepoints - b.lifepoints;
-    // Prefer visiting states with more power cards (sort higher ones lower)
-    return State.power(b) - State.power(a);
+  static compare(a: [string, State], b: [string, State]) {
+    return a[1].lifepoints - b[1].lifepoints || b[1].deck.length - a[1].deck.length;
   }
 
-  private static power(s: State) {
-    let score = 0;
-    for (const location of ['monsters', 'hand', 'spells'] as const) {
-      for (const card of s[location]) {
-        if (POWER.includes(ID.id(card))) score++;
-      }
-    }
-    return score;
-  }
+  // static compare(s: [string, State], t: [string, State]) {
+  //   const a = s[1];
+  //   const b = t[1];
+  //   // Prefer visiting states with the lowest lifepoints (closest to win condition)
+  //   if (a.lifepoints !== b.lifepoints) return a.lifepoints - b.lifepoints;
+  //   // Prefer visiting states with more power cards (sort higher ones lower)
+  //   return State.power(b) - State.power(a);
+  // }
+
+  // private static power(s: State) {
+  //   let score = 0;
+  //   for (const location of ['monsters', 'hand', 'spells'] as const) {
+  //     for (const card of s[location]) {
+  //       if (POWER.includes(ID.id(card))) score++;
+  //     }
+  //   }
+  //   return score;
+  // }
 
   end() {
     if (this.lifepoints > 500) return false;
@@ -1347,7 +1350,7 @@ class State {
 const STATE = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
 console.debug(STATE);
 const RESULT = STATE.search();
-if (!('state' in RESULT)) {
+if (!RESULT.state) {
   console.error(`Unsuccessfully searched ${RESULT.visited} states`);
   process.exit(1);
 } else {
