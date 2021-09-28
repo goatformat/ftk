@@ -1,4 +1,5 @@
 import 'source-map-support/register';
+import { factory } from 'typescript';
 
 import * as util from 'util';
 
@@ -13,12 +14,13 @@ type ID = string & As<'ID'>;
 type FieldID = ID | string & As<'FieldID'>;
 type DeckID = ID | string & As<'DeckID'>;
 
-type Card = { name: string; } & Data;
+type Card = { name: string; score: number } & Data;
 
 type Data = {
   id: ID,
   type: Type;
   text: string;
+  score?: number;
   play(
     state: Readonly<State>,
     location: Exclude<Location, 'deck' | 'monsters'>,
@@ -188,19 +190,34 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   next.set(unknown.toString(), unknown);
 };
 
-const BLACK_PENDANT = 'B' as ID;
-const LIBRARY = 'L' as ID;
-const REVERSAL_QUIZ = 'Q' as ID;
-const THUNDER_DRAGON = 'X' as ID;
-const GRACEFUL_CHARITY = 'G' as ID;
-const POT_OF_GREED = 'P' as ID;
-const GIANT_TRUNADE = 'T' as ID;
-
-const POWER = [LIBRARY, GRACEFUL_CHARITY, POT_OF_GREED, GIANT_TRUNADE];
+const Ids = {
+  LevelLimitAreaB: 'A' as ID,
+  BlackPendant: 'B' as ID,
+  CardDestruction: 'C' as ID,
+  DifferentDimensionCapsule: 'D' as ID,
+  AFeatherOfThePhoenix: 'F' as ID,
+  GracefulCharity: 'G' as ID,
+  HeavyStorm: 'H' as ID,
+  ToonTableOfContents: 'I' as ID,
+  CyberJar: 'J' as ID,
+  PrematureBurial: 'K' as ID,
+  RoyalMagicalLibrary: 'L' as ID,
+  ArchfiendsOath: 'O' as ID,
+  PotOfGreed: 'P' as ID,
+  ReversalQuiz: 'Q' as ID,
+  Reload: 'R' as ID,
+  Sangan: 'S' as ID,
+  GiantTrunade: 'T' as ID,
+  UpstartGoblin: 'U' as ID,
+  ConvulsionOfNature: 'V' as ID,
+  ToonWorld: 'W' as ID,
+  ThunderDragon: 'Y' as ID,
+  SpellReproduction: 'Z' as ID,
+};
 
 const CARDS: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
-    id: 'F' as ID,
+    id: Ids.AFeatherOfThePhoenix,
     type: 'Spell',
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
@@ -236,7 +253,7 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Archfiend\'s Oath': {
-    id: 'O' as ID,
+    id: Ids.ArchfiendsOath,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
@@ -252,7 +269,7 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Black Pendant': {
-    id: BLACK_PENDANT,
+    id: Ids.BlackPendant,
     type: 'Spell',
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
@@ -268,7 +285,7 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Card Destruction': {
-    id: 'D' as ID,
+    id: Ids.CardDestruction,
     type: 'Spell',
     subType: 'Normal',
     text: 'Both players discard as many cards as possible from their hands, then each player draws the same number of cards they discarded.',
@@ -287,14 +304,14 @@ const CARDS: { [name: string]: Data } = {
     }),
   },
   'Convulsion of Nature': {
-    id: 'V' as ID,
+    id: Ids.ConvulsionOfNature,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
     play: SPELL(s => !!s.deck.length, s => s.reverse()),
   },
   'Cyber Jar': {
-    id: 'J' as ID,
+    id: Ids.CyberJar,
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
@@ -303,68 +320,78 @@ const CARDS: { [name: string]: Data } = {
     text: 'Rock/Flip/Effect – FLIP: Destroy all monsters on the field, then both players reveal the top 5 cards from their Decks, then Special Summon all revealed Level 4 or lower monsters in face-up Attack Position or face-down Defense Position, also add any remaining cards to their hand. (If either player has less than 5 cards in their Deck, reveal as many as possible).',
     play: MONSTER,
   },
+  'Different Dimension Capsule': {
+    id: Ids.DifferentDimensionCapsule,
+    type: 'Spell',
+    subType: 'Normal',
+    text: 'After this card\'s activation, it remains on the field. When this card is activated: Banish 1 card from your Deck, face-down. During your second Standby Phase after this card\'s activation, destroy this card, and if you do, add that card to the hand.',
+    play(state, location, i, next, card) {
+      // TODO
+    },
+  },
   'Giant Trunade': {
-    id: GIANT_TRUNADE,
+    id: Ids.GiantTrunade,
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
+    score: 1.5,
     play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
       // NOTE: The active Giant Trunade card has already been removed from hand/field
       for (const id of s.spells) {
         const card = ID.decode(id);
         s.add('hand', card.id);
-        if (card.name === 'Convulsion of Nature') s.reverse(true);
+        if (card.id === Ids.ConvulsionOfNature) s.reverse(true);
       }
       s.minor(`Return ${ID.names(s.spells)} to hand`);
       s.spells = [];
     }),
   },
   'Graceful Charity': {
-    id: GRACEFUL_CHARITY,
+    id: Ids.GracefulCharity,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
+    score: 1.5,
     play(state, location, i, next, card) {
       if (state.deck.length < 3) return;
       const draw = state.clone();
       draw.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      draw.remove(location, i);
+      draw.add('graveyard', card.id);
       draw.draw(3);
       // isubsets might still return redundant subsets but we count on state deduping to handle it
       for (const [j, k] of isubsets(draw.hand, 2)) {
         if (location === 'hand' && (i === j || i === k)) continue;
         const s = draw.clone();
         s.minor(`Discard "${ID.decode(draw.hand[j]).name}" and "${ID.decode(draw.hand[k]).name}"`);
-        if (location === 'hand') {
-          s.discard([i, j, k].sort());
-        } else {
-          s.remove(location, i);
-          s.add('graveyard', card.id);
-          s.discard([j, k]); // PRECONDITION: j < k
-        }
+        s.discard([j, k]); // PRECONDITION: j < k
         s.inc();
         next.set(s.toString(), s);
       }
     },
   },
   'Level Limit - Area B': {
-    id: 'A' as ID,
+    id: Ids.LevelLimitAreaB,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
+    score: 1/3,
     play: SPELL(),
   },
   'Pot of Greed': {
-    id: POT_OF_GREED,
+    id: Ids.PotOfGreed,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 2 cards.',
+    score: 1.5,
     play: SPELL(s => s.deck.length >= 2, s => s.draw(2)),
   },
   'Premature Burial': {
-    id: 'K' as ID,
+    id: Ids.PrematureBurial,
     type: 'Spell',
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
+    score: 1.3,
     play(state, location, i, next, card) {
       if (state.monsters.length > 4 || state.lifepoints <= 800) return;
       const targets = new Set<ID>();
@@ -388,8 +415,25 @@ const CARDS: { [name: string]: Data } = {
       }
     },
   },
+  'Heavy Storm': {
+    id: Ids.HeavyStorm,
+    type: 'Spell',
+    subType: 'Normal',
+    text: 'Destroy all Spells/Traps on the field.',
+    score: 1/3,
+    play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
+      // NOTE: The active Heavy Storm card has already been removed from hand/field
+      for (const id of s.spells) {
+        const card = ID.decode(id);
+        s.add('graveyard', card.id);
+        if (card.id === Ids.ConvulsionOfNature) s.reverse(true);
+      }
+      s.minor(`Send ${ID.names(s.spells)} to Graveyard`);
+      s.spells = [];
+    }),
+  },
   'Reload': {
-    id: 'R' as ID,
+    id: Ids.Reload,
     type: 'Spell',
     subType: 'Quick-Play',
     text: 'Send all cards from your hand to the Deck, then shuffle. Then, draw the same number of cards you added to the Deck.',
@@ -407,7 +451,7 @@ const CARDS: { [name: string]: Data } = {
     }),
   },
   'Reversal Quiz': {
-    id: REVERSAL_QUIZ,
+    id: Ids.ReversalQuiz,
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
@@ -428,13 +472,13 @@ const CARDS: { [name: string]: Data } = {
       s.hand = [];
       for (const id of s.monsters) {
         const card = ID.decode(id);
-        if (card.name === 'Sangan') sangan = true;
+        if (card.id === Ids.Sangan) sangan = true;
         s.graveyard.push(card.id);
       }
       s.monsters = [];
       for (const id of s.spells) {
         const card = ID.decode(id);
-        if (card.name === 'Convulsion of Nature') s.reverse(true);
+        if (card.id === Ids.ConvulsionOfNature) s.reverse(true);
         s.graveyard.push(card.id);
       }
       s.spells = [];
@@ -477,29 +521,31 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Royal Magical Library': {
-    id: LIBRARY,
+    id: Ids.RoyalMagicalLibrary,
     type: 'Monster',
     attribute: 'Light',
     level: 4,
     atk: 0,
     def: 2000,
     text: 'Spellcaster/Effect – Each time a Spell is activated, place 1 Spell Counter on this card when that Spell resolves (max. 3). You can remove 3 Spell Counters from this card; draw 1 card.',
+    score: 4,
     // NOTE: draw effect handled directly in State#next, and all spells use Stat#inc to update counters
     play: MONSTER,
   },
   'Sangan': {
-    id: 'S' as ID,
+    id: Ids.Sangan,
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
     atk: 1000,
     def: 600,
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
+    score: 1/3,
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
   },
   'Spell Reproduction': {
-    id: 'Z' as ID,
+    id: Ids.SpellReproduction,
     type: 'Spell',
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
@@ -547,7 +593,7 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Thunder Dragon': {
-    id: THUNDER_DRAGON,
+    id: Ids.ThunderDragon,
     type: 'Monster',
     attribute: 'Light',
     level: 5,
@@ -561,7 +607,7 @@ const CARDS: { [name: string]: Data } = {
         const target = ID.decode(state.monsters[j]);
         s.major(`Tribute "${target.name}" to Summon "${self.name}"`);
         s.tribute(j, i);
-        if (target.name === 'Sangan') {
+        if (target.id === Ids.Sangan) {
           const targets = new Set<ID>();
           for (let k = 0; k < state.deck.length; k++) {
             const id = ID.id(state.deck[k]);
@@ -589,7 +635,7 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Toon Table of Contents': {
-    id: 'C' as ID,
+    id: Ids.ToonTableOfContents,
     type: 'Spell',
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
@@ -625,7 +671,7 @@ const CARDS: { [name: string]: Data } = {
     },
   },
   'Toon World': {
-    id: 'W' as ID,
+    id: Ids.ToonWorld,
     type: 'Spell',
     subType: 'Continuous',
     text: 'Activate this card by paying 1000 Life Points.',
@@ -635,10 +681,11 @@ const CARDS: { [name: string]: Data } = {
     }),
   },
   'Upstart Goblin': {
-    id: 'U' as ID,
+    id: Ids.UpstartGoblin,
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 1 card, then your opponent gains 1000 Life Points.',
+    score: 1.1,
     // NOTE: we don't care about our opponent's life points
     play: SPELL(s => !!s.deck.length, s => s.draw()),
   },
@@ -651,8 +698,10 @@ const DECK: { [name: string]: number } = {
   'Card Destruction': 1,
   'Convulsion of Nature': 3,
   // 'Cyber Jar': 1,
+  // 'Different Dimension Capsule': 1,
   'Giant Trunade': 3,
   'Graceful Charity': 1,
+  // 'Heavy Storm': 1,
   'Level Limit - Area B': 2,
   'Pot of Greed': 1,
   'Premature Burial': 1,
@@ -711,7 +760,7 @@ class Random {
 
 const DATA: Record<ID, Card> = {};
 for (const name in CARDS) {
-  DATA[CARDS[name].id] = {...CARDS[name], name};
+  DATA[CARDS[name].id] = {score: 1, ...CARDS[name], name};
 }
 
 const equals = <T>(a: T[], b: T[]) => {
@@ -858,11 +907,11 @@ class State {
   }
 
   major(s: string) {
-    this.trace.push(s);
+    // DEBUG this.trace.push(s);
   }
 
   minor(s: string) {
-    this.trace.push(`  ${s}`);
+    // DEBUG this.trace.push(`  ${s}`);
   }
 
   discard(indices: number[]) {
@@ -937,8 +986,9 @@ class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
-  search(visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
+  search(cutoff = Infinity, visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
     visited.add(this.toString());
+    if (visited.size > cutoff) throw new RangeError();
     if (DEBUG) {
       const errors = State.verify(this);
       if (errors.length) {
@@ -947,13 +997,15 @@ class State {
         console.error(this.trace.join('\n'));
         process.exit(1);
       }
+      if (visited.size % 100000 === 0) console.debug(new Date(), visited.size, this.toString());
     }
-    if (visited.size % 100000 === 0) console.debug(new Date(), visited.size, this.toString());
     const next = this.next();
+    // console.debug(this.toString(), next.map(s => `${s[0]} = ${s[1].score()}`));
+    // process.exit(1); // DEBUG
     for (const [s, state] of next) {
       if (state.end()) return {state, path, visited: visited.size};
       if (!visited.has(s)) {
-        const result =  state.search(visited, [...path, s]);
+        const result =  state.search(cutoff, visited, [...path, s]);
         if (result.state) return result;
       }
     }
@@ -966,7 +1018,7 @@ class State {
 
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
-      if (id !== LIBRARY) continue;
+      if (id !== Ids.RoyalMagicalLibrary) continue;
       const card = ID.decode(id);
       if (!ID.facedown(id) && ID.data(id) === 3 && this.deck.length) {
         const s = this.clone();
@@ -985,21 +1037,21 @@ class State {
       const card = ID.decode(id);
       if (ID.facedown(id)) {
         card.play(this, 'spells', i, next, card);
-      } else if (card.name === 'Archfiend\'s Oath' && !ID.data(id)) {
+      } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
         ARCHFIEND(this, 'spells', i, next, card);
       }
     }
 
     const hand = new Set<ID>();
-    for (let i = 0; i < this.hand.length; i++) { // FIXME remove during iteration
+    for (let i = 0; i < this.hand.length; i++) {
       const id = this.hand[i];
       if (hand.has(id)) continue;
       hand.add(id);
       const card = ID.decode(id);
-      if (id === THUNDER_DRAGON) {
+      if (id === Ids.ThunderDragon) {
         const targets: number[] = [];
         for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
-          if (ID.id(this.deck[j]) === THUNDER_DRAGON) targets.push(j);
+          if (ID.id(this.deck[j]) === Ids.ThunderDragon) targets.push(j);
         }
         if (targets.length === 2) {
           const s = this.clone();
@@ -1060,27 +1112,41 @@ class State {
   }
 
   static compare(a: [string, State], b: [string, State]) {
-    return a[1].lifepoints - b[1].lifepoints || b[1].deck.length - a[1].deck.length;
+    return (b[1].score() - a[1].score()
+    || a[1].lifepoints - b[1].lifepoints
+    || a[1].deck.length - b[1].deck.length);
   }
 
-  // static compare(s: [string, State], t: [string, State]) {
-  //   const a = s[1];
-  //   const b = t[1];
-  //   // Prefer visiting states with the lowest lifepoints (closest to win condition)
-  //   if (a.lifepoints !== b.lifepoints) return a.lifepoints - b.lifepoints;
-  //   // Prefer visiting states with more power cards (sort higher ones lower)
-  //   return State.power(b) - State.power(a);
-  // }
+  score() {
+    let score = 0;
 
-  // private static power(s: State) {
-  //   let score = 0;
-  //   for (const location of ['monsters', 'hand', 'spells'] as const) {
-  //     for (const card of s[location]) {
-  //       if (POWER.includes(ID.id(card))) score++;
-  //     }
-  //   }
-  //   return score;
-  // }
+    for (const id of this.monsters) {
+      const card = ID.decode(id);
+      if (!this.summoned) score += card.score;
+      if (card.id === Ids.RoyalMagicalLibrary) score += card.score + ID.data(id) / 3;
+    }
+
+    const open = this.spells.length < 5;
+    for (const id of this.spells) {
+      const card = ID.decode(id);
+      if (ID.facedown(id)) {
+        score += card.score / 2;
+      } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
+        score++;
+      }
+    }
+
+    for (const id of this.hand) {
+      const card = ID.decode(id);
+      if (card.type === 'Spell' && open) {
+        score += card.score;
+      } else if (!this.summoned) {
+        score += card.id == Ids.RoyalMagicalLibrary ? card.score / 3 : card.score;
+      }
+    }
+
+    return score;
+  }
 
   end() {
     if (this.lifepoints > 500) return false;
@@ -1089,9 +1155,9 @@ class State {
     if (!known) return false;
     const hand = {pendant: false, quiz: false};
     for (const id of this.hand) {
-      if (id === BLACK_PENDANT) {
+      if (id === Ids.BlackPendant) {
         hand.pendant = true;
-      } else if (id === REVERSAL_QUIZ) {
+      } else if (id === Ids.ReversalQuiz) {
         hand.quiz = true;
       }
     }
@@ -1101,9 +1167,9 @@ class State {
     const spells = {pendant: false, quiz: false};
     for (const fid of this.spells) {
       const id = ID.id(fid);
-      if (id === BLACK_PENDANT) {
+      if (id === Ids.BlackPendant) {
         spells.pendant = true;
-      } else if (id === REVERSAL_QUIZ) {
+      } else if (id === Ids.ReversalQuiz) {
         spells.quiz = true;
       }
     }
@@ -1131,7 +1197,7 @@ class State {
     }
     for (const id of this.spells) {
       const card = ID.decode(id);
-      if (card.name === 'Convulsion of Nature') {
+      if (card.id === Ids.ConvulsionOfNature) {
         this.reverse(true);
         break;
       }
@@ -1259,7 +1325,7 @@ class State {
     } else {
       for (const id of s.monsters) {
         const card = ID.decode(id);
-        if (((ID.facedown(id) || card.id !== LIBRARY) && ID.data(id)) || ID.data(id) > 3) {
+        if (((ID.facedown(id) || card.id !== Ids.RoyalMagicalLibrary) && ID.data(id)) || ID.data(id) > 3) {
           errors.push(`Monsters: ${pretty(s.monsters)}`);
           break;
         }
@@ -1274,7 +1340,7 @@ class State {
         const facedown = ID.facedown(id);
         const data = ID.data(id);
         if ((facedown && data) ||
-          (card.name === 'Archfiend\'s Oath' && data > 1) ||
+          (card.id === Ids.ArchfiendsOath && data > 1) ||
           (!facedown && card.type === 'Spell' &&
             !['Continuous', 'Equip'].includes(card.subType))) {
           errors.push(`Spells: ${pretty(s.spells)}`);
@@ -1347,12 +1413,51 @@ class State {
   }
 }
 
-const STATE = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
-console.debug(STATE);
-const RESULT = STATE.search();
-if (!RESULT.state) {
-  console.error(`Unsuccessfully searched ${RESULT.visited} states`);
-  process.exit(1);
-} else {
-  console.log(`Found a path after searching ${RESULT.visited} states:\n\n${RESULT.state.trace.join('\n')}`);
+function stitch(trace: string[], path: string[]) {
+  const buf = [];
+
+  let major = -1;
+  for (const line of trace) {
+    if (!line.startsWith('  ')) {
+      if (path[major]) buf.push(`\n${path[major]}\n`);
+      major++;
+    }
+    buf.push(line);
+  }
+
+  return buf.join('\n');
 }
+
+// const STATE = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+// if (DEBUG) console.debug(STATE);
+// const RESULT = STATE.search(1e8);
+// if (!RESULT.state) {
+//   console.error(`Unsuccessfully searched ${RESULT.visited} states`);
+//   process.exit(1);
+// } else {
+//   console.log(`Found a path of length ${RESULT.path!.length} after searching ${RESULT.visited} states${stitch(RESULT.state.trace, RESULT.path!)}}`);
+// }
+
+const RESULTS: ['success' | 'fail' | 'exhaust', number, string, number?, number?][] = [];
+const START = Date.now();
+for (let i = 0; i < (+process.argv[2] || 1000); i++) {
+  const state = State.create(new Random(Random.seed(i)));
+  const hand = state.hand.slice().sort().join('');
+  let result!: ['success' | 'fail' | 'exhaust', number, string, number?, number?];
+  const start = Date.now();
+  try {
+    const search = state.search(1e7);
+    if (search.state) {
+      result = ['success', Date.now() - start, hand, search.visited, search.path!.length];
+    } else {
+      result = ['fail', Date.now() - start, hand, search.visited, undefined];
+    }
+  } catch (e) {
+    if (e instanceof RangeError) {
+      result = ['exhaust', Date.now() - start, hand, undefined, undefined];
+    }
+  }
+  console.log(result.join(','));
+  RESULTS.push(result);
+}
+console.log(Date.now() - START);
