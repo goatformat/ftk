@@ -19,7 +19,7 @@
     "lint": "eslint --cache *.ts",
     "prepare": "npm run compile",
     "prestart": "npm run compile",
-    "start": "node build/index",
+    "start": "node run",
     "test": "npm run compile && npm run fix"
   },
   "eslintConfig": {

@@ -1,4 +1,4 @@
-result,time,hand,states,path
+result,duration,hand,visited,path
 success,1969,OQRTTZ,151418,78
 fail,1489,BDLOUZ,128386,
 success,2734,ORTVVX,212161,65

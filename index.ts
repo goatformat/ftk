@@ -1,5 +1,4 @@
 import 'source-map-support/register';
-import { factory } from 'typescript';
 
 import * as util from 'util';
 
@@ -198,7 +197,6 @@ const Ids = {
   AFeatherOfThePhoenix: 'F' as ID,
   GracefulCharity: 'G' as ID,
   HeavyStorm: 'H' as ID,
-  ToonTableOfContents: 'I' as ID,
   CyberJar: 'J' as ID,
   PrematureBurial: 'K' as ID,
   RoyalMagicalLibrary: 'L' as ID,
@@ -211,6 +209,7 @@ const Ids = {
   UpstartGoblin: 'U' as ID,
   ConvulsionOfNature: 'V' as ID,
   ToonWorld: 'W' as ID,
+  ToonTableOfContents: 'X' as ID,
   ThunderDragon: 'Y' as ID,
   SpellReproduction: 'Z' as ID,
 };
@@ -716,7 +715,7 @@ const DECK: { [name: string]: number } = {
   'Upstart Goblin': 2,
 };
 
-class Random {
+export class Random {
   seed: number;
 
   static seed(n = 4 /* https://xkcd.com/221/ */) {
@@ -771,7 +770,7 @@ const equals = <T>(a: T[], b: T[]) => {
   return true;
 };
 
-class State {
+export class State {
   random: Random;
   lifepoints: number;
   summoned: boolean;
@@ -1412,52 +1411,3 @@ class State {
     }, {colors: true, breakLength: 200, maxStringLength: Infinity});
   }
 }
-
-function stitch(trace: string[], path: string[]) {
-  const buf = [];
-
-  let major = -1;
-  for (const line of trace) {
-    if (!line.startsWith('  ')) {
-      if (path[major]) buf.push(`\n${path[major]}\n`);
-      major++;
-    }
-    buf.push(line);
-  }
-
-  return buf.join('\n');
-}
-
-// const STATE = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
-// if (DEBUG) console.debug(STATE);
-// const RESULT = STATE.search(1e8);
-// if (!RESULT.state) {
-//   console.error(`Unsuccessfully searched ${RESULT.visited} states`);
-//   process.exit(1);
-// } else {
-//   console.log(`Found a path of length ${RESULT.path!.length} after searching ${RESULT.visited} states${stitch(RESULT.state.trace, RESULT.path!)}}`);
-// }
-
-const RESULTS: ['success' | 'fail' | 'exhaust', number, string, number?, number?][] = [];
-const START = Date.now();
-for (let i = 0; i < (+process.argv[2] || 1000); i++) {
-  const state = State.create(new Random(Random.seed(i)));
-  const hand = state.hand.slice().sort().join('');
-  let result!: ['success' | 'fail' | 'exhaust', number, string, number?, number?];
-  const start = Date.now();
-  try {
-    const search = state.search(1e7);
-    if (search.state) {
-      result = ['success', Date.now() - start, hand, search.visited, search.path!.length];
-    } else {
-      result = ['fail', Date.now() - start, hand, search.visited, undefined];
-    }
-  } catch (e) {
-    if (e instanceof RangeError) {
-      result = ['exhaust', Date.now() - start, hand, undefined, undefined];
-    }
-  }
-  console.log(result.join(','));
-  RESULTS.push(result);
-}
-console.log(Date.now() - START);

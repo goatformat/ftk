@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+const {State, Random} = require('./build');
+
+function stitch(trace, path) {
+  const buf = [];
+
+  let major = -1;
+  for (const line of trace) {
+    if (!line.startsWith('  ')) {
+      if (path[major]) buf.push(`\n${path[major]}\n`);
+      major++;
+    }
+    buf.push(line);
+  }
+
+  return buf.join('\n');
+}
+
+// const state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+// if (process.env.DEBUG) console.debug(state, state.hand.slice().sort().join(''));
+// const result = state.search(1e8);
+// if (!result.state) {
+//   console.error(`Unsuccessfully searched ${result.visited} states`);
+//   process.exit(1);
+// } else {
+//   console.log(`Found a path of length ${result.path.length} after searching ${result.visited} states${stitch(result.state.trace, result.path)}`);
+// }
+
+const results = [];
+const start = Date.now();
+console.log('result,duration,hand,visited,path');
+for (let i = 0; i < (+process.argv[2] || 1000); i++) {
+  const state = State.create(new Random(Random.seed(i)));
+  const hand = state.hand.slice().sort().join('');
+  let result;
+  const start = Date.now();
+  try {
+    const search = state.search(1e7);
+    if (search.state) {
+      result = ['success', Date.now() - start, hand, search.visited, search.path.length];
+    } else {
+      result = ['fail', Date.now() - start, hand, search.visited, undefined];
+    }
+  } catch (e) {
+    if (e instanceof RangeError) {
+      result = ['exhaust', Date.now() - start, hand, undefined, undefined];
+    }
+  }
+  console.log(result.join(','));
+  results.push(result);
+}
+console.log(Date.now() - start);
