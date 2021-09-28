@@ -6,7 +6,7 @@ type Type = 'Monster' | 'Spell' | 'Trap';
 type SubType = 'Continuous' | 'Equip' | 'Normal' | 'Quick-Play';
 type Attribute = 'Dark' | 'Light';
 
-type Location = 'monsters' | 'spells' | 'hand' | 'graveyard' | 'deck';
+type Location = 'monsters' | 'spells' | 'hand' | 'banished' | 'graveyard' | 'deck';
 
 interface As<T> { __brand: T }
 type ID = string & As<'ID'>;
@@ -24,7 +24,7 @@ type Data = {
     state: Readonly<State>,
     location: Exclude<Location, 'deck' | 'monsters'>,
     i: number,
-    next: Map<string, State>,
+    next: Map<string, {state: State, score: number}>,
     card: Card
   ): void;
 } & ({
@@ -38,6 +38,7 @@ type Data = {
   def: number;
 });
 
+const TRACE = !process.env.PROD;
 const DEBUG = !!process.env.DEBUG;
 
 const ID = new class {
@@ -70,36 +71,6 @@ const ID = new class {
     return `${names.join(', ')} and ${last}`;
   }
 };
-
-
-// github.com/nodejs/node#37320
-class SuperSet<T> {
-  private sets: Set<T>[];
-
-  constructor() {
-    this.sets = [new Set<T>()];
-  }
-
-  get size() {
-    let size = 0;
-    for (const set of this.sets) {
-      size += set.size;
-    }
-    return size;
-  }
-
-  add(v: T) {
-    if (this.sets[this.sets.length-1].size === 16777000) this.sets.push(new Set());
-    return this.sets[this.sets.length-1].add(v);
-  }
-
-  has(v: T) {
-    for (const set of this.sets) {
-      if (set.has(v)) return true;
-    }
-    return false;
-  }
-}
 
 const subsets = <T>(s: T[], k: number): T[][] => {
   if (k > s.length || k <= 0) return [];
@@ -139,7 +110,7 @@ const MONSTER: Data['play'] = (state, location, i, next, card) => {
   s.remove(location, i);
   s.major(`Summon "${card.name}" in Attack Position`);
   s.summon(card.id);
-  next.set(s.toString(), s);
+  State.transition(next, s);
 };
 
 const SPELL: (cnd?: (s: State, l: Location) => boolean, fn?: (s: State) => void) => Data['play'] =
@@ -157,7 +128,7 @@ const SPELL: (cnd?: (s: State, l: Location) => boolean, fn?: (s: State) => void)
       }
       if (fn) fn(s);
       s.inc();
-      next.set(s.toString(), s);
+      State.transition(next, s);
     };
 
 const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
@@ -172,7 +143,7 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
     known.add('spells', `${card.id}1` as FieldID);
     known.draw();
     known.inc();
-    next.set(known.toString(), known);
+    State.transition(next, known);
   }
 
   // If you just want to pay 500 you might simply guess something impossible and mill one
@@ -186,7 +157,7 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   unknown.minor(`Excavate "${reveal.name}"`);
   unknown.add('graveyard', reveal.id);
   unknown.inc();
-  next.set(unknown.toString(), unknown);
+  State.transition(next, unknown);
 };
 
 const Ids = {
@@ -246,7 +217,7 @@ const CARDS: { [name: string]: Data } = {
           }
           s.deck.push(`(${gid})` as DeckID);
           s.inc();
-          next.set(s.toString(), s);
+          State.transition(next, s);
         }
       }
     },
@@ -264,7 +235,7 @@ const CARDS: { [name: string]: Data } = {
       unactivated.remove(location, i);
       unactivated.add('spells', card.id);
       unactivated.inc();
-      next.set(unactivated.toString(), unactivated);
+      State.transition(next, unactivated);
     },
   },
   'Black Pendant': {
@@ -279,7 +250,7 @@ const CARDS: { [name: string]: Data } = {
         s.major(`${location === 'spells' ? `Flip face-down "${card.name}" and equip` : `Equip "${card.name}"`} to "${ID.decode(s.monsters[j]).name}"`);
         s.add('spells', `${card.id}${j}` as FieldID);
         s.inc();
-        next.set(s.toString(), s);
+        State.transition(next, s);
       }
     },
   },
@@ -365,7 +336,7 @@ const CARDS: { [name: string]: Data } = {
         s.minor(`Discard "${ID.decode(draw.hand[j]).name}" and "${ID.decode(draw.hand[k]).name}"`);
         s.discard([j, k]); // PRECONDITION: j < k
         s.inc();
-        next.set(s.toString(), s);
+        State.transition(next, s);
       }
     },
   },
@@ -409,7 +380,7 @@ const CARDS: { [name: string]: Data } = {
           s.remove(location, i);
           s.add('spells', `${card.id}${zone}` as FieldID);
           s.inc();
-          next.set(s.toString(), s);
+          State.transition(next, s);
         }
       }
     },
@@ -487,7 +458,7 @@ const CARDS: { [name: string]: Data } = {
         const reveal = s.deck[s.deck.length - 1];
         if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
         s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
-        next.set(s.toString(), s);
+        State.transition(next, s);
         return;
       }
 
@@ -504,7 +475,7 @@ const CARDS: { [name: string]: Data } = {
           const reveal = t.deck[t.deck.length - 1];
           if (!ID.known(reveal)) t.deck[t.deck.length - 1] = `(${reveal})` as DeckID;
           t.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
-          next.set(t.toString(), t);
+          State.transition(next, t);
         }
       }
       // Failure to find
@@ -515,7 +486,7 @@ const CARDS: { [name: string]: Data } = {
         const reveal = t.deck[t.deck.length - 1];
         if (!ID.known(reveal)) t.deck[t.deck.length - 1] = `(${reveal})` as DeckID;
         t.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
-        next.set(t.toString(), t);
+        State.transition(next, t);
       }
     },
   },
@@ -585,7 +556,7 @@ const CARDS: { [name: string]: Data } = {
             s.minor(`Add "${ID.decode(gid).name}" in the Graveyard to hand`);
             s.add('hand', gid);
             s.inc();
-            next.set(s.toString(), s);
+            State.transition(next, s);
           }
         }
       }
@@ -617,7 +588,7 @@ const CARDS: { [name: string]: Data } = {
               s.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
               t.add('hand', ID.id(s.deck.splice(k, 1)[0]));
               t.shuffle();
-              next.set(t.toString(), t);
+              State.transition(next, t);
             }
           }
           // Failure to find
@@ -625,10 +596,10 @@ const CARDS: { [name: string]: Data } = {
             const t = s.clone();
             t.minor('Fail to find "Sangan" target in Deck');
             t.shuffle();
-            next.set(t.toString(), t);
+            State.transition(next, t);
           }
         } else {
-          next.set(s.toString(), s);
+          State.transition(next, s);
         }
       }
     },
@@ -653,7 +624,7 @@ const CARDS: { [name: string]: Data } = {
           s.add('hand', ID.id(s.deck.splice(j, 1)[0]));
           s.shuffle();
           s.inc();
-          next.set(s.toString(), s);
+          State.transition(next, s);
         }
       }
       // Failure to find
@@ -665,7 +636,7 @@ const CARDS: { [name: string]: Data } = {
         s.add('graveyard', card.id);
         s.shuffle();
         s.inc();
-        next.set(s.toString(), s);
+        State.transition(next, s);
       }
     },
   },
@@ -777,6 +748,7 @@ export class State {
   monsters: FieldID[];
   spells: FieldID[];
   hand: ID[];
+  banished: DeckID[];
   graveyard: ID[];
   deck: DeckID[];
   reversed: boolean;
@@ -790,7 +762,7 @@ export class State {
     }
     random.shuffle(deck);
 
-    const state = new State(random, 8000, false, [], [], [], [], deck, false, []);
+    const state = new State(random, 8000, false, [], [], [], [], [], deck, false, []);
     state.draw(6, true);
     return state;
   }
@@ -802,6 +774,7 @@ export class State {
     monsters: FieldID[],
     spells: FieldID[],
     hand: ID[],
+    banished: DeckID[],
     graveyard: ID[],
     deck: DeckID[],
     reversed: boolean,
@@ -813,6 +786,7 @@ export class State {
     this.monsters = monsters;
     this.spells = spells;
     this.hand = hand;
+    this.banished = banished;
     this.graveyard = graveyard;
     this.deck = deck;
     this.reversed = reversed;
@@ -821,8 +795,9 @@ export class State {
   }
 
   add(location: 'spells', id: FieldID): number;
+  add(location: 'banished', id: DeckID): number;
   add(location: 'hand' | 'graveyard', id: ID): number;
-  add(location: Exclude<Location, 'deck' | 'monsters'>, id: ID /* | FieldID */) {
+  add(location: Exclude<Location, 'deck' | 'monsters'>, id: ID /* | DeckID | FieldID */) {
     let i = 0;
     for (; i < this[location].length; i++) {
       if (this[location][i] >= id) {
@@ -835,8 +810,9 @@ export class State {
   }
 
   remove(location: 'spells', i: number): FieldID;
+  remove(location: 'banished', id: number): DeckID;
   remove(location: 'hand' | 'graveyard', i: number): ID;
-  remove(location: Exclude<Location, 'deck' | 'monsters'>, i: number): ID | FieldID;
+  remove(location: Exclude<Location, 'deck' | 'monsters'>, i: number): ID | DeckID | FieldID;
   remove(location: Exclude<Location, 'deck' | 'monsters'>, i: number) {
     return this[location].splice(i, 1)[0];
   }
@@ -906,11 +882,11 @@ export class State {
   }
 
   major(s: string) {
-    // DEBUG this.trace.push(s);
+    if (TRACE) this.trace.push(s);
   }
 
   minor(s: string) {
-    // DEBUG this.trace.push(`  ${s}`);
+    if (TRACE) this.trace.push(`  ${s}`);
   }
 
   discard(indices: number[]) {
@@ -1001,7 +977,7 @@ export class State {
     const next = this.next();
     // console.debug(this.toString(), next.map(s => `${s[0]} = ${s[1].score()}`));
     // process.exit(1); // DEBUG
-    for (const [s, state] of next) {
+    for (const [s, {state}] of next) {
       if (state.end()) return {state, path, visited: visited.size};
       if (!visited.has(s)) {
         const result =  state.search(cutoff, visited, [...path, s]);
@@ -1011,9 +987,13 @@ export class State {
     return {visited: visited.size};
   }
 
+  static transition(next: Map<string, {state: State, score: number}>, s: State) {
+    next.set(s.toString(), {state: s, score: s.score()});
+  }
+
   next() {
     if (this.lifepoints <= 0) return [];
-    const next = new Map<string, State>();
+    const next = new Map<string, {state: State, score: number}>();
 
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
@@ -1024,10 +1004,11 @@ export class State {
         s.major(`Remove 3 Spell Counters from "${card.name}"`);
         s.mclear(i);
         s.draw();
-        next.set(s.toString(), s);
+        State.transition(next, s);
       }
     }
 
+    let set = false;
     const spells = new Set<FieldID>();
     for (let i = 0; i < this.spells.length; i++) {
       const id = this.spells[i];
@@ -1035,6 +1016,7 @@ export class State {
       spells.add(id);
       const card = ID.decode(id);
       if (ID.facedown(id)) {
+        if (card.id === Ids.CardDestruction || card.id === Ids.Reload) set = true;
         card.play(this, 'spells', i, next, card);
       } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
         ARCHFIEND(this, 'spells', i, next, card);
@@ -1062,7 +1044,7 @@ export class State {
           s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
           s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
           s.shuffle();
-          next.set(s.toString(), s);
+          State.transition(next, s);
         }
         // NOTE: This also covers the case where there are 2 targets but we only retrieve 1
         if (targets.length) {
@@ -1074,7 +1056,7 @@ export class State {
           // Due to symmetry it doesn't matter which we choose
           s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
           s.shuffle();
-          next.set(s.toString(), s);
+          State.transition(next, s);
         } else {
           // Failure to find
           const s = this.clone();
@@ -1083,7 +1065,7 @@ export class State {
           s.remove('hand', i);
           s.add('graveyard', card.id);
           s.shuffle();
-          next.set(s.toString(), s);
+          State.transition(next, s);
         }
       } else if (card.type === 'Monster' && this.monsters.length < 5 && !this.summoned) {
         card.play(this, 'hand', i, next, card);
@@ -1097,23 +1079,37 @@ export class State {
         //   next.set(set.toString(), set);
         // }
       } else if (card.type === 'Spell' && this.spells.length < 5) {
+        if (card.id === Ids.CardDestruction || card.id === Ids.Reload) set = true;
         card.play(this, 'hand', i, next, card);
-
-        const set = this.clone();
-        set.major(`Set "${card.name}" face-down`);
-        set.add('spells', `(${id})` as FieldID);
-        set.remove('hand', i);
-        next.set(set.toString(), set);
       }
     }
 
-    return Array.from(next.entries()).sort(State.compare) as [string, State][];
+    // Without a playable Card Destruction or Reload setting spell cards does nothing
+    // TODO: support setting to avoid hand limit when multi-turn is implemented
+    if (set) {
+      hand.clear();
+      for (let i = 0; i < this.hand.length; i++) {
+        const id = this.hand[i];
+        if (hand.has(id)) continue;
+        hand.add(id);
+        const card = ID.decode(id);
+        if (card.type === 'Spell' && this.spells.length < 5) {
+          const set = this.clone();
+          set.major(`Set "${card.name}" face-down`);
+          set.add('spells', `(${id})` as FieldID);
+          set.remove('hand', i);
+          State.transition(next, set);
+        }
+      }
+    }
+
+    return Array.from(next.entries()).sort(State.compare) as [string, {state: State, score: number}][];
   }
 
-  static compare(a: [string, State], b: [string, State]) {
-    return (b[1].score() - a[1].score()
-    || a[1].lifepoints - b[1].lifepoints
-    || a[1].deck.length - b[1].deck.length);
+  static compare(a: [string, {state: State, score: number}], b: [string, {state: State, score: number}]) {
+    return (b[1].score - a[1].score
+    || a[1].state.lifepoints - b[1].state.lifepoints
+    || a[1].state.deck.length - b[1].state.deck.length);
   }
 
   score() {
@@ -1125,7 +1121,7 @@ export class State {
       if (card.id === Ids.RoyalMagicalLibrary) score += card.score + ID.data(id) / 3;
     }
 
-    const open = this.spells.length < 5;
+    const open = 5 - this.spells.length;
     for (const id of this.spells) {
       const card = ID.decode(id);
       if (ID.facedown(id)) {
@@ -1214,6 +1210,7 @@ export class State {
       this.monsters.slice(),
       this.spells.slice(),
       this.hand.slice(),
+      this.banished.slice(),
       this.graveyard.slice(),
       this.deck.slice(),
       this.reversed,
@@ -1244,6 +1241,7 @@ export class State {
       equals(this.monsters, s.monsters) &&
       equals(this.spells, s.spells) &&
       equals(this.hand, s.hand) &&
+      equals(this.banished, s.banished) &&
       equals(this.graveyard, s.graveyard) &&
       equals(this.deck, s.deck));
   }
@@ -1251,7 +1249,7 @@ export class State {
   toString() {
     return `${this.random.seed}|${this.lifepoints}|${+this.summoned}|` +
       `${this.monsters.join('')}|${this.spells.join('')}|${this.hand.join('')}|` +
-      `${this.graveyard.join('')}|${this.deck.join('')}|${+this.reversed}`;
+      `${this.banished.join('')}|${this.graveyard.join('')}|${this.deck.join('')}|${+this.reversed}`;
   }
 
   static fromString(s: string) {
@@ -1280,6 +1278,10 @@ export class State {
 
     i = j + 1;
     j = s.indexOf('|', i);
+    const banished = this.parse(s.slice(i, j)) as DeckID[];
+
+    i = j + 1;
+    j = s.indexOf('|', i);
     const graveyard = s.slice(i, j).split('') as ID[];
 
     i = j + 1;
@@ -1290,8 +1292,24 @@ export class State {
     const reversed = s.slice(i) === '1';
 
     return new State(
-      random, lifepoints, summoned, monsters, spells, hand, graveyard, deck, reversed, []
+      random, lifepoints, summoned, monsters, spells, hand, banished, graveyard, deck, reversed, []
     );
+  }
+
+  // TODO: remove redudant states!
+  display(path: string[]) {
+    const buf = [];
+
+    let major = -1;
+    for (const line of this.trace) {
+      if (!line.startsWith('  ')) {
+        if (path[major]) buf.push(`\n${path[major]}\n`);
+        major++;
+      }
+      buf.push(line);
+    }
+
+    return buf.join('\n');
   }
 
   private static parse(s: string): (FieldID | DeckID)[] {
@@ -1356,13 +1374,18 @@ export class State {
       errors.push(`Hand: ${pretty(s.hand)}`);
     }
 
+    if (s.banished.length > 4 || !equals(s.banished.slice().sort(), s.banished)) {
+      errors.push(`Banished: ${pretty(s.banished)}`);
+      // TODO: check for facedowns in banished
+    }
+
     if (s.graveyard.length > 40 ||
       s.graveyard.filter(i => i.length > 1).length ||
       !equals(s.graveyard.slice().sort(), s.graveyard)) {
       errors.push(`Graveyard: ${pretty(s.graveyard)}`);
     }
 
-    if (s.deck.length > 40 || s.graveyard.filter(i => i.length > 1).length) {
+    if (s.deck.length > 40) {
       errors.push(`Deck: ${pretty(s.deck)}`);
     } else {
       let pattern = 0; // expect (...)???(...)
@@ -1386,6 +1409,7 @@ export class State {
       ...s.monsters.map(id => ID.id(id)),
       ...s.spells.map(id => ID.id(id)),
       ...s.hand,
+      ...s.banished,
       ...s.graveyard,
       ...s.deck.map(id => ID.id(id)),
     ].sort();
@@ -1405,6 +1429,7 @@ export class State {
       monsters: this.monsters.map(pretty),
       spells: this.spells.map(pretty),
       hand: this.hand.map(pretty),
+      banished: this.banished.map(pretty),
       graveyard: this.graveyard.map(pretty),
       deck: this.deck.map(pretty),
       reversed: this.reversed,

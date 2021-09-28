@@ -21,7 +21,10 @@ support multi turns
 - need to draw card
 - any state can have a turn inserted after it
 - need to actually implement flip (currently no way to tribute over a set jar because double summon)
+- need to support setting cards to avoid discarding due to hand limit
 
+
+// github.com/nodejs/node#37320
 
 ---
 
