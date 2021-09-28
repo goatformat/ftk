@@ -17,6 +17,7 @@ type Card = { name: string; score: number } & Data;
 
 type Data = {
   id: ID,
+  passcode: string,
   type: Type;
   text: string;
   score?: number;
@@ -188,6 +189,7 @@ const Ids = {
 const CARDS: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
     id: Ids.AFeatherOfThePhoenix,
+    passcode: '49140998',
     type: 'Spell',
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
@@ -224,6 +226,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Archfiend\'s Oath': {
     id: Ids.ArchfiendsOath,
+    passcode: '22796548',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
@@ -240,6 +243,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Black Pendant': {
     id: Ids.BlackPendant,
+    passcode: '65169794',
     type: 'Spell',
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
@@ -256,6 +260,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Card Destruction': {
     id: Ids.CardDestruction,
+    passcode: '72892473',
     type: 'Spell',
     subType: 'Normal',
     text: 'Both players discard as many cards as possible from their hands, then each player draws the same number of cards they discarded.',
@@ -275,6 +280,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Convulsion of Nature': {
     id: Ids.ConvulsionOfNature,
+    passcode: '62966332',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
@@ -282,6 +288,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Cyber Jar': {
     id: Ids.CyberJar,
+    passcode: '34124316',
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
@@ -292,6 +299,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Different Dimension Capsule': {
     id: Ids.DifferentDimensionCapsule,
+    passcode: '11961740',
     type: 'Spell',
     subType: 'Normal',
     text: 'After this card\'s activation, it remains on the field. When this card is activated: Banish 1 card from your Deck, face-down. During your second Standby Phase after this card\'s activation, destroy this card, and if you do, add that card to the hand.',
@@ -301,6 +309,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Giant Trunade': {
     id: Ids.GiantTrunade,
+    passcode: '42703248',
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
@@ -318,6 +327,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Graceful Charity': {
     id: Ids.GracefulCharity,
+    passcode: '79571449',
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
@@ -342,6 +352,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Level Limit - Area B': {
     id: Ids.LevelLimitAreaB,
+    passcode: '03136426',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
@@ -350,6 +361,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Pot of Greed': {
     id: Ids.PotOfGreed,
+    passcode: '55144522',
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 2 cards.',
@@ -358,6 +370,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Premature Burial': {
     id: Ids.PrematureBurial,
+    passcode: '70828912',
     type: 'Spell',
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
@@ -387,6 +400,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Heavy Storm': {
     id: Ids.HeavyStorm,
+    passcode: '19613556',
     type: 'Spell',
     subType: 'Normal',
     text: 'Destroy all Spells/Traps on the field.',
@@ -404,6 +418,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Reload': {
     id: Ids.Reload,
+    passcode: '22589918',
     type: 'Spell',
     subType: 'Quick-Play',
     text: 'Send all cards from your hand to the Deck, then shuffle. Then, draw the same number of cards you added to the Deck.',
@@ -422,6 +437,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Reversal Quiz': {
     id: Ids.ReversalQuiz,
+    passcode: '05990062',
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
@@ -492,6 +508,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Royal Magical Library': {
     id: Ids.RoyalMagicalLibrary,
+    passcode: '70791313',
     type: 'Monster',
     attribute: 'Light',
     level: 4,
@@ -504,6 +521,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Sangan': {
     id: Ids.Sangan,
+    passcode: '26202165',
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
@@ -516,6 +534,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Spell Reproduction': {
     id: Ids.SpellReproduction,
+    passcode: '29228529',
     type: 'Spell',
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
@@ -564,6 +583,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Thunder Dragon': {
     id: Ids.ThunderDragon,
+    passcode: '31786629',
     type: 'Monster',
     attribute: 'Light',
     level: 5,
@@ -606,6 +626,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Toon Table of Contents': {
     id: Ids.ToonTableOfContents,
+    passcode: '89997728',
     type: 'Spell',
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
@@ -642,6 +663,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Toon World': {
     id: Ids.ToonWorld,
+    passcode: '15259703',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Activate this card by paying 1000 Life Points.',
@@ -652,6 +674,7 @@ const CARDS: { [name: string]: Data } = {
   },
   'Upstart Goblin': {
     id: Ids.UpstartGoblin,
+    passcode: '70368879',
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 1 card, then your opponent gains 1000 Life Points.',
