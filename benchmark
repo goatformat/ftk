@@ -1,0 +1,42 @@
+#!/usr/bin/env node
+
+const {State, Random} = require('./build');
+const Threads = require('piscina');
+
+if (Threads.isWorkerThread) {
+  module.exports = ({seed}) => {
+    const state = State.create(new Random(seed));
+    const hand = state.hand.slice().sort().join('');
+    let result;
+    const start = Date.now();
+    try {
+      const search = state.search(1e7);
+      if (search.state) {
+        result = ['success', Date.now() - start, hand, search.visited, search.path.length];
+      } else {
+        result = ['fail', Date.now() - start, hand, search.visited, undefined];
+      }
+    } catch (e) {
+      if (e instanceof RangeError) {
+        result = ['exhaust', Date.now() - start, hand, undefined, undefined];
+      }
+    }
+    return result.join(',');
+  };
+} else {
+  const threads = new Threads({filename: __filename});
+
+  (async () => {
+    const results = [];
+    const start = Date.now();
+    for (let i = 0; i < (+process.argv[2] || 1000); i++) {
+      results.push(threads.run({seed: Random.seed(i)}));
+    }
+
+    console.log('result,duration,hand,visited,path');
+    for (const line of await Promise.all(results)) {
+      console.log(line);
+    }
+    console.log(Date.now() - start);
+  })();
+}

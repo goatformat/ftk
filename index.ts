@@ -963,6 +963,7 @@ export class State {
 
   search(cutoff = Infinity, visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
     visited.add(this.toString());
+    path.push(this.toString());
     if (visited.size > cutoff) throw new RangeError();
     if (DEBUG) {
       const errors = State.verify(this);
@@ -980,7 +981,7 @@ export class State {
     for (const [s, {state}] of next) {
       if (state.end()) return {state, path, visited: visited.size};
       if (!visited.has(s)) {
-        const result =  state.search(cutoff, visited, [...path, s]);
+        const result =  state.search(cutoff, visited, path.slice());
         if (result.state) return result;
       }
     }
@@ -1086,7 +1087,7 @@ export class State {
 
     // Without a playable Card Destruction or Reload setting spell cards does nothing
     // TODO: support setting to avoid hand limit when multi-turn is implemented
-    if (set) {
+    // if (set) {
       hand.clear();
       for (let i = 0; i < this.hand.length; i++) {
         const id = this.hand[i];
@@ -1094,13 +1095,13 @@ export class State {
         hand.add(id);
         const card = ID.decode(id);
         if (card.type === 'Spell' && this.spells.length < 5) {
-          const set = this.clone();
-          set.major(`Set "${card.name}" face-down`);
-          set.add('spells', `(${id})` as FieldID);
-          set.remove('hand', i);
-          State.transition(next, set);
+          const s = this.clone();
+          s.major(`Set "${card.name}" face-down`);
+          s.add('spells', `(${id})` as FieldID);
+          s.remove('hand', i);
+          State.transition(next, s);
         }
-      }
+      // }
     }
 
     return Array.from(next.entries()).sort(State.compare) as [string, {state: State, score: number}][];
@@ -1296,13 +1297,14 @@ export class State {
     );
   }
 
-  // TODO: remove redudant states!
+   // TODO: remove redudant states...
   display(path: string[]) {
     const buf = [];
 
-    let major = -1;
+    let major = 0;
     for (const line of this.trace) {
-      if (!line.startsWith('  ')) {
+      const minor = line.startsWith('  ');
+      if (!minor) {
         if (path[major]) buf.push(`\n${path[major]}\n`);
         major++;
       }
