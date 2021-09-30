@@ -2,33 +2,52 @@ import 'source-map-support/register';
 
 import * as util from 'util';
 
-type Type = 'Monster' | 'Spell' | 'Trap';
+// Type/SubType/Attribute are pruned to just the values used by Library FTK
+// (also note that all monster cards in the deck are actually Effect Monsters)
+type Type = 'Monster' | 'Spell';
 type SubType = 'Continuous' | 'Equip' | 'Normal' | 'Quick-Play';
 type Attribute = 'Dark' | 'Light';
 
+// The relevant areas of the field in question (the Fusion Deck and Field Spell Zone are unused)
 type Location = 'monsters' | 'spells' | 'hand' | 'banished' | 'graveyard' | 'deck';
 
+// An ID is just a branded single character string chosen to represent each card in question (see
+// Ids below). A DeckID is an ID or an ID surrounded by parantheses to indicate that it is either
+// known in the deck or facedown a zone. A FieldID further extends the concept of the DeckID,
+// optionally allowing for a number to be appended to the ID character in question to indicate
+// additional state (eg. whether a card has been activated, which monster an Equip Spell is attached
+// to, the number of Spell Counters on a card, etc),
 interface As<T> { __brand: T }
 export type ID = string & As<'ID'>;
-export type FieldID = ID | string & As<'FieldID'>;
 export type DeckID = ID | string & As<'DeckID'>;
+export type FieldID = ID | string & As<'FieldID'>;
 
-export type Card = { name: string; score: number } & Data;
-
+// Data contains basic data about each card as well as housing the main handler function which
+// determines which additional states can be transitioned to by playing said card. The play function
+// is passed a reference to the current state, whether the card is being played from the hand or
+// whether it is being activated from the Spell & Trap Zone, the index of where the card is within
+// its location, the transition map of subsequent states and a reference to the card itself.
+// Handlers are expected to add all legal transition states to the map, though may elide states
+// which are redundant (eg. due to symmetry) as a performance optimization.
 type Data = {
   id: ID;
   type: Type;
   text: string;
-  score?: number;
+  score(
+    state: Readonly<State>,
+    location: 'hand' | 'spells' | 'monsters',
+    id: FieldID,
+  ): number;
   play(
     state: Readonly<State>,
-    location: Exclude<Location, 'deck' | 'monsters'>,
+    location: 'hand' | 'spells',
     i: number,
     next: Map<string, {state: State; score: number}>,
-    card: Card
+    card: Card,
+    prescient: boolean,
   ): void;
 } & ({
-  type: 'Spell' | 'Trap';
+  type: 'Spell';
   subType: SubType;
 } | {
   type: 'Monster';
@@ -38,9 +57,18 @@ type Data = {
   def: number;
 });
 
+// A Card is the reified basic data type built from CARDS
+export type Card = { name: string; } & Data;
+
+// By default a 'trace' is built during a search to provide a detailed human-readable representation
+// of how to arrive at a solution. This can be disabled (eg. during benchmarking to save time and
+// memory) if you are only interested in whether or not a solution is possible.
 const TRACE = !process.env.PROD;
+// Used to enable state verification sanity checking which has a large impact on performance.
 const DEBUG = !!process.env.DEBUG;
 
+// Utilities for encoding and decoding IDs. Storing state in minimal string representations results
+// in mimimal memory and serialization overhead.
 export const ID = new class {
   facedown(id: FieldID | DeckID) {
     return id.charAt(0) === '(';
@@ -72,6 +100,8 @@ export const ID = new class {
   }
 };
 
+// Basic k-subset function required by Graceful Charity and Spell Reproduction to determine
+// discard targets (though they use the isubsets method below for further deduping)
 const subsets = <T>(s: T[], k: number): T[][] => {
   if (k > s.length || k <= 0) return [];
   if (k === s.length) return [s];
@@ -92,6 +122,10 @@ const subsets = <T>(s: T[], k: number): T[][] => {
   return ss;
 };
 
+// Instead of subsets of an array we actually want (a) the unique subsets and (b) the *indices*
+// of such unique subsets. This function doesn't quite accomplish the former: [A, A, B, B] will
+// still return [0, 1], [0, 2], [1, 2], [2, 3] instead of [0, 1], [1, 2], [2, 3], though these
+// redundant subsets can be deduped by the higher level symmetry detection mechanisms.
 const isubsets = <T>(s: T[], k: number): number[][] => {
   // NOTE: this still potentially returns redundant subsets
   const unique = new Map<T, number>();
@@ -196,6 +230,9 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
+    score(state, location) {
+      return +!!(state.graveyard.length && (state.hand.length >= (location === 'hand' ? 2 : 1)));
+    },
     play(state, location, i, next, card) {
       if (!state.graveyard.length || (state.hand.length < (location === 'hand' ? 2 : 1))) return;
       const targets = {discard: new Set<ID>(), graveyard: new Set<ID>()};
@@ -232,8 +269,12 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
-    play(state, location, i, next, card) {
-      ARCHFIEND(state, location, i, next, card);
+    score(state, location, id) {
+      if (state.lifepoints <= 500 || !state.deck.length) return 0;
+      return !ID.data(id) ? 1 : 0;
+    },
+    play(state, location, i, next, card, prescient) {
+      ARCHFIEND(state, location, i, next, card, prescient);
 
       const unactivated = state.clone();
       unactivated.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
@@ -248,6 +289,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
+    score: () => 1,
     play(state, location, i, next, card) {
       for (let j = 0; j < state.monsters.length; j++) {
         const s = state.clone();
@@ -264,6 +306,10 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Both players discard as many cards as possible from their hands, then each player draws the same number of cards they discarded.',
+    score(state, location) {
+      const h = (location === 'hand' ? 1 : 0);
+      return +!!(state.hand.length > h && state.deck.length >= state.hand.length - h);
+    },
     play: SPELL((s, loc) => {
       const h = (loc === 'hand' ? 1 : 0);
       return s.hand.length > h && s.deck.length >= s.hand.length - h;
@@ -283,6 +329,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
+    score: state => +!!state.deck.length,
     play: SPELL(s => !!s.deck.length, s => s.reverse()),
   },
   'Cyber Jar': {
@@ -293,6 +340,7 @@ export const CARDS: { [name: string]: Data } = {
     atk: 900,
     def: 900,
     text: 'Rock/Flip/Effect – FLIP: Destroy all monsters on the field, then both players reveal the top 5 cards from their Decks, then Special Summon all revealed Level 4 or lower monsters in face-up Attack Position or face-down Defense Position, also add any remaining cards to their hand. (If either player has less than 5 cards in their Deck, reveal as many as possible).',
+    score: (state, location) => (state.summoned || location === 'hand') ? 0 : 1 / 3,
     play: MONSTER,
   },
   'Different Dimension Capsule': {
@@ -300,8 +348,23 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'After this card\'s activation, it remains on the field. When this card is activated: Banish 1 card from your Deck, face-down. During your second Standby Phase after this card\'s activation, destroy this card, and if you do, add that card to the hand.',
+    score: state => +!!state.deck.length,
+    // TODO: support having the card actually return by adding counters to it on the field each turn
     play(state, location, i, next, card) {
-      // TODO
+      const targets = new Set<DeckID>();
+      for (let j = 0; j < state.deck.length; j++) {
+        const id = state.deck[j];
+        if (targets.has(id)) continue;
+        const s = state.clone();
+        s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+        s.remove(location, i);
+        s.add('spells', `${card.id}0` as FieldID);
+        s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
+        s.add('banished', `(${ID.id(s.deck.splice(j, 1)[0])}` as DeckID);
+        s.shuffle();
+        s.inc();
+        State.transition(next, s);
+      }
     },
   },
   'Giant Trunade': {
@@ -309,13 +372,18 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
-    score: 1.5,
+    score: (state, location) => state.spells.length > (location === 'hand' ? 0 : 1) ? 1.5 : 0,
     play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
       // NOTE: The active Giant Trunade card has already been removed from hand/field
       for (const id of s.spells) {
         const card = ID.decode(id);
         s.add('hand', card.id);
-        if (card.id === Ids.ConvulsionOfNature) s.reverse(true);
+        if (ID.facedown(id)) continue;
+        if (card.id === Ids.ConvulsionOfNature) {
+          s.reverse(true);
+        } else if (card.id === Ids.DifferentDimensionCapsule) {
+          s.banish();
+        }
       }
       s.minor(`Return ${ID.names(s.spells)} to hand`);
       s.spells = [];
@@ -326,7 +394,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
-    score: 1.5,
+    score: state => (state.deck.length < 3) ? 0 : 1.5,
     play(state, location, i, next, card) {
       if (state.deck.length < 3) return;
       const draw = state.clone();
@@ -350,7 +418,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
-    score: 1 / 3,
+    score: () => 1 / 3,
     play: SPELL(),
   },
   'Pot of Greed': {
@@ -358,7 +426,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 2 cards.',
-    score: 1.5,
+    score: state => (state.deck.length < 2) ? 0 : 1.5,
     play: SPELL(s => s.deck.length >= 2, s => s.draw(2)),
   },
   'Premature Burial': {
@@ -366,7 +434,16 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
-    score: 1.3,
+    score(state) {
+      if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return 0;
+      let max = 0;
+      for (const id of state.graveyard) {
+        const target = ID.decode(id);
+        if (target.type !== 'Monster') continue;
+        max = Math.max(max, target.score(state, 'monsters', target.id));
+      }
+      return 1 + max;
+    },
     play(state, location, i, next, card) {
       if (state.monsters.length > 4 || state.lifepoints <= 800) return;
       const targets = new Set<ID>();
@@ -395,13 +472,22 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Destroy all Spells/Traps on the field.',
-    score: 1 / 3,
+    score: () => 0,
     play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
       // NOTE: The active Heavy Storm card has already been removed from hand/field
       for (const id of s.spells) {
         const card = ID.decode(id);
         s.add('graveyard', card.id);
-        if (card.id === Ids.ConvulsionOfNature) s.reverse(true);
+        if (ID.facedown(id)) continue;
+        if (card.id === Ids.ConvulsionOfNature) {
+          s.reverse(true);
+        } else if (card.id === Ids.BlackPendant) {
+          const removed = s.mremove(ID.data(id));
+          s.add('graveyard', removed.id);
+          s.minor(`Sending "${ID.decode(removed.id).name}" to the Graveyard after its equipped "${ID.decode(id).name}" was destroyed`);
+        } else if (card.id === Ids.DifferentDimensionCapsule) {
+          s.banish();
+        }
       }
       s.minor(`Send ${ID.names(s.spells)} to Graveyard`);
       s.spells = [];
@@ -412,6 +498,10 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Quick-Play',
     text: 'Send all cards from your hand to the Deck, then shuffle. Then, draw the same number of cards you added to the Deck.',
+    score(state, location) {
+      const h = (location === 'hand' ? 1 : 0);
+      return +!!(state.hand.length > h && state.deck.length >= state.hand.length - h);
+    },
     play: SPELL((s, loc) => {
       const h = (loc === 'hand' ? 1 : 0);
       return s.hand.length > h && s.deck.length >= s.hand.length - h;
@@ -430,6 +520,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
+    score: () => 1,
     // NOTE: we are not supporting the case where we actually guess correctly prematurely
     play(state, location, i, next, self) {
       if (!state.deck.length) return;
@@ -453,7 +544,13 @@ export const CARDS: { [name: string]: Data } = {
       s.monsters = [];
       for (const id of s.spells) {
         const card = ID.decode(id);
-        if (card.id === Ids.ConvulsionOfNature) s.reverse(true);
+        if (!ID.facedown(id)) {
+          if (card.id === Ids.ConvulsionOfNature) {
+            s.reverse(true);
+          } else if (card.id === Ids.DifferentDimensionCapsule) {
+            s.banish();
+          }
+        }
         s.graveyard.push(card.id);
       }
       s.spells = [];
@@ -483,7 +580,7 @@ export const CARDS: { [name: string]: Data } = {
           State.transition(next, t);
         }
       }
-      // Failure to find
+      // Failure to find (mandatory effect)
       if (!targets.size) {
         const t = s.clone();
         t.minor('Fail to find "Sangan" target in Deck');
@@ -503,7 +600,9 @@ export const CARDS: { [name: string]: Data } = {
     atk: 0,
     def: 2000,
     text: 'Spellcaster/Effect – Each time a Spell is activated, place 1 Spell Counter on this card when that Spell resolves (max. 3). You can remove 3 Spell Counters from this card; draw 1 card.',
-    score: 4,
+    score(state, location, id) {
+      return location === 'monsters' ? 4 : 1.3; // FIXME
+    },
     // NOTE: draw effect handled directly in State#next, and all spells use Stat#inc to update counters
     play: MONSTER,
   },
@@ -515,7 +614,7 @@ export const CARDS: { [name: string]: Data } = {
     atk: 1000,
     def: 600,
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
-    score: 1 / 3,
+    score: (state, location) => (state.summoned || location === 'hand') ? 0: 1 / 3,
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
   },
@@ -524,6 +623,10 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
+    score(state, location) {
+      const h = (location === 'hand' ? 2 : 1);
+      return +(state.graveyard.length && state.hand.length > h && state.deck.length >= state.hand.length - h);
+    },
     play(state, location, i, next, card) {
       const h = (location === 'hand' ? 2 : 1);
       if (!(state.graveyard.length && state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
@@ -575,6 +678,7 @@ export const CARDS: { [name: string]: Data } = {
     atk: 1600,
     def: 1500,
     text: 'Thunder/Effect – You can discard this card; add up to 2 "Thunder Dragon" from your Deck to your hand.',
+    score: (state, location) => +(state.deck.length && location === 'hand'),
     // NOTE: discard effect handled directly in State#next
     play(state, location, i, next, self) {
       for (let j = 0; j < state.monsters.length; j++) {
@@ -596,7 +700,7 @@ export const CARDS: { [name: string]: Data } = {
               State.transition(next, t);
             }
           }
-          // Failure to find
+          // Failure to find (mandatory effect)
           if (!targets.size) {
             const t = s.clone();
             t.minor('Fail to find "Sangan" target in Deck');
@@ -614,7 +718,8 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
-    play(state, location, i, next, card) {
+    score: state => +!!state.deck.length,
+    play(state, location, i, next, card, prescient) {
       const targets = new Set<ID>();
       for (let j = 0; j < state.deck.length; j++) {
         const target = ID.decode(state.deck[j]);
@@ -634,14 +739,16 @@ export const CARDS: { [name: string]: Data } = {
       }
       // Failure to find
       if (!targets.size) {
-        const s = state.clone();
-        s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-        s.minor('Fail to find "Toon" card in Deck');
-        s.remove(location, i);
-        s.add('graveyard', card.id);
-        s.shuffle();
-        s.inc();
-        State.transition(next, s);
+        if (prescient || state.reversed) {
+          const s = state.clone();
+          s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+          s.minor('Fail to find "Toon" card in Deck');
+          s.remove(location, i);
+          s.add('graveyard', card.id);
+          s.shuffle();
+          s.inc();
+          State.transition(next, s);
+        }
       }
     },
   },
@@ -650,6 +757,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Activate this card by paying 1000 Life Points.',
+    score: state => +(state.lifepoints > 1000),
     play: SPELL(s => s.lifepoints > 1000, s => {
       s.minor(`Pay 1000 LP (${s.lifepoints} -> ${s.lifepoints - 1000})`);
       s.lifepoints -= 1000;
@@ -660,7 +768,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 1 card, then your opponent gains 1000 Life Points.',
-    score: 1.1,
+    score: state => +!!state.deck.length,
     // NOTE: we don't care about our opponent's life points
     play: SPELL(s => !!s.deck.length, s => s.draw()),
   },
@@ -735,7 +843,7 @@ export class Random {
 
 export const DATA: Record<ID, Card> = {};
 for (const name in CARDS) {
-  DATA[CARDS[name].id] = {score: 1, ...CARDS[name], name};
+  DATA[CARDS[name].id] = {...CARDS[name], name};
 }
 
 const equals = <T>(a: T[], b: T[]) => {
@@ -880,10 +988,16 @@ export class State {
       this.add('graveyard', equip);
     }
     if (equips.length) {
-      this.minor(`Sending ${ID.names(equips)} equipped to "${ID.decode(id).name}" to the graveyard`);
+      this.minor(`Sending ${ID.names(equips)} equipped to "${ID.decode(id).name}" to the Graveyard`);
     }
     const h = this.remove('hand', hi);
     return this.summon(h);
+  }
+
+  banish() {
+    // There is at most one face-down banished card at a time and since '(' always sorts before
+    // any ID we simply need to check the first element
+    if (this.banished[0] && ID.facedown(this.banished[0])) this.banished = this.banished.slice(1);
   }
 
   major(s: string) {
@@ -966,9 +1080,10 @@ export class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
-  search(cutoff = Infinity, visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
-    visited.add(this.toString());
-    path.push(this.toString());
+  search(cutoff = Infinity, prescient = true, visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
+    const str = this.toString();
+    visited.add(str);
+    path.push(str);
     if (visited.size > cutoff) throw new RangeError();
     if (DEBUG) {
       const errors = State.verify(this);
@@ -978,18 +1093,15 @@ export class State {
         console.error(this.trace.join('\n'));
         process.exit(1);
       }
-      if (visited.size % 100000 === 0) console.debug(new Date(), visited.size, this.toString());
     }
-    const next = this.next();
-    // console.debug(this.toString(), next.map(s => `${s[0]} = ${s[1].score()}`));
-    // process.exit(1); // DEBUG
+    const next = this.next(prescient);
     for (const [s, {state}] of next) {
       if (state.end()) {
         path.push(s);
         return {state, path, visited: visited.size};
       }
       if (!visited.has(s)) {
-        const result = state.search(cutoff, visited, path.slice());
+        const result = state.search(cutoff, prescient, visited, path.slice());
         if (result.state) return result;
       }
     }
@@ -1000,7 +1112,7 @@ export class State {
     next.set(s.toString(), {state: s, score: s.score()});
   }
 
-  next() {
+  next(prescient = true) {
     if (this.lifepoints <= 0) return [];
     const next = new Map<string, {state: State; score: number}>();
 
@@ -1026,9 +1138,9 @@ export class State {
       const card = ID.decode(id);
       if (ID.facedown(id)) {
         if (card.id === Ids.CardDestruction || card.id === Ids.Reload) set = true;
-        card.play(this, 'spells', i, next, card);
+        card.play(this, 'spells', i, next, card, prescient)
       } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
-        ARCHFIEND(this, 'spells', i, next, card);
+        ARCHFIEND(this, 'spells', i, next, card, prescient);
       }
     }
 
@@ -1067,17 +1179,19 @@ export class State {
           s.shuffle();
           State.transition(next, s);
         } else {
-          // Failure to find
-          const s = this.clone();
-          s.major(`Discard "${card.name}"`);
-          s.minor(`Fail to find "${card.name}" in Deck`);
-          s.remove('hand', i);
-          s.add('graveyard', card.id);
-          s.shuffle();
-          State.transition(next, s);
+          if (prescient || this.reversed) {
+            // Failure to find
+            const s = this.clone();
+            s.major(`Discard "${card.name}"`);
+            s.minor(`Fail to find "${card.name}" in Deck`);
+            s.remove('hand', i);
+            s.add('graveyard', card.id);
+            s.shuffle();
+            State.transition(next, s);
+          }
         }
       } else if (card.type === 'Monster' && this.monsters.length < 5 && !this.summoned) {
-        card.play(this, 'hand', i, next, card);
+        card.play(this, 'hand', i, next, card, prescient);
 
         // TODO: add support for setting Cyber Jar in multi-turn scenarios
         // if (card.name === 'Cyber Jar') {
@@ -1089,7 +1203,7 @@ export class State {
         // }
       } else if (card.type === 'Spell' && this.spells.length < 5) {
         if (card.id === Ids.CardDestruction || card.id === Ids.Reload) set = true;
-        card.play(this, 'hand', i, next, card);
+        card.play(this, 'hand', i, next, card, prescient);
       }
     }
 
@@ -1122,31 +1236,37 @@ export class State {
   }
 
   score() {
+    // If we have reached a winning state we can simply ensure this gets sorted
+    // to the front to ensure we don't bother expanding any sibling states.
+    if (this.end()) return Infinity;
     let score = 0;
 
+    let libraries = 0;
     for (const id of this.monsters) {
       const card = ID.decode(id);
-      if (!this.summoned) score += card.score;
-      if (card.id === Ids.RoyalMagicalLibrary) score += card.score + ID.data(id) / 3;
+      if (card.id === Ids.RoyalMagicalLibrary && ID.data(id) < 3) libraries++;
+      score += card.score(this, 'monsters', id);
     }
 
-    const open = 5 - this.spells.length;
     for (const id of this.spells) {
       const card = ID.decode(id);
+      const n =  card.score(this, 'spells', id);
+      if (!n) continue;
       if (ID.facedown(id)) {
-        score += card.score / 2;
-      } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
-        score++;
+        score += n * 0.9; // TODO how much to reduce for facedown?
+        score += libraries / 3;
+      } else {
+        score += n;
       }
     }
 
+    const open = this.spells.length < 5;
     for (const id of this.hand) {
       const card = ID.decode(id);
-      if (card.type === 'Spell' && open) {
-        score += card.score;
-      } else if (!this.summoned) {
-        score += card.id === Ids.RoyalMagicalLibrary ? card.score / 3 : card.score;
-      }
+      if (card.type === 'Spell' && !open) continue;
+      if (card.type === 'Monster' && this.summoned) continue;
+      score += card.score(this, 'hand', id);
+      if (card.type === 'Spell')  score += libraries / 3;
     }
 
     return score;
@@ -1390,9 +1510,10 @@ export class State {
       errors.push(`Hand: ${pretty(s.hand)}`);
     }
 
-    if (s.banished.length > 4 || !equals(s.banished.slice().sort(), s.banished)) {
+    if (s.banished.length > 40 ||
+      !equals(s.banished.slice().sort(), s.banished) ||
+      s.banished.filter(i => ID.facedown(i)).length > 1) {
       errors.push(`Banished: ${pretty(s.banished)}`);
-      // TODO: check for facedowns in banished
     }
 
     if (s.graveyard.length > 40 ||
