@@ -9,15 +9,14 @@ type Attribute = 'Dark' | 'Light';
 type Location = 'monsters' | 'spells' | 'hand' | 'banished' | 'graveyard' | 'deck';
 
 interface As<T> { __brand: T }
-type ID = string & As<'ID'>;
-type FieldID = ID | string & As<'FieldID'>;
-type DeckID = ID | string & As<'DeckID'>;
+export type ID = string & As<'ID'>;
+export type FieldID = ID | string & As<'FieldID'>;
+export type DeckID = ID | string & As<'DeckID'>;
 
-type Card = { name: string; score: number } & Data;
+export type Card = { name: string; score: number } & Data;
 
 type Data = {
-  id: ID,
-  passcode: string,
+  id: ID;
   type: Type;
   text: string;
   score?: number;
@@ -25,7 +24,7 @@ type Data = {
     state: Readonly<State>,
     location: Exclude<Location, 'deck' | 'monsters'>,
     i: number,
-    next: Map<string, {state: State, score: number}>,
+    next: Map<string, {state: State; score: number}>,
     card: Card
   ): void;
 } & ({
@@ -42,7 +41,7 @@ type Data = {
 const TRACE = !process.env.PROD;
 const DEBUG = !!process.env.DEBUG;
 
-const ID = new class {
+export const ID = new class {
   facedown(id: FieldID | DeckID) {
     return id.charAt(0) === '(';
   }
@@ -186,10 +185,9 @@ const Ids = {
   SpellReproduction: 'Z' as ID,
 };
 
-const CARDS: { [name: string]: Data } = {
+export const CARDS: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
     id: Ids.AFeatherOfThePhoenix,
-    passcode: '49140998',
     type: 'Spell',
     subType: 'Normal',
     text: 'Discard 1 card, then target 1 card in your Graveyard; return that target to the top of your Deck.',
@@ -226,7 +224,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Archfiend\'s Oath': {
     id: Ids.ArchfiendsOath,
-    passcode: '22796548',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
@@ -243,7 +240,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Black Pendant': {
     id: Ids.BlackPendant,
-    passcode: '65169794',
     type: 'Spell',
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
@@ -260,7 +256,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Card Destruction': {
     id: Ids.CardDestruction,
-    passcode: '72892473',
     type: 'Spell',
     subType: 'Normal',
     text: 'Both players discard as many cards as possible from their hands, then each player draws the same number of cards they discarded.',
@@ -280,7 +275,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Convulsion of Nature': {
     id: Ids.ConvulsionOfNature,
-    passcode: '62966332',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
@@ -288,7 +282,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Cyber Jar': {
     id: Ids.CyberJar,
-    passcode: '34124316',
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
@@ -299,7 +292,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Different Dimension Capsule': {
     id: Ids.DifferentDimensionCapsule,
-    passcode: '11961740',
     type: 'Spell',
     subType: 'Normal',
     text: 'After this card\'s activation, it remains on the field. When this card is activated: Banish 1 card from your Deck, face-down. During your second Standby Phase after this card\'s activation, destroy this card, and if you do, add that card to the hand.',
@@ -309,7 +301,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Giant Trunade': {
     id: Ids.GiantTrunade,
-    passcode: '42703248',
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
@@ -327,7 +318,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Graceful Charity': {
     id: Ids.GracefulCharity,
-    passcode: '79571449',
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
@@ -352,16 +342,14 @@ const CARDS: { [name: string]: Data } = {
   },
   'Level Limit - Area B': {
     id: Ids.LevelLimitAreaB,
-    passcode: '03136426',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
-    score: 1/3,
+    score: 1 / 3,
     play: SPELL(),
   },
   'Pot of Greed': {
     id: Ids.PotOfGreed,
-    passcode: '55144522',
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 2 cards.',
@@ -370,7 +358,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Premature Burial': {
     id: Ids.PrematureBurial,
-    passcode: '70828912',
     type: 'Spell',
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
@@ -400,11 +387,10 @@ const CARDS: { [name: string]: Data } = {
   },
   'Heavy Storm': {
     id: Ids.HeavyStorm,
-    passcode: '19613556',
     type: 'Spell',
     subType: 'Normal',
     text: 'Destroy all Spells/Traps on the field.',
-    score: 1/3,
+    score: 1 / 3,
     play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
       // NOTE: The active Heavy Storm card has already been removed from hand/field
       for (const id of s.spells) {
@@ -418,7 +404,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Reload': {
     id: Ids.Reload,
-    passcode: '22589918',
     type: 'Spell',
     subType: 'Quick-Play',
     text: 'Send all cards from your hand to the Deck, then shuffle. Then, draw the same number of cards you added to the Deck.',
@@ -437,7 +422,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Reversal Quiz': {
     id: Ids.ReversalQuiz,
-    passcode: '05990062',
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
@@ -508,7 +492,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Royal Magical Library': {
     id: Ids.RoyalMagicalLibrary,
-    passcode: '70791313',
     type: 'Monster',
     attribute: 'Light',
     level: 4,
@@ -521,20 +504,18 @@ const CARDS: { [name: string]: Data } = {
   },
   'Sangan': {
     id: Ids.Sangan,
-    passcode: '26202165',
     type: 'Monster',
     attribute: 'Dark',
     level: 3,
     atk: 1000,
     def: 600,
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
-    score: 1/3,
+    score: 1 / 3,
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
   },
   'Spell Reproduction': {
     id: Ids.SpellReproduction,
-    passcode: '29228529',
     type: 'Spell',
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
@@ -583,7 +564,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Thunder Dragon': {
     id: Ids.ThunderDragon,
-    passcode: '31786629',
     type: 'Monster',
     attribute: 'Light',
     level: 5,
@@ -626,7 +606,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Toon Table of Contents': {
     id: Ids.ToonTableOfContents,
-    passcode: '89997728',
     type: 'Spell',
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
@@ -663,7 +642,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Toon World': {
     id: Ids.ToonWorld,
-    passcode: '15259703',
     type: 'Spell',
     subType: 'Continuous',
     text: 'Activate this card by paying 1000 Life Points.',
@@ -674,7 +652,6 @@ const CARDS: { [name: string]: Data } = {
   },
   'Upstart Goblin': {
     id: Ids.UpstartGoblin,
-    passcode: '70368879',
     type: 'Spell',
     subType: 'Normal',
     text: 'Draw 1 card, then your opponent gains 1000 Life Points.',
@@ -751,7 +728,7 @@ export class Random {
   }
 }
 
-const DATA: Record<ID, Card> = {};
+export const DATA: Record<ID, Card> = {};
 for (const name in CARDS) {
   DATA[CARDS[name].id] = {score: 1, ...CARDS[name], name};
 }
@@ -1002,27 +979,30 @@ export class State {
     // console.debug(this.toString(), next.map(s => `${s[0]} = ${s[1].score()}`));
     // process.exit(1); // DEBUG
     for (const [s, {state}] of next) {
-      if (state.end()) return {state, path, visited: visited.size};
+      if (state.end()) {
+        path.push(s);
+        return {state, path, visited: visited.size};
+      }
       if (!visited.has(s)) {
-        const result =  state.search(cutoff, visited, path.slice());
+        const result = state.search(cutoff, visited, path.slice());
         if (result.state) return result;
       }
     }
     return {visited: visited.size};
   }
 
-  static transition(next: Map<string, {state: State, score: number}>, s: State) {
+  static transition(next: Map<string, {state: State; score: number}>, s: State) {
     next.set(s.toString(), {state: s, score: s.score()});
   }
 
   next() {
     if (this.lifepoints <= 0) return [];
-    const next = new Map<string, {state: State, score: number}>();
+    const next = new Map<string, {state: State; score: number}>();
 
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
-      if (id !== Ids.RoyalMagicalLibrary) continue;
       const card = ID.decode(id);
+      if (card.id !== Ids.RoyalMagicalLibrary) continue;
       if (!ID.facedown(id) && ID.data(id) === 3 && this.deck.length) {
         const s = this.clone();
         s.major(`Remove 3 Spell Counters from "${card.name}"`);
@@ -1110,7 +1090,7 @@ export class State {
 
     // Without a playable Card Destruction or Reload setting spell cards does nothing
     // TODO: support setting to avoid hand limit when multi-turn is implemented
-    // if (set) {
+    if (set) {
       hand.clear();
       for (let i = 0; i < this.hand.length; i++) {
         const id = this.hand[i];
@@ -1124,16 +1104,16 @@ export class State {
           s.remove('hand', i);
           State.transition(next, s);
         }
-      // }
+      }
     }
 
-    return Array.from(next.entries()).sort(State.compare) as [string, {state: State, score: number}][];
+    return Array.from(next.entries()).sort(State.compare) as [string, {state: State; score: number}][];
   }
 
-  static compare(a: [string, {state: State, score: number}], b: [string, {state: State, score: number}]) {
-    return (b[1].score - a[1].score
-    || a[1].state.lifepoints - b[1].state.lifepoints
-    || a[1].state.deck.length - b[1].state.deck.length);
+  static compare(a: [string, {state: State; score: number}], b: [string, {state: State; score: number}]) {
+    return (b[1].score - a[1].score ||
+    a[1].state.lifepoints - b[1].state.lifepoints ||
+    a[1].state.deck.length - b[1].state.deck.length);
   }
 
   score() {
@@ -1160,7 +1140,7 @@ export class State {
       if (card.type === 'Spell' && open) {
         score += card.score;
       } else if (!this.summoned) {
-        score += card.id == Ids.RoyalMagicalLibrary ? card.score / 3 : card.score;
+        score += card.id === Ids.RoyalMagicalLibrary ? card.score / 3 : card.score;
       }
     }
 
@@ -1181,32 +1161,36 @@ export class State {
       }
     }
     if (hand.pendant && hand.quiz && this.spells.length <= 3) {
-      return this.win(known, {pendant: false, quiz: false});
+      return this.win(known, true, {pendant: false, quiz: false});
     }
+    let equip = true;
     const spells = {pendant: false, quiz: false};
     for (const fid of this.spells) {
       const id = ID.id(fid);
       if (id === Ids.BlackPendant) {
         spells.pendant = true;
+        if (!ID.facedown(id)) equip = false;
       } else if (id === Ids.ReversalQuiz) {
         spells.quiz = true;
       }
     }
     if (spells.quiz && spells.pendant) {
-      return this.win(known, {pendant: true, quiz: true});
+      return this.win(known, equip, {pendant: true, quiz: true});
     }
     if (hand.pendant && this.spells.length <= 4 && spells.quiz) {
-      return this.win(known, {pendant: false, quiz: true});
+      return this.win(known, equip, {pendant: false, quiz: true});
     }
     if (hand.quiz && this.spells.length <= 4 && spells.pendant) {
-      return this.win(known, {pendant: true, quiz: false});
+      return this.win(known, equip, {pendant: true, quiz: false});
     }
     return false;
   }
 
-  win(known: DeckID, facedown: {pendant: boolean; quiz: boolean}) {
-    const monster = ID.decode(this.monsters[0]);
-    this.major(`${facedown.pendant ? 'Flip face-down "Black Pendant" and equip' : 'Equip "Black Pendant"'}  to "${monster.name}"`);
+  win(known: DeckID, equip: boolean, facedown: {pendant: boolean; quiz: boolean}) {
+    if (equip) {
+      const monster = ID.decode(this.monsters[0]);
+      this.major(`${facedown.pendant ? 'Flip face-down "Black Pendant" and equip' : 'Equip "Black Pendant"'}  to "${monster.name}"`);
+    }
     this.major(`Activate${facedown.quiz ? ' face-down' : ''} "Reversal Quiz"`);
     if (this.hand.length) {
       this.minor(`Send ${ID.names(this.hand)} from hand to Graveyard`);
@@ -1273,20 +1257,22 @@ export class State {
   toString() {
     return `${this.random.seed}|${this.lifepoints}|${+this.summoned}|` +
       `${this.monsters.join('')}|${this.spells.join('')}|${this.hand.join('')}|` +
-      `${this.banished.join('')}|${this.graveyard.join('')}|${this.deck.join('')}|${+this.reversed}`;
+      `${this.banished.join('')}|${this.graveyard.join('')}|${this.deck.join('')}|` +
+      `${+this.reversed}`;
   }
 
   static fromString(s: string) {
     let i = 0;
     let j = s.indexOf('|');
     const random = new Random(+s.slice(0, j));
-    i = j + 1;
-    j = j + 2;
-    const summoned = s.slice(i, j) === '1';
 
     i = j + 1;
     j = s.indexOf('|', i);
     const lifepoints = +s.slice(i, j);
+
+    i = j + 1;
+    j = j + 2;
+    const summoned = s.slice(i, j) === '1';
 
     i = j + 1;
     j = s.indexOf('|', i);
@@ -1320,7 +1306,7 @@ export class State {
     );
   }
 
-   // TODO: remove redudant states...
+  // TODO: remove redudant states...
   display(path: string[]) {
     const buf = [];
 
@@ -1328,7 +1314,7 @@ export class State {
     for (const line of this.trace) {
       const minor = line.startsWith('  ');
       if (!minor) {
-        if (path[major]) buf.push(`\n${path[major]}\n`);
+        if (path[major - 1])  buf.push(`\n${path[major - 1]}\n`);
         major++;
       }
       buf.push(line);

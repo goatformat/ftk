@@ -10,17 +10,20 @@
     "eslint": "^7.32.0",
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-jest": "^24.4.2",
+    "parcel": "2.0.0-nightly.841",
     "piscina": "^3.1.0",
     "source-map-support": "^0.5.20",
+    "tippy.js": "^6.3.1",
     "typescript": "^4.4.3"
   },
   "scripts": {
     "compile": "tsc -p .",
-    "fix": "eslint --fix *.ts",
-    "lint": "eslint --cache *.ts",
+    "fix": "eslint --fix *.ts html/*.ts",
+    "lint": "eslint --cache *.ts html/*.ts",
     "prepare": "npm run compile",
     "prestart": "npm run compile",
-    "start": "node run",
+    "start": "parcel html/index.html",
+    "build": "parcel build html/index.html",
     "test": "npm run compile && npm run fix"
   },
   "eslintConfig": {
