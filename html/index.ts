@@ -359,7 +359,7 @@ const render = (state: State, path: string[]) => {
 
       if (path[major - 1]) {
         const s = State.fromString(path[major - 1]);
-        const activated = last.startsWith('Activate') ? CARDS[/"(.*)"/.exec(last)![1]].id : undefined;
+        const activated = last.startsWith('Activate') ? CARDS[/"(.*?)"/.exec(last)![1]].id : undefined;
         track(s.banished, banished, activated);
         track(s.graveyard, graveyard, activated);
 
@@ -405,8 +405,10 @@ const render = (state: State, path: string[]) => {
   return root;
 };
 
-const state = State.create(new Random(Random.seed(2)));
-const result = state.search(1e8);
+const num = (window.location.hash && +window.location.hash.slice(1)) ||
+  (window.location.search && +window.location.search.slice(1)) || 1;
+const state = State.create(new Random(Random.seed(num)));
+const result = state.search(1e7);
 if (!result.state) {
   console.error(`Unsuccessfully searched ${result.visited} states`);
 } else {

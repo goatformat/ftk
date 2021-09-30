@@ -134,21 +134,26 @@ const SPELL: (cnd?: (s: State, l: Location) => boolean, fn?: (s: State) => void)
 const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   if (state.lifepoints <= 500 || !state.deck.length) return;
 
+  const play = location === 'hand' || ID.facedown(state[location][i]);
+  const prefix = play
+    ? `Activate${location === 'spells' ? ' face-down' : ''} "${card.name}" then pay`
+    : 'Pay';
+
   if (state.known()) {
     const known = state.clone();
-    known.major(`Pay 500 LP (${known.lifepoints} -> ${known.lifepoints - 500}) to activate effect of "${card.name}"`);
+    known.major(`${prefix} 500 LP (${known.lifepoints} -> ${known.lifepoints - 500}) to activate effect of "${card.name}"`);
     known.minor(`Declare "${ID.decode(known.deck[known.deck.length - 1]).name}"`);
     known.lifepoints -= 500;
     known.remove(location, i);
     known.add('spells', `${card.id}1` as FieldID);
     known.draw();
-    known.inc();
+    if (play) known.inc();
     State.transition(next, known);
   }
 
   // If you just want to pay 500 you might simply guess something impossible and mill one
   const unknown = state.clone();
-  unknown.major(`Pay 500 LP (${unknown.lifepoints} -> ${unknown.lifepoints - 500}) to activate effect of "${card.name}"`);
+  unknown.major(`${prefix} 500 LP (${unknown.lifepoints} -> ${unknown.lifepoints - 500}) to activate effect of "${card.name}"`);
   unknown.minor('Declare "Blue-Eyes White Dragon"');
   unknown.lifepoints -= 500;
   unknown.remove(location, i);
@@ -156,7 +161,7 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   const reveal = ID.decode(unknown.deck.pop()!);
   unknown.minor(`Excavate "${reveal.name}"`);
   unknown.add('graveyard', reveal.id);
-  unknown.inc();
+  if (play) unknown.inc();
   State.transition(next, unknown);
 };
 

@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
-const {State, Random} = require('./build');
+const fs = require('fs')
+const path = require('path');
+
 const Threads = require('piscina');
+const trakr = require('trackr');
+
+const {State, Random} = require('./build');
+
+process.env.PROD = true;
+process.env.DEBUG = false;
 
 if (Threads.isWorkerThread) {
   module.exports = ({seed}) => {
@@ -24,19 +32,91 @@ if (Threads.isWorkerThread) {
     return result.join(',');
   };
 } else {
-  const threads = new Threads({filename: __filename});
+  const stats = {
+    total: {success: [], fail: [], exhaust: []},
+    after: {success: [], fail: [], exhaust: []},
+    path: {before: [], after: []},
+    diff: {
+      success: {success: 0, fail: 0, exhaust: 0},
+      fail: {success: 0, fail: 0, exhaust: 0},
+      exhaust: {success: 0, fail: 0, exhaust: 0},
+    }
+  };
 
+  const hhmmss = (ms, round = true) => {
+    let s = ms / 1000;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s - (h * 3600)) / 60);
+    s = s - (h * 3600) - (m * 60);
+    if (round) s = Math.round(s);
+
+    const mm = m < 10 ? `0${m}` : `${m}`;
+    const ss = s < 10 ? `0${s}` : `${s}`;
+    if (h > 0) {
+      const hh = h < 10 ? `0${h}` : `${h}`;
+      return `${hh}h${mm}m${ss}s`;
+    } else {
+      return `${mm}m${ss}s`;
+    }
+  };
+
+  const parse = line => {
+    const [result, d, hand, visited, p] = line.split(',');
+    return {result, duration: +d, hand, visited, path: p};
+  };
+
+  const csv = path.join(__dirname, 'result.csv');
+  const input = (() => {
+    try {
+      const result = [];
+      const lines = fs.readFileSync(csv, 'utf8').split('\n');
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i]) continue;
+        const a = parse(lines[i]);
+        stats.before[a.result].push(a.duration);
+        if (a.result === 'success') state.path.before.push(a.path);
+        result.push(a);
+      }
+      return result;
+    } catch {
+      return undefined;
+    }
+  })();
+  fs.copyFileSync(csv, path.join(__dirname, 'result.old.csv'));
+  const output = fs.createWriteStream(csv);
+
+  const threads = new Threads({filename: __filename});
   (async () => {
     const results = [];
     const start = Date.now();
-    for (let i = 0; i < (+process.argv[2] || 1000); i++) {
-      results.push(threads.run({seed: Random.seed(i)}));
+    const n = +process.argv[2] || 1000;
+    console.log(`Running ${n} searches...`);
+    let done = 0;
+    for (let i = 0; i < n; i++) {
+      results.push(threads.run({seed: Random.seed(i)}).then(() => {
+        done++;
+        if (done % 10 === 0 && done !== n) {
+          console.log(`Completed ${done} searches in ${hhmmss(Date.now() - start)}...`);
+        }
+      }));
     }
 
-    console.log('result,duration,hand,visited,path');
-    for (const line of await Promise.all(results)) {
-      console.log(line);
+    output.write('result,duration,hand,visited,path\n');
+    for (const [i, line] of (await Promise.all(results)).entries()) {
+      if (input && input[i]) {
+        const a = input[i];
+        const b = parse(line);
+        stats.after[b.result].push(b.duration);
+        if (b.result === 'success') state.path.before.push(b.path);
+        stats.diff[a.result][b.result]++;
+      }
+      output.write(line);
     }
-    console.log(Date.now() - start);
+    output.close();
+
+    console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
+    if (input) {
+      // FIXME compare before/after for each result with times
+    }
   })();
 }
