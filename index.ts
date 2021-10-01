@@ -63,7 +63,7 @@ export type Card = { name: string } & Data;
 // By default a 'trace' is built during a search to provide a detailed human-readable representation
 // of how to arrive at a solution. This can be disabled (eg. during benchmarking to save time and
 // memory) if you are only interested in whether or not a solution is possible.
- // NOTE: set PROD to anything, even false and it will be turn off tracing (as its actually 'false')
+// NOTE: set PROD to anything, even false and it will be turn off tracing (as its actually 'false')
 const TRACE = !process.env.PROD;
 // Used to enable state verification sanity checking which has a large impact on performance.
 // NOTE: set DEBUG to anything, even false and it will be turn on verification (as its actually 'false')
@@ -666,7 +666,7 @@ export const CARDS: { [name: string]: Data } = {
     atk: 0,
     def: 2000,
     text: 'Spellcaster/Effect – Each time a Spell is activated, place 1 Spell Counter on this card when that Spell resolves (max. 3). You can remove 3 Spell Counters from this card; draw 1 card.',
-    score(state, location, id) {
+    score(state, location) {
       return location === 'monsters' ? 4 : 1.3; // FIXME
     },
     // NOTE: draw effect handled directly in State#next, and all spells use Stat#inc to update counters
