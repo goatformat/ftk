@@ -313,20 +313,24 @@ export const CARDS: { [name: string]: Data } = {
     play(state, location, i, next, card) {
       const h = (location === 'hand' ? 1 : 0);
       if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
-      // We can only set at most max cards before discarding, dependent on open zones and hand size
-      const max = Math.min(5 - state.spells.length - h, state.hand.length - h);
+
       const d = state.clone();
       d.remove(location, i);
       d.add('graveyard', card.id);
+
+      // We can only set at most max cards before discarding, dependent on open zones and hand size
+      const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
+      const max = Math.min(5 - state.spells.length - h, hand.length);
       for (let n = 1; n < max; n++) {
         for (const set of isubsets(d.hand, n)) {
+          if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
           const s = d.clone();
           const ids = [];
-          for (const j of set) {
+          for (const [offset, j] of set.entries()) {
             const id = d.hand[j];
             ids.push(id);
             s.add('spells', `(${id})` as FieldID);
-            s.remove('hand', j);
+            s.remove('hand', j - offset);
           }
           s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
           const len = s.hand.length;
@@ -533,24 +537,25 @@ export const CARDS: { [name: string]: Data } = {
     play(state, location, i, next, card) {
       const h = (location === 'hand' ? 1 : 0);
       if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
-      // We can only set at most max cards before reloading, dependent on open zones and hand size
-      const max = Math.min(5 - state.spells.length - h, state.hand.length - h);
+
       const d = state.clone();
       d.remove(location, i);
       d.add('graveyard', card.id);
-      for (let n = 1; n < max; n++) {
-        console.debug('HAND', d.hand, n, max);
+
+      // We can only set at most max cards before reloading, dependent on open zones and hand size
+      const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
+      const max = Math.min(5 - state.spells.length - h, hand.length);
+      for (let n = 1; n <= max; n++) {
         for (const set of isubsets(d.hand, n)) {
-          console.debug(set);
+          if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
           const s = d.clone();
           const ids = [];
-          for (const j of set) {
+          for (const [offset, j] of set.entries()) {
             const id = d.hand[j];
             ids.push(id);
             s.add('spells', `(${id})` as FieldID);
-            s.remove('hand', j);
+            s.remove('hand', j - offset);
           }
-          console.debug(ids);
           s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
           const len = s.hand.length;
           s.deck.push(...s.hand);
@@ -1521,7 +1526,9 @@ export class State {
     } else {
       for (const id of s.monsters) {
         const card = ID.decode(id);
-        if (((ID.facedown(id) || card.id !== Ids.RoyalMagicalLibrary) && ID.data(id)) || ID.data(id) > 3) {
+        if (card.type !== 'Monster' ||
+          ((ID.facedown(id) || card.id !== Ids.RoyalMagicalLibrary) && ID.data(id)) ||
+          ID.data(id) > 3) {
           errors.push(`Monsters: ${pretty(s.monsters)}`);
           break;
         }
@@ -1535,7 +1542,7 @@ export class State {
         const card = ID.decode(id);
         const facedown = ID.facedown(id);
         const data = ID.data(id);
-        if ((facedown && data) ||
+        if (card.type !== 'Spell' || (facedown && data) ||
           (card.id === Ids.ArchfiendsOath && data > 1) ||
           (!facedown && card.type === 'Spell' &&
             !['Continuous', 'Equip'].includes(card.subType))) {
