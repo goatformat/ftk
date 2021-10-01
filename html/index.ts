@@ -209,7 +209,7 @@ const renderState = (state: State, banished: DeckID[], graveyard: ID[]) => {
   const overlay = createElement('div', 'overlay');
   overlay.style.width = `${(1 - (state.lifepoints / 8000)) * 100}%`;
   div.appendChild(overlay);
-  let text = createElement('div', 'text');
+  const text = createElement('div', 'text');
   text.textContent = `${state.lifepoints}`;
   div.appendChild(text);
   td.appendChild(div);
@@ -359,7 +359,10 @@ const render = (state: State, path: string[]) => {
 
       if (path[major - 1]) {
         const s = State.fromString(path[major - 1]);
-        const activated = last.startsWith('Activate') ? CARDS[/"(.*?)"/.exec(last)![1]].id : undefined;
+        const activated =
+          last.startsWith('Activate') ? CARDS[/"(.*?)"/.exec(last)![1]].id
+          : last.startsWith('Set') ? CARDS[/then activate "(.*?)"/.exec(last)![1]].id
+          : undefined;
         track(s.banished, banished, activated);
         track(s.graveyard, graveyard, activated);
 

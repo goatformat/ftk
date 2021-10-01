@@ -58,7 +58,7 @@ type Data = {
 });
 
 // A Card is the reified basic data type built from CARDS
-export type Card = { name: string; } & Data;
+export type Card = { name: string } & Data;
 
 // By default a 'trace' is built during a search to provide a detailed human-readable representation
 // of how to arrive at a solution. This can be disabled (eg. during benchmarking to save time and
@@ -310,19 +310,48 @@ export const CARDS: { [name: string]: Data } = {
       const h = (location === 'hand' ? 1 : 0);
       return +!!(state.hand.length > h && state.deck.length >= state.hand.length - h);
     },
-    play: SPELL((s, loc) => {
-      const h = (loc === 'hand' ? 1 : 0);
-      return s.hand.length > h && s.deck.length >= s.hand.length - h;
-    }, s => {
-      // NOTE: Card Destruction has already been removed from the hand/field at this point
-      const len = s.hand.length;
-      for (const id of s.hand) {
-        s.add('graveyard', id);
+    play(state, location, i, next, card) {
+      const h = (location === 'hand' ? 1 : 0);
+      if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
+      // We can only set at most max cards before discarding, dependent on open zones and hand size
+      const max = Math.min(5 - state.spells.length - h, state.hand.length - h);
+      const d = state.clone();
+      d.remove(location, i);
+      d.add('graveyard', card.id);
+      for (let n = 1; n < max; n++) {
+        for (const set of isubsets(d.hand, n)) {
+          const s = d.clone();
+          const ids = [];
+          for (const j of set) {
+            const id = d.hand[j];
+            ids.push(id);
+            s.add('spells', `(${id})` as FieldID);
+            s.remove('hand', j);
+          }
+          s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+          const len = s.hand.length;
+          for (const id of s.hand) {
+            s.add('graveyard', id);
+          }
+          s.minor(`Discard ${ID.names(s.hand)}`);
+          s.hand = [];
+          s.draw(len);
+          s.inc();
+          State.transition(next, s);
+        }
       }
-      s.minor(`Discard ${ID.names(s.hand)}`);
-      s.hand = [];
-      s.draw(len);
-    }),
+      // The case where we don't set any cards beforehand
+      d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      const len = d.hand.length;
+      for (const id of d.hand) {
+        d.add('graveyard', id);
+      }
+      d.minor(`Discard ${ID.names(d.hand)}`);
+      d.hand = [];
+      d.draw(len);
+      d.inc();
+      State.transition(next, d);
+    },
   },
   'Convulsion of Nature': {
     id: Ids.ConvulsionOfNature,
@@ -404,7 +433,6 @@ export const CARDS: { [name: string]: Data } = {
       draw.draw(3);
       // isubsets might still return redundant subsets but we count on state deduping to handle it
       for (const [j, k] of isubsets(draw.hand, 2)) {
-        if (location === 'hand' && (i === j || i === k)) continue;
         const s = draw.clone();
         s.minor(`Discard "${ID.decode(draw.hand[j]).name}" and "${ID.decode(draw.hand[k]).name}"`);
         s.discard([j, k]); // PRECONDITION: j < k
@@ -502,18 +530,49 @@ export const CARDS: { [name: string]: Data } = {
       const h = (location === 'hand' ? 1 : 0);
       return +!!(state.hand.length > h && state.deck.length >= state.hand.length - h);
     },
-    play: SPELL((s, loc) => {
-      const h = (loc === 'hand' ? 1 : 0);
-      return s.hand.length > h && s.deck.length >= s.hand.length - h;
-    }, s => {
-      // NOTE: Reload has already been removed from the hand/field at this point
-      const len = s.hand.length;
-      s.deck.push(...s.hand);
-      s.minor(`Return ${ID.names(s.hand)} to Deck`);
-      s.shuffle();
-      s.hand = [];
-      s.draw(len);
-    }),
+    play(state, location, i, next, card) {
+      const h = (location === 'hand' ? 1 : 0);
+      if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
+      // We can only set at most max cards before reloading, dependent on open zones and hand size
+      const max = Math.min(5 - state.spells.length - h, state.hand.length - h);
+      const d = state.clone();
+      d.remove(location, i);
+      d.add('graveyard', card.id);
+      for (let n = 1; n < max; n++) {
+        console.debug('HAND', d.hand, n, max);
+        for (const set of isubsets(d.hand, n)) {
+          console.debug(set);
+          const s = d.clone();
+          const ids = [];
+          for (const j of set) {
+            const id = d.hand[j];
+            ids.push(id);
+            s.add('spells', `(${id})` as FieldID);
+            s.remove('hand', j);
+          }
+          console.debug(ids);
+          s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+          const len = s.hand.length;
+          s.deck.push(...s.hand);
+          s.minor(`Return ${ID.names(s.hand)} to Deck`);
+          s.shuffle();
+          s.hand = [];
+          s.draw(len);
+          s.inc();
+          State.transition(next, s);
+        }
+      }
+      // The case where we don't set any cards beforehand
+      d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      const len = d.hand.length;
+      d.deck.push(...d.hand);
+      d.minor(`Return ${ID.names(d.hand)} to Deck`);
+      d.shuffle();
+      d.hand = [];
+      d.draw(len);
+      d.inc();
+      State.transition(next, d);
+    },
   },
   'Reversal Quiz': {
     id: Ids.ReversalQuiz,
@@ -614,7 +673,7 @@ export const CARDS: { [name: string]: Data } = {
     atk: 1000,
     def: 600,
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
-    score: (state, location) => (state.summoned || location === 'hand') ? 0: 1 / 3,
+    score: (state, location) => (state.summoned || location === 'hand') ? 0 : 1 / 3,
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
   },
@@ -1129,7 +1188,6 @@ export class State {
       }
     }
 
-    let set = false;
     const spells = new Set<FieldID>();
     for (let i = 0; i < this.spells.length; i++) {
       const id = this.spells[i];
@@ -1137,8 +1195,7 @@ export class State {
       spells.add(id);
       const card = ID.decode(id);
       if (ID.facedown(id)) {
-        if (card.id === Ids.CardDestruction || card.id === Ids.Reload) set = true;
-        card.play(this, 'spells', i, next, card, prescient)
+        card.play(this, 'spells', i, next, card, prescient);
       } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
         ARCHFIEND(this, 'spells', i, next, card, prescient);
       }
@@ -1202,27 +1259,7 @@ export class State {
         //   next.set(set.toString(), set);
         // }
       } else if (card.type === 'Spell' && this.spells.length < 5) {
-        if (card.id === Ids.CardDestruction || card.id === Ids.Reload) set = true;
         card.play(this, 'hand', i, next, card, prescient);
-      }
-    }
-
-    // Without a playable Card Destruction or Reload setting spell cards does nothing
-    // TODO: support setting to avoid hand limit when multi-turn is implemented
-    if (set) {
-      hand.clear();
-      for (let i = 0; i < this.hand.length; i++) {
-        const id = this.hand[i];
-        if (hand.has(id)) continue;
-        hand.add(id);
-        const card = ID.decode(id);
-        if (card.type === 'Spell' && this.spells.length < 5) {
-          const s = this.clone();
-          s.major(`Set "${card.name}" face-down`);
-          s.add('spells', `(${id})` as FieldID);
-          s.remove('hand', i);
-          State.transition(next, s);
-        }
       }
     }
 
@@ -1233,8 +1270,8 @@ export class State {
     return (b[1].score - a[1].score ||
     a[1].state.lifepoints - b[1].state.lifepoints ||
     a[1].state.deck.length - b[1].state.deck.length ||
-    (+ID.known(b[1].state.deck[b[1].state.deck.length - 1])
-      - +ID.known(a[1].state.deck[a[1].state.deck.length - 1])) ||
+    (+ID.known(b[1].state.deck[b[1].state.deck.length - 1]) -
+      +ID.known(a[1].state.deck[a[1].state.deck.length - 1])) ||
     +b[1].state.reversed - +a[1].state.reversed);
   }
 
@@ -1244,7 +1281,7 @@ export class State {
     if (this.end()) return Infinity;
     let score = 0;
 
-    let libraries = {active: 0, total: 0};
+    const libraries = {active: 0, total: 0};
     for (const id of this.monsters) {
       const card = ID.decode(id);
       if (card.id === Ids.RoyalMagicalLibrary) {
@@ -1256,7 +1293,7 @@ export class State {
 
     for (const id of this.spells) {
       const card = ID.decode(id);
-      const n =  card.score(this, 'spells', id);
+      const n = card.score(this, 'spells', id);
       if (!n) continue;
       if (ID.facedown(id)) {
         score += n * 0.9; // TODO how much to reduce for facedown?
@@ -1445,7 +1482,7 @@ export class State {
     for (const line of this.trace) {
       const minor = line.startsWith('  ');
       if (!minor) {
-        if (path[major - 1])  buf.push(`\n${path[major - 1]}\n`);
+        if (path[major - 1]) buf.push(`\n${path[major - 1]}\n`);
         major++;
       }
       buf.push(line);
