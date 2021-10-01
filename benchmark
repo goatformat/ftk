@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path');
 
 const Threads = require('piscina');
+const ProgressBar = require('progress');
 const trakr = require('trakr');
 
 const {State, Random} = require('./build');
@@ -107,19 +108,21 @@ if (Threads.isWorkerThread) {
   }
   const output = fs.createWriteStream(csv);
 
-  const threads = new Threads({filename: __filename});
+  const threads = new Threads({filename: __filename, maxThreads: 20}); // DEBUG
+
   (async () => {
     const results = [];
     const start = Date.now();
     const n = +process.argv[2] || 1000;
-    console.log(`Running ${n} searches...`);
-    let done = 0;
+    const progress = new ProgressBar('[:bar] :current/:total (:percent) | :elapsed/:etas', {
+      total: n,
+      incomplete: ' ',
+    });
+    const interval = setInterval(() => progress.render(), 1000);
+
     for (let i = 0; i < n; i++) {
       results.push(threads.run({seed: Random.seed(i)}).then(result => {
-        done++;
-        if (done % 10 === 0 && done !== n) {
-          console.log(`Completed ${done} searches in ${hhmmss(Date.now() - start)}...`);
-        }
+        progress.tick();
         return result;
       }));
     }
@@ -136,6 +139,7 @@ if (Threads.isWorkerThread) {
       output.write(line);
       output.write('\n');
     }
+    clearInterval(interval);
     output.close();
 
     console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);

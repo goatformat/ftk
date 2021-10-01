@@ -12,6 +12,7 @@
     "eslint-plugin-jest": "^24.4.2",
     "parcel": "2.0.0-nightly.841",
     "piscina": "^3.1.0",
+    "progress": "^2.0.3",
     "source-map-support": "^0.5.20",
     "tippy.js": "^6.3.1",
     "trakr": "^0.2.0",
