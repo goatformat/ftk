@@ -96,7 +96,6 @@ if (Threads.isWorkerThread) {
       }
       return result;
     } catch (e) {
-      console.error(e);
       return undefined;
     }
   })();
