@@ -323,7 +323,7 @@ export const CARDS: { [name: string]: Data } = {
 
       // We can only set at most max cards before discarding, dependent on open zones and hand size
       const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
-      const max = Math.min(5 - state.spells.length - h, hand.length - 1);
+      const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
       for (let n = 1; n < max; n++) {
         for (const set of isubsets(d.hand, n)) {
           if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
@@ -547,7 +547,7 @@ export const CARDS: { [name: string]: Data } = {
 
       // We can only set at most max cards before reloading, dependent on open zones and hand size
       const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
-      const max = Math.min(5 - state.spells.length - h, hand.length - 1);
+      const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
       for (let n = 1; n <= max; n++) {
         for (const set of isubsets(d.hand, n)) {
           if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
