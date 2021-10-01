@@ -46,6 +46,9 @@ with oath oath oath convulsion its very high value
 
 deck thin = value depends on value of cards left in deck + how it helps get to win condition
 
+everything is expected value
+- +1/3 not that useful if the card to be drawn isn't very good
+
 - **A Feather of the Phoenix**:
   - can get rid of dead weight monsters (and potentially bring them back with prema)
   - can help with known for win con

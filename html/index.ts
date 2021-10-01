@@ -408,7 +408,7 @@ const render = (state: State, path: string[]) => {
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const state = State.create(new Random(Random.seed(num)));
-const result = state.search(1e7);
+const result = state.search(1e7, false);
 if (!result.state) {
   console.error(`Unsuccessfully searched ${result.visited} states`);
 } else {

@@ -30,9 +30,6 @@ Heavy Storm
 
 defense mode after level limit area b?
 
-monsters dont have value in hand after summoned is sert, encourages discard and premature
 if a card draws one other card by default it is 1 (upstart can be fracrionally more than 1 because no cost?)
 cards in hand worth more than on the field (doesnt clog zones and discard fodder)
-
-heuristic - need to determine whether card is playable at all to count (ie cnd is valid)
 prune activating ao or llab etc without a library on the field

@@ -70,10 +70,10 @@ const DEBUG = !!process.env.DEBUG;
 // Utilities for encoding and decoding IDs. Storing state in minimal string representations results
 // in mimimal memory and serialization overhead.
 export const ID = new class {
-  facedown(id: FieldID | DeckID) {
-    return id.charAt(0) === '(';
+  facedown(id?: FieldID | DeckID) {
+    return !!id && id.charAt(0) === '(';
   }
-  known(id: DeckID) {
+  known(id?: DeckID) {
     return this.facedown(id);
   }
   data(id: FieldID) {
@@ -329,7 +329,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
-    score: state => +!!state.deck.length,
+    score: state => +(state.deck.length && !state.reversed),
     play: SPELL(s => !!s.deck.length, s => s.reverse()),
   },
   'Cyber Jar': {
@@ -372,7 +372,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
-    score: (state, location) => state.spells.length > (location === 'hand' ? 0 : 1) ? 1.5 : 0,
+    score: (state, location) => state.spells.length > (location === 'hand' ? 0 : 1) ? 1.5 : 1,
     play: SPELL((s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1), s => {
       // NOTE: The active Giant Trunade card has already been removed from hand/field
       for (const id of s.spells) {
@@ -418,7 +418,7 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
-    score: () => 1 / 3,
+    score: (_, location) => location === 'spells' ? 0 : 1 / 3,
     play: SPELL(),
   },
   'Pot of Greed': {
@@ -1095,8 +1095,8 @@ export class State {
       }
     }
     const next = this.next(prescient);
-    for (const [s, {state}] of next) {
-      if (state.end()) {
+    for (const [s, {state, score}] of next) {
+      if (score === Infinity) {
         path.push(s);
         return {state, path, visited: visited.size};
       }
@@ -1232,7 +1232,10 @@ export class State {
   static compare(a: [string, {state: State; score: number}], b: [string, {state: State; score: number}]) {
     return (b[1].score - a[1].score ||
     a[1].state.lifepoints - b[1].state.lifepoints ||
-    a[1].state.deck.length - b[1].state.deck.length);
+    a[1].state.deck.length - b[1].state.deck.length ||
+    (+ID.known(b[1].state.deck[b[1].state.deck.length - 1])
+      - +ID.known(a[1].state.deck[a[1].state.deck.length - 1])) ||
+    +b[1].state.reversed - +a[1].state.reversed);
   }
 
   score() {
@@ -1241,10 +1244,13 @@ export class State {
     if (this.end()) return Infinity;
     let score = 0;
 
-    let libraries = 0;
+    let libraries = {active: 0, total: 0};
     for (const id of this.monsters) {
       const card = ID.decode(id);
-      if (card.id === Ids.RoyalMagicalLibrary && ID.data(id) < 3) libraries++;
+      if (card.id === Ids.RoyalMagicalLibrary) {
+        libraries.total++;
+        if (ID.data(id) < 3) libraries.active++;
+      }
       score += card.score(this, 'monsters', id);
     }
 
@@ -1254,7 +1260,7 @@ export class State {
       if (!n) continue;
       if (ID.facedown(id)) {
         score += n * 0.9; // TODO how much to reduce for facedown?
-        score += libraries / 3;
+        score += libraries.active / 3 + libraries.total / 6;
       } else {
         score += n;
       }
@@ -1266,7 +1272,7 @@ export class State {
       if (card.type === 'Spell' && !open) continue;
       if (card.type === 'Monster' && this.summoned) continue;
       score += card.score(this, 'hand', id);
-      if (card.type === 'Spell')  score += libraries / 3;
+      if (card.type === 'Spell') score += libraries.active / 3 + libraries.total / 6;
     }
 
     return score;

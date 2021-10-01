@@ -4,7 +4,7 @@ const {State, Random} = require('./build');
 
 const state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
 if (process.env.DEBUG) console.debug(state, state.hand.slice().sort().join(''));
-const result = state.search(1e7);
+const result = state.search(1e7, false);
 if (!result.state) {
   console.error(`Unsuccessfully searched ${result.visited} states`);
   process.exit(1);
