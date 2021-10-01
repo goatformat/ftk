@@ -495,7 +495,7 @@ export const CARDS: { [name: string]: Data } = {
           const zone = s.summon(id, true);
           s.remove(location, i);
           s.add('spells', `${card.id}${zone}` as FieldID);
-          s.inc();
+          s.inc(zone);
           State.transition(next, s);
         }
       }
@@ -1083,8 +1083,9 @@ export class State {
     }
   }
 
-  inc() {
+  inc(ignore?: number) {
     for (let i = 0; i < this.monsters.length; i++) {
+      if (typeof ignore === 'number' && ignore === i) continue;
       const id = this.monsters[i];
       const card = ID.decode(id);
       if (ID.facedown(id) || card.name !== 'Royal Magical Library') continue;
