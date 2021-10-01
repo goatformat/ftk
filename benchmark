@@ -43,7 +43,7 @@ if (Threads.isWorkerThread) {
     }
   };
 
-  const pct = (a, b) => `${((b - a) * 100 / b).toFixed(2)}%`;
+  const pct = (a, b) => `${(-(b - a) * 100 / b).toFixed(2)}%`;
 
   const dec = n => {
     const abs = Math.abs(n);
@@ -55,7 +55,7 @@ if (Threads.isWorkerThread) {
 
   const report = (a, b) => {
     console.log(`count: ${dec(a.cnt)} vs ${dec(b.cnt)} (${pct(a.cnt, b.cnt)})`);
-    console.log(`average: ${dec(a.avg)}±${dec(a.std)} vs ${dec(b.avg)}±${dec(b.std)} (${pct(a.avg, b.avg)})`);
+    console.log(`average: ${dec(a.avg)} ± ${dec(a.std)} vs ${dec(b.avg)} ±$ {dec(b.std)} (${pct(a.avg, b.avg)})`);
     console.log(`p50: ${dec(a.p50)} vs ${dec(b.p50)} (${pct(a.p50, b.p50)})`);
     console.log(`p95: ${dec(a.p95)} vs ${dec(b.p95)} (${pct(a.p95, b.p95)})`);
   };
@@ -159,7 +159,7 @@ if (Threads.isWorkerThread) {
         if (!(b.cnt || a.cnt)) continue;
         console.log(`\n${result.toUpperCase()}\n---`);
         report(a, b);
-        console.log(`-> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}`);
+        console.log(`${stats.before[result].length} -> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}`);
       }
       console.log(`\nPATH\n---`);
       report(trakr.Stats.compute(stats.path.after),trakr.Stats.compute(stats.path.before));
