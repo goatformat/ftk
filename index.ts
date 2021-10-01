@@ -63,8 +63,10 @@ export type Card = { name: string } & Data;
 // By default a 'trace' is built during a search to provide a detailed human-readable representation
 // of how to arrive at a solution. This can be disabled (eg. during benchmarking to save time and
 // memory) if you are only interested in whether or not a solution is possible.
+ // NOTE: set PROD to anything, even false and it will be turn off tracing (as its actually 'false')
 const TRACE = !process.env.PROD;
 // Used to enable state verification sanity checking which has a large impact on performance.
+// NOTE: set DEBUG to anything, even false and it will be turn on verification (as its actually 'false')
 const DEBUG = !!process.env.DEBUG;
 
 // Utilities for encoding and decoding IDs. Storing state in minimal string representations results

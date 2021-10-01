@@ -9,8 +9,7 @@ const trakr = require('trakr');
 
 const {State, Random} = require('./build');
 
-process.env.PROD = true;
-process.env.DEBUG = false;
+process.env.PROD = 'true';
 
 if (Threads.isWorkerThread) {
   module.exports = ({seed}) => {
