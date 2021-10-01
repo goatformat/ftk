@@ -396,7 +396,7 @@ export const CARDS: { [name: string]: Data } = {
         s.remove(location, i);
         s.add('spells', `${card.id}0` as FieldID);
         s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
-        s.add('banished', `(${ID.id(s.deck.splice(j, 1)[0])}` as DeckID);
+        s.add('banished', `(${ID.id(s.deck.splice(j, 1)[0])})` as DeckID);
         s.shuffle();
         s.inc();
         State.transition(next, s);
@@ -1064,7 +1064,10 @@ export class State {
   banish() {
     // There is at most one face-down banished card at a time and since '(' always sorts before
     // any ID we simply need to check the first element
-    if (this.banished[0] && ID.facedown(this.banished[0])) this.banished = this.banished.slice(1);
+    if (this.banished[0] && ID.facedown(this.banished[0])) {
+      const id = this.remove('banished', 0);
+      this.add('banished', ID.id(id));
+    }
   }
 
   major(s: string) {
@@ -1546,7 +1549,8 @@ export class State {
         if (card.type !== 'Spell' || (facedown && data) ||
           (card.id === Ids.ArchfiendsOath && data > 1) ||
           (!facedown && card.type === 'Spell' &&
-            !['Continuous', 'Equip'].includes(card.subType))) {
+            (!(['Continuous', 'Equip'].includes(card.subType) ||
+              card.id === Ids.DifferentDimensionCapsule)))) {
           errors.push(`Spells: ${pretty(s.spells)}`);
           break;
         } else if (!facedown && card.type === 'Spell' &&
@@ -1597,12 +1601,12 @@ export class State {
       ...s.monsters.map(id => ID.id(id)),
       ...s.spells.map(id => ID.id(id)),
       ...s.hand,
-      ...s.banished,
+      ...s.banished.map(id => ID.id(id)),
       ...s.graveyard,
       ...s.deck.map(id => ID.id(id)),
     ].sort();
     if (!equals(start, now)) {
-      errors.push(`Mismatch: ${start.length} vs. ${now.length}`);
+      errors.push(`Mismatch: ${start.length} vs. ${now.length}\n`);
     }
 
     return errors;
