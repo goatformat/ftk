@@ -2,12 +2,20 @@
 
 const fs = require('fs')
 const path = require('path');
+const {execFileSync} = require('child_process');
+const os = require('os');
 
 const Threads = require('piscina');
 const ProgressBar = require('progress');
-const trakr = require('trakr');
 
 const {State, Random} = require('./build');
+
+const STATES = 1e7;
+// Technically, storing 1M state strings (length ~68) should only take 650 MiB, but we
+// instead see threads using considerably more memory empirically. Allowing threads ~3.2 GiB of
+// memory each helps ensure we stay at around 75-85% utilization for the system and don't start
+// swapping or crashing.
+const MEMORY = 3.436e9;
 
 process.env.PROD = 'true';
 
@@ -18,7 +26,7 @@ if (Threads.isWorkerThread) {
     let result;
     const start = Date.now();
     try {
-      const search = state.search(1e7);
+      const search = state.search(STATES);
       if (search.state) {
         result = ['success', Date.now() - start, hand, search.visited, search.path.length];
       } else {
@@ -32,34 +40,6 @@ if (Threads.isWorkerThread) {
     return result.join(',');
   };
 } else {
-  const stats = {
-    before: {success: [], fail: [], exhaust: []},
-    after: {success: [], fail: [], exhaust: []},
-    path: {before: [], after: []},
-    diff: {
-      success: {success: 0, fail: 0, exhaust: 0},
-      fail: {success: 0, fail: 0, exhaust: 0},
-      exhaust: {success: 0, fail: 0, exhaust: 0},
-    }
-  };
-
-  const pct = (a, b) => `${(-(b - a) * 100 / b).toFixed(2)}%`;
-
-  const dec = n => {
-    const abs = Math.abs(n);
-    if (abs < 1) return n.toFixed(3);
-    if (abs < 10) return n.toFixed(2);
-    if (abs < 100) return n.toFixed(1);
-    return n.toFixed();
-  };
-
-  const report = (a, b) => {
-    console.log(`count: ${dec(a.cnt)} vs ${dec(b.cnt)} (${pct(a.cnt, b.cnt)})`);
-    console.log(`average: ${dec(a.avg)} ± ${dec(a.std)} vs ${dec(b.avg)} ±$ {dec(b.std)} (${pct(a.avg, b.avg)})`);
-    console.log(`p50: ${dec(a.p50)} vs ${dec(b.p50)} (${pct(a.p50, b.p50)})`);
-    console.log(`p95: ${dec(a.p95)} vs ${dec(b.p95)} (${pct(a.p95, b.p95)})`);
-  };
-
   const hhmmss = (ms, round = true) => {
     let s = ms / 1000;
     const h = Math.floor(s / 3600);
@@ -77,41 +57,23 @@ if (Threads.isWorkerThread) {
     }
   };
 
-  const parse = line => {
-    const [result, d, hand, visited, p] = line.split(',');
-    return {result, duration: +d, hand, visited, path: +p};
-  };
-
   const csv = path.join(__dirname, 'results.csv');
-  const input = (() => {
-    try {
-      const result = [];
-      const lines = fs.readFileSync(csv, 'utf8').split('\n');
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i]) continue;
-        const a = parse(lines[i]);
-        stats.before[a.result].push(a.duration);
-        if (a.result === 'success') stats.path.before.push(a.path);
-        result.push(a);
-      }
-      return result;
-    } catch (e) {
-      return undefined;
-    }
-  })();
+  const old = path.join(__dirname, 'results.old.csv');
   try {
-    fs.copyFileSync(csv, path.join(__dirname, 'results.old.csv'));
+    fs.copyFileSync(csv, old);
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
   const output = fs.createWriteStream(csv);
 
-  const threads = new Threads({filename: __filename, maxThreads: 20}); // DEBUG
+  const maxThreads = Math.round(os.totalmem() / MEMORY);
+  const threads = new Threads({filename: __filename, maxThreads});
 
   (async () => {
     const results = [];
     const start = Date.now();
     const n = +process.argv[2] || 1000;
+
     const progress = new ProgressBar('[:bar] :current/:total (:percent) | :elapsed/:etas', {
       total: n,
       incomplete: ' ',
@@ -126,14 +88,7 @@ if (Threads.isWorkerThread) {
     }
 
     output.write('result,duration,hand,visited,path\n');
-    for (const [i, line] of (await Promise.all(results)).entries()) {
-      if (input && input[i]) {
-        const a = parse(line);
-        const b = input[i];
-        stats.after[a.result].push(a.duration);
-        if (a.result === 'success') stats.path.after.push(a.path);
-        stats.diff[b.result][a.result]++;
-      }
+    for (const line of await Promise.all(results)) {
       output.write(line);
       output.write('\n');
     }
@@ -141,27 +96,10 @@ if (Threads.isWorkerThread) {
     output.close();
 
     console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
-    if (input) {
-      const before = {
-        success: trakr.Stats.compute(stats.before.success),
-        fail: trakr.Stats.compute(stats.before.fail),
-        exhaust: trakr.Stats.compute(stats.before.exhaust),
-      };
-      const after = {
-        success: trakr.Stats.compute(stats.after.success),
-        fail: trakr.Stats.compute(stats.after.fail),
-        exhaust: trakr.Stats.compute(stats.after.exhaust),
-      };
-      for (const result of ['success', 'fail', 'exhaust']) {
-        const a = after[result];
-        const b = before[result];
-        if (!(b.cnt || a.cnt)) continue;
-        console.log(`\n${result.toUpperCase()}\n---`);
-        report(a, b);
-        console.log(`${stats.before[result].length} -> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}`);
-      }
-      console.log(`\nPATH\n---`);
-      report(trakr.Stats.compute(stats.path.after),trakr.Stats.compute(stats.path.before));
+    if (fs.existsSync(old)) {
+      execFileSync('compare', [old, csv]);
+    } else {
+      execFileSync('compare', [csv]);
     }
   })();
 }
