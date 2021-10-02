@@ -101,10 +101,6 @@ export const ID = new class {
   }
 };
 
-// 2^30-1 is guaranteed to be a n Smi (and not a double) on all platforms in V8, meaning comparisons
-// can remain quick and not use floating point math. This is used as the sentinel value to denote a
-// winning state and simply needs to be larger than all other valid scores to ensure it sorts first.
-const INFINITY = Math.pow(2, 30) - 1;
 
 // Basic k-subset function required by Graceful Charity and Spell Reproduction to determine
 // discard targets (though they use the isubsets method below for further deduping). This is also
@@ -1279,7 +1275,7 @@ export class State {
   score() {
     // If we have reached a winning state we can simply ensure this gets sorted
     // to the front to ensure we don't bother expanding any sibling states.
-    if (this.end()) return INFINITY;
+    if (this.end()) return Infinity;
     let score = 0;
 
     const libraries = {active: 0, total: 0};
@@ -1697,7 +1693,7 @@ function bestfirst(node: IState, visited: Hash<string, number>, path: string[], 
   if (cutoff && visited.size > cutoff) throw new RangeError();
   const children = node.state.next(prescient);
   for (const child of children) {
-    if (child.score >= INFINITY) {
+    if (child.score >= Infinity) {
       path.push(child.key);
       return {visited: visited.size, path, trace: child.state.trace};
     }
