@@ -64,8 +64,6 @@ if (Threads.isWorkerThread) {
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
-  const output = fs.createWriteStream(csv);
-
   const maxThreads = Math.round(os.totalmem() / MEMORY);
   const threads = new Threads({filename: __filename, maxThreads});
 
@@ -87,19 +85,29 @@ if (Threads.isWorkerThread) {
       }));
     }
 
-    output.write('result,duration,hand,visited,path\n');
-    for (const line of await Promise.all(results)) {
-      output.write(line);
-      output.write('\n');
-    }
-    clearInterval(interval);
-    output.close();
+    await (() => {
+      return new Promise(async (resolve, reject) => {
+        const output = fs.createWriteStream(csv);
+        output.write('result,duration,hand,visited,path\n');
+        for (const line of await Promise.all(results)) {
+          output.write(line);
+          output.write('\n');
+        }
+        output.on('finish', () => {
+          if (fs.existsSync(old)) {
+            execFileSync(path.join(__dirname, 'compare'), [old, csv], {stdio: 'inherit'});
+          } else {
+            execFileSync(path.join(__dirname, 'compare'), [csv], {stdio: 'inherit'});
+          }
+          resolve(true);
+        });
+        output.on('error', reject);
+        output.close();
 
-    console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
-    if (fs.existsSync(old)) {
-      execFileSync('compare', [old, csv]);
-    } else {
-      execFileSync('compare', [csv]);
-    }
+        clearInterval(interval);
+
+        console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
+      });
+    })();
   })();
 }
