@@ -1423,6 +1423,8 @@ export class State {
       equals(this.deck, s.deck));
   }
 
+  // BUG: this should really be on one line to avoid paying for the string concatenations, but
+  // this causes workers to OOM for whatever reason...
   toString() {
     return `${this.random.seed}|${this.lifepoints}|${+this.summoned}|` +
       `${this.monsters.join('')}|${this.spells.join('')}|${this.hand.join('')}|` +
