@@ -27,7 +27,7 @@ if (Threads.isWorkerThread) {
     const start = Date.now();
     try {
       const search = state.search(STATES);
-      if (search.state) {
+      if (search.path) {
         result = ['success', Date.now() - start, hand, search.visited, search.path.length];
       } else {
         result = ['fail', Date.now() - start, hand, search.visited, undefined];

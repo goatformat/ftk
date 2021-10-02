@@ -337,7 +337,7 @@ const track = <T>(input: T[], output: T[], activated?: T) => {
   return output;
 };
 
-const render = (state: State, path: string[]) => {
+const render = (path: string[], trace: string[]) => {
   const banished: DeckID[] = [];
   const graveyard: ID[] = [];
 
@@ -347,7 +347,7 @@ const render = (state: State, path: string[]) => {
   let last = '';
   let major = 0;
   let ul = createElement('ul');
-  for (const line of state.trace) {
+  for (const line of trace) {
     const minor = line.startsWith('  ');
     if (!minor) {
       if (major) {
@@ -382,7 +382,7 @@ const render = (state: State, path: string[]) => {
 
         code = createElement('code');
         pre = createElement('pre');
-        pre.textContent = s.next().map(([t, {score}]) => `${t} = ${score.toFixed(2)}`).join('\n');
+        pre.textContent = s.next().map(({key, score}) => `${key} = ${score.toFixed(2)}`).join('\n');
         code.appendChild(pre);
         details.appendChild(code);
         wrapper.appendChild(details);
@@ -412,7 +412,7 @@ const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const state = State.create(new Random(Random.seed(num)));
 const result = state.search(1e7, false);
-if (!result.state) {
+if (!('path' in result)) {
   console.error(`Unsuccessfully searched ${result.visited} states`);
 } else {
   const content = document.getElementById('content')!;
@@ -420,5 +420,5 @@ if (!result.state) {
   div.textContent = `Found a path of length ${result.path!.length} after searching ${result.visited} states:`;
   content.appendChild(div);
   content.appendChild(createElement('br'));
-  content.appendChild(render(result.state, result.path!));
+  content.appendChild(render(result.path, result.trace));
 }

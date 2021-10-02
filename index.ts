@@ -42,7 +42,7 @@ type Data = {
     state: Readonly<State>,
     location: 'hand' | 'spells',
     i: number,
-    next: Map<string, {state: State; score: number}>,
+    next: Map<string, IState>,
     card: Card,
     prescient: boolean,
   ): void;
@@ -103,8 +103,16 @@ export const ID = new class {
   }
 };
 
+// 2^30-1 is guaranteed to be a n Smi (and not a double) on all platforms in V8, meaning comparisons
+// can remain quick and not use floating point math. This is used as the sentinel value to denote a
+// winning state and simply needs to be larger than all other valid scores to ensure it sorts first.
+const INFINITY = Math.pow(2, 30) - 1;
+
 // Basic k-subset function required by Graceful Charity and Spell Reproduction to determine
-// discard targets (though they use the isubsets method below for further deduping)
+// discard targets (though they use the isubsets method below for further deduping). This is also
+// called several times by Reload / Card Destruction to determine possible sets before activation -
+// in that case a more generic subsets function instead of a k-subsets function would probably
+// improve performance.
 const subsets = <T>(s: T[], k: number): T[][] => {
   if (k > s.length || k <= 0) return [];
   if (k === s.length) return [s];
@@ -125,9 +133,9 @@ const subsets = <T>(s: T[], k: number): T[][] => {
   return ss;
 };
 
-// Instead of subsets of an array we actually want (a) the unique subsets and (b) the *indices*
-// of such unique subsets. This function doesn't quite accomplish the former: [A, A, B, B] will
-// still return [0, 1], [0, 2], [1, 2], [2, 3] instead of [0, 1], [1, 2], [2, 3], though these
+// Instead of subsets of an array we actually want (a) the unique subsets and (b) the *indices* of
+// such unique subsets. This function doesn't quite accomplish the former: 2-subsets of [A, A, B, B]
+// will still return [0, 1], [0, 2], [1, 2], [2, 3] instead of [0, 1], [1, 2], [2, 3], though these
 // redundant subsets can be deduped by the higher level symmetry detection mechanisms.
 const isubsets = <T>(s: T[], k: number): number[][] => {
   // NOTE: this still potentially returns redundant subsets
@@ -921,6 +929,12 @@ const equals = <T>(a: T[], b: T[]) => {
   return true;
 };
 
+interface IState {
+  key: string,
+  state: State,
+  score: number,
+}
+
 export class State {
   random: Random;
   lifepoints: number;
@@ -1151,41 +1165,18 @@ export class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
-  search(cutoff = Infinity, prescient = true, visited = new Set<string>(), path: string[] = []): { state?: State; path?: string[]; visited: number } {
-    const str = this.toString();
-    visited.add(str);
-    path.push(str);
-    if (visited.size > cutoff) throw new RangeError();
-    if (DEBUG) {
-      const errors = State.verify(this);
-      if (errors.length) {
-        console.error(`INVALID STATE ${visited.size}:\n\n${errors.join('\n')}`);
-        console.error(this);
-        console.error(this.trace.join('\n'));
-        process.exit(1);
-      }
-    }
-    const next = this.next(prescient);
-    for (const [s, {state, score}] of next) {
-      if (score === Infinity) {
-        path.push(s);
-        return {state, path, visited: visited.size};
-      }
-      if (!visited.has(s)) {
-        const result = state.search(cutoff, prescient, visited, path.slice());
-        if (result.state) return result;
-      }
-    }
-    return {visited: visited.size};
+  search(cutoff?: number, prescient?: boolean) {
+    return search({key: this.toString(), state: this, score: this.score()}, cutoff, prescient);
   }
 
-  static transition(next: Map<string, {state: State; score: number}>, s: State) {
-    next.set(s.toString(), {state: s, score: s.score()});
+  static transition(next: Map<string, IState>, state: State) {
+    const key = state.toString();
+    next.set(key, {key, state, score: state.score()});
   }
 
   next(prescient = true) {
     if (this.lifepoints <= 0) return [];
-    const next = new Map<string, {state: State; score: number}>();
+    const next = new Map<string, IState>();
 
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
@@ -1275,22 +1266,22 @@ export class State {
       }
     }
 
-    return Array.from(next.entries()).sort(State.compare) as [string, {state: State; score: number}][];
+    return Array.from(next.values()).sort(State.compare);
   }
 
-  static compare(a: [string, {state: State; score: number}], b: [string, {state: State; score: number}]) {
-    return (b[1].score - a[1].score ||
-    a[1].state.lifepoints - b[1].state.lifepoints ||
-    a[1].state.deck.length - b[1].state.deck.length ||
-    (+ID.known(b[1].state.deck[b[1].state.deck.length - 1]) -
-      +ID.known(a[1].state.deck[a[1].state.deck.length - 1])) ||
-    +b[1].state.reversed - +a[1].state.reversed);
+  static compare(a: IState, b: IState) {
+    return (b.score - a.score ||
+    a.state.lifepoints - b.state.lifepoints ||
+    a.state.deck.length - b.state.deck.length ||
+    (+ID.known(b.state.deck[b.state.deck.length - 1]) -
+      +ID.known(a.state.deck[a.state.deck.length - 1])) ||
+    +b.state.reversed - +a.state.reversed);
   }
 
   score() {
     // If we have reached a winning state we can simply ensure this gets sorted
     // to the front to ensure we don't bother expanding any sibling states.
-    if (this.end()) return Infinity;
+    if (this.end()) return INFINITY;
     let score = 0;
 
     const libraries = {active: 0, total: 0};
@@ -1483,12 +1474,11 @@ export class State {
     );
   }
 
-  // TODO: remove redudant states...
-  display(path: string[]) {
+  static display(path: string[], trace: string[]) {
     const buf = [];
 
     let major = 0;
-    for (const line of this.trace) {
+    for (const line of trace) {
       const minor = line.startsWith('  ');
       if (!minor) {
         if (path[major - 1]) buf.push(`\n${path[major - 1]}\n`);
@@ -1627,4 +1617,91 @@ export class State {
       reversed: this.reversed,
     }, {colors: true, breakLength: 200, maxStringLength: Infinity});
   }
+}
+
+type SearchResult = { visited: number } | {
+  visited: number;
+  path: string[];
+  trace: string[];
+};
+
+interface Hash<K, V> {
+  size: number;
+  has(k: K): boolean;
+  get(k: K): V | undefined;
+  set(k: K, v: V): this;
+}
+
+// V8 Sets/Maps throw a RangeError at 2^24 entries
+// https://bugs.chromium.org/p/v8/issues/detail?id=11852
+const LIMIT = Math.pow(2, 24) - 1;
+
+class BigMap<K, V> implements Hash<K, V> {
+  private readonly maps: Map<K, V>[];
+
+  constructor() {
+    this.maps = [new Map<K, V>()];
+  }
+
+  get size() {
+    let size = 0
+    for (const map of this.maps) {
+      size += map.size
+    }
+    return size
+  }
+
+  has(k: K) {
+    for (let i = this.maps.length - 1; i >= 0; i--) {
+      if (this.maps[i].has(k)) return true;
+    }
+    return false;
+  }
+
+  get(k: K) {
+    for (let i = this.maps.length - 1; i >= 0; i--) {
+      const v = this.maps[i].get(k);
+      if (v !== undefined) return v;
+    }
+    return undefined;
+  }
+
+  set(k: K, v: V) {
+    let map!: Map<K, V>;
+    for (const m of this.maps) {
+      if (m.has(k)) return this;
+      map = m;
+    }
+
+    if (map.size === LIMIT) {
+      map = new Map();
+      this.maps.push(map);
+    }
+    map.set(k, v);
+
+    return this;
+  }
+}
+
+function search(self: IState, cutoff?: number, prescient?: boolean): SearchResult {
+  const hash: Hash<string, number> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
+  return bestfirst(self, hash, [], cutoff, prescient);
+}
+
+function bestfirst(node: IState, visited: Hash<string, number>, path: string[], cutoff?: number, prescient?: boolean): SearchResult {
+  visited.set(node.key, 1);
+  path.push(node.key);
+  if (cutoff && visited.size > cutoff) throw new RangeError();
+  const children = node.state.next(prescient);
+  for (const child of children) {
+    if (child.score >= INFINITY) {
+      path.push(child.key);
+      return {visited: visited.size, path, trace: child.state.trace};
+    }
+    if (!visited.has(child.key)) {
+      const result = bestfirst(child, visited, path.slice(), cutoff, prescient);
+      if ('path' in result) return result;
+    }
+  }
+  return {visited: visited.size};
 }
