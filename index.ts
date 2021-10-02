@@ -1426,7 +1426,10 @@ export class State {
   }
 
   toString() {
-    return `${this.random.seed}|${this.lifepoints}|${+this.summoned}|${this.monsters.join('')}|${this.spells.join('')}|${this.hand.join('')}|${this.banished.join('')}|${this.graveyard.join('')}|${this.deck.join('')}|${+this.reversed}`;
+    return `${this.random.seed}|${this.lifepoints}|${+this.summoned}|` +
+      `${this.monsters.join('')}|${this.spells.join('')}|${this.hand.join('')}|` +
+      `${this.banished.join('')}|${this.graveyard.join('')}|${this.deck.join('')}|` +
+      `${+this.reversed}`;
   }
 
   static fromString(s: string) {
