@@ -417,7 +417,7 @@ if (!('path' in result)) {
 } else {
   const content = document.getElementById('content')!;
   const div = createElement('div');
-  div.textContent = `Found a path of length ${result.path!.length} after searching ${result.visited} states:`;
+  div.textContent = `Found a path of length ${result.path.length} after searching ${result.visited} states:`;
   content.appendChild(div);
   content.appendChild(createElement('br'));
   content.appendChild(render(result.path, result.trace));

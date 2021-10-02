@@ -924,9 +924,9 @@ const equals = <T>(a: T[], b: T[]) => {
 };
 
 interface IState {
-  key: string,
-  state: State,
-  score: number,
+  key: string;
+  state: State;
+  score: number;
 }
 
 export class State {
@@ -1166,6 +1166,15 @@ export class State {
   static transition(next: Map<string, IState>, state: State) {
     const key = state.toString();
     next.set(key, {key, state, score: state.score()});
+    if (DEBUG) {
+      const errors = State.verify(state);
+      if (errors.length) {
+        console.error(`INVALID STATE ${key}:\n\n${errors.join('\n')}`);
+        console.error(state);
+        console.error(state.trace.join('\n'));
+        process.exit(1);
+      }
+    }
   }
 
   next(prescient = true) {
@@ -1643,11 +1652,11 @@ class BigMap<K, V> implements Hash<K, V> {
   }
 
   get size() {
-    let size = 0
+    let size = 0;
     for (const map of this.maps) {
-      size += map.size
+      size += map.size;
     }
-    return size
+    return size;
   }
 
   has(k: K) {
