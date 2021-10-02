@@ -33,8 +33,8 @@ const hhmmss = (ms, round = true) => {
   }
 };
 
-const csv = path.join(__dirname, 'results.csv');
-const old = path.join(__dirname, 'results.old.csv');
+const csv = path.join(__dirname, 'logs', 'results.csv');
+const old = path.join(__dirname, 'logs', 'results.old.csv');
 try {
   fs.copyFileSync(csv, old);
 } catch (e) {
