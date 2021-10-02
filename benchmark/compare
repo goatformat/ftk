@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env node -r source-map-support/register
 
 const fs = require('fs')
 
@@ -26,14 +26,15 @@ const dec = n => {
 };
 
 const report = (a, b) => {
+  const std = n => !isNaN(n.std) ? ` ± ${dec(n.std)}` : '';
   if (b) {
     console.log(`count: ${dec(a.cnt)} vs ${dec(b.cnt)} (${pct(a.cnt, b.cnt)})`);
-    console.log(`average: ${dec(a.avg)} ± ${dec(a.std)} vs ${dec(b.avg)} ± ${dec(b.std)} (${pct(a.avg, b.avg)})`);
+    console.log(`average: ${dec(a.avg)}${std(a)} vs ${dec(b.avg)}${std(b)} (${pct(a.avg, b.avg)})`);
     console.log(`p50: ${dec(a.p50)} vs ${dec(b.p50)} (${pct(a.p50, b.p50)})`);
     console.log(`p95: ${dec(a.p95)} vs ${dec(b.p95)} (${pct(a.p95, b.p95)})`);
   } else {
     console.log(`count: ${dec(a.cnt)}`);
-    console.log(`average: ${dec(a.avg)} ± ${dec(a.std)}`);
+    console.log(`average: ${dec(a.avg)}${std(a)}`);
     console.log(`p50: ${dec(a.p50)}`);
     console.log(`p95: ${dec(a.p95)}`);
   }
@@ -52,7 +53,7 @@ const read = (csv, when, input) => {
     const a = parse(lines[i]);
     stats[when][a.result].push(a.duration);
     if (a.result === 'success') stats.path[when].push(a.path);
-    if (input) stats.diff[input[i - 1].result][a.result]++;
+    if (input && input[i - 1]) stats.diff[input[i - 1].result][a.result]++;
     result.push(a);
   }
   return result;
@@ -84,6 +85,7 @@ const after = {
   exhaust: trakr.Stats.compute(stats.after.exhaust),
 };
 
+
 for (const result of ['success', 'fail', 'exhaust']) {
   const a = after[result];
   const b = before[result];
@@ -93,4 +95,4 @@ for (const result of ['success', 'fail', 'exhaust']) {
   console.log(`${stats.before[result].length} -> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}`);
 }
 console.log(`\nPATH\n---`);
-report(trakr.Stats.compute(stats.path.after),trakr.Stats.compute(stats.path.before));
+report(trakr.Stats.compute(stats.path.after), trakr.Stats.compute(stats.path.before));

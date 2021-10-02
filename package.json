@@ -2,7 +2,7 @@
   "name": "@goatformat/ftk",
   "repository": "github:goatformat/ftk",
   "license": "MIT",
-  "dependencies": {
+  "devDependencies": {
     "@pkmn/eslint-config": "^1.7.0",
     "@types/node": "^16.9.6",
     "@typescript-eslint/eslint-plugin": "^4.31.2",
@@ -11,12 +11,14 @@
     "eslint-plugin-import": "^2.24.2",
     "eslint-plugin-jest": "^24.4.2",
     "parcel": "2.0.0-nightly.841",
-    "piscina": "^3.1.0",
+    "typescript": "^4.4.3"
+  },
+  "optionalDependencies": {
     "progress": "^2.0.3",
     "source-map-support": "^0.5.20",
     "tippy.js": "^6.3.1",
     "trakr": "^0.2.0",
-    "typescript": "^4.4.3"
+    "workerpool": "^6.1.5"
   },
   "scripts": {
     "compile": "tsc -p .",
@@ -26,6 +28,8 @@
     "prestart": "npm run compile",
     "start": "parcel html/index.html",
     "build": "parcel build html/index.html",
+    "prebenchmark": "npm run compile",
+    "benchmark": "node benchmark/index",
     "test": "npm run compile && npm run fix"
   },
   "eslintConfig": {

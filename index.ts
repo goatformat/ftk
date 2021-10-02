@@ -1,5 +1,3 @@
-import 'source-map-support/register';
-
 import * as util from 'util';
 
 // Type/SubType/Attribute are pruned to just the values used by Library FTK
