@@ -1747,10 +1747,11 @@ function probe(
 
   let children = node.state.next(prescient);
   const num = children.length;
+  const split = B >= 1 ? B : Math.ceil(num * B);
   if (!discrepancies) {
     // If we don't have any discrepancies we visit just the first slice (though this could be all of
     // the children)
-    if (num > B) children = children.slice(0, B);
+    if (num > split) children = children.slice(0, split);
 
     let complete = 0;
     for (const child of children) {
@@ -1779,7 +1780,7 @@ function probe(
     }
   } else {
     // Pull out the best slice from children
-    const best = children.splice(0, B);
+    const best = children.splice(0, split);
     // Use up a discrepancy by investigating the other slices
     let complete = 0;
     for (const child of children) {
