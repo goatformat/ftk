@@ -58,13 +58,13 @@ type Data = {
 
 // A Card is the reified basic data type built from CARDS
 export type Card = Data & {
-  name: string
+  name: string;
   score(
     state: Readonly<State>,
     location: 'hand' | 'spells' | 'monsters',
     id: FieldID,
   ): number;
-}
+};
 
 // By default a 'trace' is built during a search to provide a detailed human-readable representation
 // of how to arrive at a solution. This can be disabled (eg. during benchmarking to save time and
@@ -108,7 +108,6 @@ export const ID = new class {
     return `${names.join(', ')} and ${last}`;
   }
 };
-
 
 // Basic k-subset function required by Graceful Charity and Spell Reproduction to determine
 // discard targets (though they use the isubsets method below for further deduping). This is also
@@ -218,45 +217,45 @@ const CAN_RELOAD = (state: State, location: 'hand' | 'spells' | 'monsters') => {
 
 const RELOAD: (fn: (s: State) => void) => Data['play'] =
   (fn: (s: State) => void) => (state, location, i, next, card) => {
-  if (!CAN_RELOAD(state, location)) return;
+    if (!CAN_RELOAD(state, location)) return;
 
-  const d = state.clone();
-  d.remove(location, i);
-  d.add('graveyard', card.id);
+    const d = state.clone();
+    d.remove(location, i);
+    d.add('graveyard', card.id);
 
-  // We can only set at most max cards before reloading, dependent on open zones and hand size
-  const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
-  const h = (location === 'hand' ? 1 : 0);
-  const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
-  for (let n = 1; n <= max; n++) {
-    for (const set of isubsets(d.hand, n)) {
-      if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
-      const s = d.clone();
-      const ids = [];
-      for (const [offset, j] of set.entries()) {
-        const id = d.hand[j];
-        ids.push(id);
-        s.add('spells', `(${id})` as FieldID);
-        s.remove('hand', j - offset);
+    // We can only set at most max cards before reloading, dependent on open zones and hand size
+    const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
+    const h = (location === 'hand' ? 1 : 0);
+    const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
+    for (let n = 1; n <= max; n++) {
+      for (const set of isubsets(d.hand, n)) {
+        if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
+        const s = d.clone();
+        const ids = [];
+        for (const [offset, j] of set.entries()) {
+          const id = d.hand[j];
+          ids.push(id);
+          s.add('spells', `(${id})` as FieldID);
+          s.remove('hand', j - offset);
+        }
+        s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+        const len = s.hand.length;
+        fn(s);
+        s.hand = [];
+        s.draw(len);
+        s.inc();
+        State.transition(next, s);
       }
-      s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-      const len = s.hand.length;
-      fn(s);
-      s.hand = [];
-      s.draw(len);
-      s.inc();
-      State.transition(next, s);
     }
-  }
-  // The case where we don't set any cards beforehand
-  d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-  const len = d.hand.length;
-  fn(d);
-  d.hand = [];
-  d.draw(len);
-  d.inc();
-  State.transition(next, d);
-};
+    // The case where we don't set any cards beforehand
+    d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+    const len = d.hand.length;
+    fn(d);
+    d.hand = [];
+    d.draw(len);
+    d.inc();
+    State.transition(next, d);
+  };
 
 const Ids = {
   LevelLimitAreaB: 'A' as ID,
@@ -898,7 +897,7 @@ export const DATA: Record<ID, Card> = {};
 for (const name in CARDS) {
   const card = CARDS[name];
   const score = 'can' in card
-    ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters', id: FieldID) => +card.can(s, loc)
+    ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters') => +card.can(s, loc)
     : () => 0;
   DATA[card.id] = {score, ...card, name};
 }

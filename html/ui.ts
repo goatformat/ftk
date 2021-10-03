@@ -2,7 +2,7 @@ import './ui.css';
 import {State, Random} from '..';
 import {createElement, renderState} from './common';
 
-export const HANDLERS: { [name: string]: {} } = {
+export const HANDLERS: { [name: string]: any } = {
   'A Feather of the Phoenix': {
   },
   'Archfiend\'s Oath': {
