@@ -493,9 +493,11 @@ export const CARDS: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
-    can: s => !!s.graveyard.length && s.monsters.length < 5 && s.lifepoints > 800,
-    score(state, location) {
-      if (!this.can(state, location)) return 0;
+    can(state) {
+      return (this as any).score(state) > 0;
+    },
+    score(state) {
+      if (!state.graveyard.length || state.monsters.length > 4 && state.lifepoints <= 800) return 0;
       let max = 0;
       for (const id of state.graveyard) {
         const target = ID.decode(id);
@@ -505,7 +507,7 @@ export const CARDS: { [name: string]: Data } = {
       return 1 + max;
     },
     play(state, location, i, next, card) {
-      if (!this.can(state, location)) return;
+      if (!state.graveyard.length || state.monsters.length > 4 && state.lifepoints <= 800) return;
       const targets = new Set<ID>();
       for (let j = 0; j < state.graveyard.length; j++) {
         const id = state.graveyard[j];
