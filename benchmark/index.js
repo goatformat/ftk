@@ -58,6 +58,9 @@ const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers});
     results.push(pool.exec('search', [Random.seed(i)]).then(result => {
       progress.tick();
       return result;
+    }).catch(() => {
+      progress.tick();
+      return ['crash', 0, undefined, undefined, undefined].join(',');
     }));
   }
 

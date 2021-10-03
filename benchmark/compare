@@ -6,13 +6,13 @@ const fs = require('fs')
 const trakr = require('trakr');
 
 const stats = {
-  before: {success: [], fail: [], exhaust: []},
-  after: {success: [], fail: [], exhaust: []},
+  before: {success: [], fail: [], exhaust: [], crash: []},
+  after: {success: [], fail: [], exhaust: [], crash: []},
   path: {before: [], after: []},
   diff: {
-    success: {success: 0, fail: 0, exhaust: 0},
-    fail: {success: 0, fail: 0, exhaust: 0},
-    exhaust: {success: 0, fail: 0, exhaust: 0},
+    success: {success: 0, fail: 0, exhaust: 0, crash: 0},
+    fail: {success: 0, fail: 0, exhaust: 0, crash: 0},
+    exhaust: {success: 0, fail: 0, exhaust: 0, crash: 0},
   }
 };
 
@@ -74,6 +74,10 @@ if (!process.argv[3]) {
     console.log(`\n${result.toUpperCase()}\n---`);
     report(a);
   }
+  if (stats.before.crash.length || stats.after.crash.length) {
+    console.log(`\nCRASHES\n---`);
+    console.log(`${stats.after.crash.length} vs ${stats.before.crash.length}`);
+  };
   console.log(`\nPATH\n---`);
   report(trakr.Stats.compute(stats.path.before));
   process.exit(0);
