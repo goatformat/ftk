@@ -44,6 +44,7 @@ type Data = {
     card: Card,
     prescient: boolean,
   ): void;
+  [key: string]: any;
 } & ({
   type: 'Spell';
   subType: SubType;
@@ -282,7 +283,7 @@ const Ids = {
   SpellReproduction: 'Z' as ID,
 };
 
-export const CARDS: { [name: string]: Data } = {
+export const CARDS: { [name: string]: Data} = {
   'A Feather of the Phoenix': {
     id: Ids.AFeatherOfThePhoenix,
     type: 'Spell',
@@ -292,6 +293,26 @@ export const CARDS: { [name: string]: Data } = {
       return !!(state.graveyard.length && (state.hand.length >= (location === 'hand' ? 2 : 1)));
     },
     play(state, location, i, next, card) {
+      for (const {hid, gid, j, k} of this.targets(state, location, i)) {
+        const s = state.clone();
+        s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+        s.minor(`Discard "${ID.decode(hid).name}"`);
+        s.minor(`Return "${ID.decode(gid).name}" in the Graveyard to the top of the Deck`);
+        s.remove('graveyard', k);
+        if (location === 'hand') {
+          s.discard(i < j ? [i, j] : [j, i]);
+        } else {
+          s.remove(location, i);
+          s.add('graveyard', card.id);
+          s.add('graveyard', s.remove('hand', j));
+        }
+        s.deck.push(`(${gid})` as DeckID);
+        s.inc();
+        State.transition(next, s);
+      }
+    },
+    // FIXME: actually want to separate out activate...
+    *targets(state: Readonly<State>, location: 'hand' | 'spells', i: number) {
       if (!this.can(state, location)) return;
       const targets = {discard: new Set<ID>(), graveyard: new Set<ID>()};
       for (let j = 0; j < state.hand.length; j++) {
@@ -303,21 +324,7 @@ export const CARDS: { [name: string]: Data } = {
           const gid = state.graveyard[k];
           if (targets.graveyard.has(gid)) continue;
           targets.graveyard.add(gid);
-          const s = state.clone();
-          s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-          s.minor(`Discard "${ID.decode(hid).name}"`);
-          s.minor(`Return "${ID.decode(gid).name}" in the Graveyard to the top of the Deck`);
-          s.remove('graveyard', k);
-          if (location === 'hand') {
-            s.discard(i < j ? [i, j] : [j, i]);
-          } else {
-            s.remove(location, i);
-            s.add('graveyard', card.id);
-            s.add('graveyard', s.remove('hand', j));
-          }
-          s.deck.push(`(${gid})` as DeckID);
-          s.inc();
-          State.transition(next, s);
+          yield {hid, gid, j, k}
         }
       }
     },
