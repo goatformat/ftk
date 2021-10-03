@@ -497,7 +497,7 @@ export const CARDS: { [name: string]: Data } = {
       return (this as any).score(state) > 0;
     },
     score(state) {
-      if (!state.graveyard.length || state.monsters.length > 4 && state.lifepoints <= 800) return 0;
+      if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return 0;
       let max = 0;
       for (const id of state.graveyard) {
         const target = ID.decode(id);
@@ -507,7 +507,7 @@ export const CARDS: { [name: string]: Data } = {
       return 1 + max;
     },
     play(state, location, i, next, card) {
-      if (!state.graveyard.length || state.monsters.length > 4 && state.lifepoints <= 800) return;
+      if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return;
       const targets = new Set<ID>();
       for (let j = 0; j < state.graveyard.length; j++) {
         const id = state.graveyard[j];
@@ -1753,15 +1753,22 @@ function probe(
 
     let complete = 0;
     for (const child of children) {
+      if (child.score >= Infinity) {
+        path.push(child.key);
+        return {path, trace: child.state.trace};
+      }
+
       const v = visited.get(child.key);
-      // Track how many of our children our actually COMPLETE, as if they all are and we're visiting
-      // all of our children than we can mark this node as COMPLETE
-      if (v === Status.COMPLETE) complete++;
-      // If this node was visited at all we can skip visiting it further, as we will only ever be
-      // looking in the first slice anyway since we have no discrepancies
-      if (!v) {
+      if (v === Status.COMPLETE) {
+        // Track how many of our children are actually COMPLETE, as if they all are and we're visiting
+        // all of our children than we can mark this node as COMPLETE
+        complete++;
+      } else if (!v) {
+        // If this node was visited at all we can skip visiting it further, as we will only ever be
+        // looking in the first slice anyway since we have no discrepancies
         const result = probe(child, B, 0, visited, path.slice(), cutoff, prescient);
         if (result) return result;
+        if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
     // If the slice actually encompassed all children and they were all COMPLETE we can mark this
@@ -1775,6 +1782,11 @@ function probe(
     // Use up a discrepancy by investigating the other slices
     let complete = 0;
     for (const child of children) {
+      if (child.score >= Infinity) {
+        path.push(child.key);
+        return {path, trace: child.state.trace};
+      }
+
       const v = visited.get(child.key);
       if (v === Status.COMPLETE) {
         complete++;
@@ -1785,20 +1797,27 @@ function probe(
         if (discrepancies === 1 && v) continue;
         const result = probe(child, B, discrepancies - 1, visited, path.slice(), cutoff, prescient);
         if (result) return result;
+        if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
     // Preserve our discrepancy by choosing the best slice
     for (const child of best) {
+      if (child.score >= Infinity) {
+        path.push(child.key);
+        return {path, trace: child.state.trace};
+      }
+
       const v = visited.get(child.key);
-      // Track how many of our children our actually COMPLETE, as if they all are and we're visiting
-      // all of our children than we can mark this node as COMPLETE
       if (v === Status.COMPLETE) {
+        // Track how many of our children are actually COMPLETE, as if they all are and we're visiting
+        // all of our children than we can mark this node as COMPLETE
         complete++;
       } else {
         // In this case, we need to explore the child even if it is PARTIAL visited as we now have
         // discrepancies to spare which would cause us to explore into the other slices
         const result = probe(child, B, discrepancies, visited, path.slice(), cutoff, prescient);
         if (result) return result;
+        if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
     // If the slice actually encompassed all children and they were all COMPLETE we can mark
