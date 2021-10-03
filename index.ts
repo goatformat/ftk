@@ -204,6 +204,48 @@ const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   State.transition(next, unknown);
 };
 
+const RELOAD: (fn: (s: State) => void) => Data['play'] =
+  (fn: (s: State) => void) => (state, location, i, next, card) => {
+  const h = (location === 'hand' ? 1 : 0);
+  if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
+
+  const d = state.clone();
+  d.remove(location, i);
+  d.add('graveyard', card.id);
+
+  // We can only set at most max cards before reloading, dependent on open zones and hand size
+  const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
+  const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
+  for (let n = 1; n <= max; n++) {
+    for (const set of isubsets(d.hand, n)) {
+      if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
+      const s = d.clone();
+      const ids = [];
+      for (const [offset, j] of set.entries()) {
+        const id = d.hand[j];
+        ids.push(id);
+        s.add('spells', `(${id})` as FieldID);
+        s.remove('hand', j - offset);
+      }
+      s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      const len = s.hand.length;
+      fn(s);
+      s.hand = [];
+      s.draw(len);
+      s.inc();
+      State.transition(next, s);
+    }
+  }
+  // The case where we don't set any cards beforehand
+  d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+  const len = d.hand.length;
+  fn(d);
+  d.hand = [];
+  d.draw(len);
+  d.inc();
+  State.transition(next, d);
+};
+
 const Ids = {
   LevelLimitAreaB: 'A' as ID,
   BlackPendant: 'B' as ID,
@@ -315,52 +357,12 @@ export const CARDS: { [name: string]: Data } = {
       const h = (location === 'hand' ? 1 : 0);
       return +!!(state.hand.length > h && state.deck.length >= state.hand.length - h);
     },
-    play(state, location, i, next, card) {
-      const h = (location === 'hand' ? 1 : 0);
-      if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
-
-      const d = state.clone();
-      d.remove(location, i);
-      d.add('graveyard', card.id);
-
-      // We can only set at most max cards before discarding, dependent on open zones and hand size
-      const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
-      const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
-      for (let n = 1; n < max; n++) {
-        for (const set of isubsets(d.hand, n)) {
-          if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
-          const s = d.clone();
-          const ids = [];
-          for (const [offset, j] of set.entries()) {
-            const id = d.hand[j];
-            ids.push(id);
-            s.add('spells', `(${id})` as FieldID);
-            s.remove('hand', j - offset);
-          }
-          s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-          const len = s.hand.length;
-          for (const id of s.hand) {
-            s.add('graveyard', id);
-          }
-          s.minor(`Discard ${ID.names(s.hand)}`);
-          s.hand = [];
-          s.draw(len);
-          s.inc();
-          State.transition(next, s);
-        }
+    play: RELOAD(s => {
+      for (const id of s.hand) {
+        s.add('graveyard', id);
       }
-      // The case where we don't set any cards beforehand
-      d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-      const len = d.hand.length;
-      for (const id of d.hand) {
-        d.add('graveyard', id);
-      }
-      d.minor(`Discard ${ID.names(d.hand)}`);
-      d.hand = [];
-      d.draw(len);
-      d.inc();
-      State.transition(next, d);
-    },
+      s.minor(`Discard ${ID.names(s.hand)}`);
+    }),
   },
   'Convulsion of Nature': {
     id: Ids.ConvulsionOfNature,
@@ -539,50 +541,11 @@ export const CARDS: { [name: string]: Data } = {
       const h = (location === 'hand' ? 1 : 0);
       return +!!(state.hand.length > h && state.deck.length >= state.hand.length - h);
     },
-    play(state, location, i, next, card) {
-      const h = (location === 'hand' ? 1 : 0);
-      if (!(state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
-
-      const d = state.clone();
-      d.remove(location, i);
-      d.add('graveyard', card.id);
-
-      // We can only set at most max cards before reloading, dependent on open zones and hand size
-      const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
-      const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
-      for (let n = 1; n <= max; n++) {
-        for (const set of isubsets(d.hand, n)) {
-          if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
-          const s = d.clone();
-          const ids = [];
-          for (const [offset, j] of set.entries()) {
-            const id = d.hand[j];
-            ids.push(id);
-            s.add('spells', `(${id})` as FieldID);
-            s.remove('hand', j - offset);
-          }
-          s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-          const len = s.hand.length;
-          s.deck.push(...s.hand);
-          s.minor(`Return ${ID.names(s.hand)} to Deck`);
-          s.shuffle();
-          s.hand = [];
-          s.draw(len);
-          s.inc();
-          State.transition(next, s);
-        }
-      }
-      // The case where we don't set any cards beforehand
-      d.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-      const len = d.hand.length;
-      d.deck.push(...d.hand);
-      d.minor(`Return ${ID.names(d.hand)} to Deck`);
-      d.shuffle();
-      d.hand = [];
-      d.draw(len);
-      d.inc();
-      State.transition(next, d);
-    },
+    play: RELOAD(s => {
+      s.deck.push(...s.hand);
+      s.minor(`Return ${ID.names(s.hand)} to Deck`);
+      s.shuffle();
+    }),
   },
   'Reversal Quiz': {
     id: Ids.ReversalQuiz,
