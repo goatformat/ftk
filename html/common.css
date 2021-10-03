@@ -46,17 +46,14 @@ body {
   max-width: 95%;
 }
 #content {
-  --width: 320px;
-  --card-row: 8;
   --card-border: 1px;
   --card-ratio: 1.45;
   --card-min-width: 32px;
   --card-spacing: 2px;
-  --card-width: calc((var(--width) - (var(--card-row) * 2 * var(--card-spacing))) / var(--card-row));
+
   --card-height: calc(var(--card-width) * var(--card-ratio));
   --card-name-height: calc((var(--card-height) - var(--card-width)) / 4 - 1px);
 
-  max-width: 800px;
   font-size: 0.85em;
   margin: 0 auto;
 }
@@ -203,7 +200,6 @@ body {
 .stats {
   position: absolute;
   left: 0;
-  top: 79%;
   transform: translateY(-82%);
   display: flex;
   justify-content: center;
@@ -240,31 +236,12 @@ ul {
 li {
   padding-left: 1.4em;
 }
-summary pre {
-  display: inline;
-}
 table {
   margin: 0 auto;
   width: fit-content;
   min-width: calc(var(--card-width) * 10);
-  max-width: 95%;
   padding: 5px;
   border-spacing: 0;
-}
-details {
-  width: max-content;
-  margin: 1em auto;
-}
-.trace {
-  padding: 1em;
-  max-width: 690px;
-  margin: 1em auto;
-  line-height: 1.4em;
-  background-color: #f7f7f7;
-  border: 1px solid black;
-}
-.trace ul {
-  margin: 0;
 }
 td:nth-child(2) {
   width: var(--card-width);
@@ -272,14 +249,6 @@ td:nth-child(2) {
 }
 tr {
   height: var(--card-height);
-}
-.wrapper {
-  overflow: scroll;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.wrapper::-webkit-scrollbar{
-  display: none;
 }
 .text {
   font-weight: bold;
@@ -293,9 +262,6 @@ tr:first-child td {
 }
 
 @media(min-width: 500px) {
-  #content {
-    --width: 400px;
-  }
   .lifepoints {
     text-align: center;
     font-weight: bold;
