@@ -640,7 +640,7 @@ export const CARDS: { [name: string]: Data } = {
         const card = ID.decode(id);
         if ('attribute' in card && card.attribute === 'Dark' && card.atk <= 1500) {
           const t = s.clone();
-          s.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
+          t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
           t.add('hand', ID.id(s.deck.splice(j, 1)[0]));
           t.shuffle();
           const reveal = t.deck[t.deck.length - 1];
@@ -763,7 +763,7 @@ export const CARDS: { [name: string]: Data } = {
             const card = ID.decode(id);
             if ('attribute' in card && card.attribute === 'Dark' && card.atk <= 1500) {
               const t = s.clone();
-              s.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
+              t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
               t.add('hand', ID.id(s.deck.splice(k, 1)[0]));
               t.shuffle();
               State.transition(next, t);
@@ -1161,6 +1161,7 @@ export class State {
 
   search(cutoff?: number, prescient?: boolean) {
     return search({key: this.toString(), state: this, score: this.score()}, cutoff, prescient);
+    // DEBUG return bulb({key: this.toString(), state: this, score: this.score()}, 2, cutoff, prescient);
   }
 
   static transition(next: Map<string, IState>, state: State) {
@@ -1627,11 +1628,10 @@ export class State {
   }
 }
 
-type SearchResult = { visited: number } | {
-  visited: number;
+interface SearchResult {
   path: string[];
   trace: string[];
-};
+}
 
 interface Hash<K, V> {
   size: number;
@@ -1691,12 +1691,22 @@ class BigMap<K, V> implements Hash<K, V> {
   }
 }
 
-function search(self: IState, cutoff?: number, prescient?: boolean): SearchResult {
+export function search(
+  self: IState, cutoff?: number, prescient?: boolean
+): {visited: number} | SearchResult & {visited: number} {
   const hash: Hash<string, number> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
-  return bestfirst(self, hash, [], cutoff, prescient);
+  const result = bestfirst(self, hash, [], cutoff, prescient);
+  return {visited: hash.size, ...result};
 }
 
-function bestfirst(node: IState, visited: Hash<string, number>, path: string[], cutoff?: number, prescient?: boolean): SearchResult {
+function bestfirst(
+  node: IState,
+  visited: Hash<string, number>,
+  path: string[],
+  cutoff?: number,
+  prescient?: boolean
+): SearchResult | undefined {
+  console.debug(node.key);
   visited.set(node.key, 1);
   path.push(node.key);
   if (cutoff && visited.size > cutoff) throw new RangeError();
@@ -1704,12 +1714,114 @@ function bestfirst(node: IState, visited: Hash<string, number>, path: string[], 
   for (const child of children) {
     if (child.score >= Infinity) {
       path.push(child.key);
-      return {visited: visited.size, path, trace: child.state.trace};
+      return {path, trace: child.state.trace};
     }
     if (!visited.has(child.key)) {
       const result = bestfirst(child, visited, path.slice(), cutoff, prescient);
-      if ('path' in result) return result;
+      if (result) return result;
     }
   }
+  return undefined;
+}
+
+const enum Status {
+  // The first slice of this node has been visited (which implies the first slices of all of the
+  // first slice's children's nodes have been visited)
+  PARTIAL = 1,
+  // All children of this node have been completely visited (which implies that all children of its
+  // children's nodes have been completely visited)
+  COMPLETE = 2,
+}
+
+// DEBUG
+export function bulb(node: IState, B = 5, cutoff?: number, prescient?: boolean) {
+  const visited: Hash<string, Status> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
+  for (let discrepancies = 0; visited.get(node.key) !== Status.COMPLETE; discrepancies++) {
+    const result = probe(node, B, discrepancies, visited, [], cutoff, prescient);
+    if (result) return {visited: visited.size, ...result};
+  }
   return {visited: visited.size};
+}
+
+function probe(
+  node: IState,
+  B: number,
+  discrepancies: number,
+  visited: Hash<string, Status>,
+  path: string[],
+  cutoff?: number,
+  prescient?: boolean
+): SearchResult | undefined {
+  console.error(node.key); // DEBUG
+  path.push(node.key);
+
+  // No matter what, we will at least be visiting all of the first slice, thus we can mark this node
+  // as partially visited
+  visited.set(node.key, Status.PARTIAL);
+
+  let children = node.state.next(prescient);
+  const num = children.length;
+  if (!discrepancies) {
+    // If we don't have any discrepancies we visit just the first slice (though this could be all of
+    // the children)
+    if (num > B) children = children.slice(0, B);
+
+    let complete = 0;
+    for (const child of children) {
+      const v = visited.get(child.key);
+      // Track how many of our children our actually COMPLETE, as if they all are and we're visiting
+      // all of our children than we can mark this node as COMPLETE
+      if (v === Status.COMPLETE) complete++;
+      // If this node was visited at all we can skip visiting it further, as we will only ever be
+      // looking in the first slice anyway since we have no discrepancies
+      if (!v) {
+        const result = probe(child, B, 0, visited, path.slice(), cutoff, prescient);
+        if (result) return result;
+      }
+    }
+    // If the slice actually encompassed all children and they were all COMPLETE we can mark this
+    // node as COMPLETE
+    if (complete === num) {
+      visited.set(node.key, Status.COMPLETE);
+    }
+  } else {
+    // Pull out the best slice from children
+    const best = children.splice(0, B);
+    // Use up a discrepancy by investigating the other slices
+    let complete = 0;
+    for (const child of children) {
+      const v = visited.get(child.key);
+      if (v === Status.COMPLETE) {
+        complete++;
+      } else {
+        // If we only have one discrepancy we don't need to bother recursing into children that have
+        // already been partially searched as we would only be expanding their first slice anyway
+        // which has all already been searched
+        if (discrepancies === 1 && v) continue;
+        const result = probe(child, B, discrepancies - 1, visited, path.slice(), cutoff, prescient);
+        if (result) return result;
+      }
+    }
+    // Preserve our discrepancy by choosing the best slice
+    for (const child of best) {
+      const v = visited.get(child.key);
+      // Track how many of our children our actually COMPLETE, as if they all are and we're visiting
+      // all of our children than we can mark this node as COMPLETE
+      if (v === Status.COMPLETE) {
+        complete++;
+      } else {
+        // In this case, we need to explore the child even if it is PARTIAL visited as we now have
+        // discrepancies to spare which would cause us to explore into the other slices
+        const result = probe(child, B, discrepancies, visited, path.slice(), cutoff, prescient);
+        if (result) return result;
+      }
+    }
+    // If the slice actually encompassed all children and they were all COMPLETE we can mark
+    // this node as COMPLETE
+    if (complete === num) {
+      visited.set(node.key, Status.COMPLETE);
+    }
+  }
+
+  return undefined;
 }

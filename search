@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+require('source-map-support').install();
+
+const {State, Random, search, bulb} = require('./build');
+
+const cutoff = 1e7;
+const prescient = true;
+
+let state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+search({key: state.toString(), state, score: state.score()}, cutoff, prescient);
+
+state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+bulb({key: state.toString(), state, score: state.score()}, +process.argv[3] || 5, cutoff, prescient);
