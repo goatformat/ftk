@@ -1743,6 +1743,7 @@ function probe(
   // No matter what, we will at least be visiting all of the first slice, thus we can mark this node
   // as partially visited
   visited.set(node.key, Status.PARTIAL);
+  if (cutoff && visited.size > cutoff) throw new RangeError();
 
   let children = node.state.next(prescient);
   const num = children.length;
