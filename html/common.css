@@ -77,6 +77,8 @@ body {
   transform: translate(-50%, -50%);
   z-index: 10;
   color: white;
+  font-size: calc(var(--card-height) / 5);
+  line-height: calc(var(--card-height) / 5);
 }
 .counter {
   position: absolute;
@@ -89,8 +91,9 @@ body {
   border-radius: 50%;
   width: 2em;
   height: 2em;
-  /* font-weight: bold; */
   color: black;
+  font-size: calc(var(--card-height) / 5);
+  line-height: calc(var(--card-height) / 5);
 }
 .counter img {
   position: absolute;
@@ -103,7 +106,6 @@ body {
   font-size: 80%;
   position: relative;
   z-index: 1;
-  top: -10%;
 }
 .tooltip {
   padding: 3px;
@@ -142,14 +144,14 @@ body {
 }
 .card.equip-1 {
   border-color: fuchsia;
-  border-width: 2px;
+  border-width: max(var(--card-border), 2px);
 }
 .card.equip-2 {
   border-color: red;
-  border-width: 2px;
+  border-width: max(var(--card-border), 2px);
 }
 .blank {
-  border-width: 2px;
+  border-width: max(var(--card-border), 2px);
 }
 .card img {
   vertical-align: middle;

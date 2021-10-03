@@ -7,6 +7,9 @@
 .stats {
   top: 79%;
 }
+.counter .label-text {
+  top: -13%;
+}
 summary pre {
   display: inline;
 }
