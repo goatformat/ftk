@@ -1424,13 +1424,16 @@ export class State {
       equals(this.deck, s.deck));
   }
 
-  // BUG: this should really be on one line to avoid paying for the string concatenations, but
-  // this causes workers to OOM for whatever reason...
   toString() {
-    return `${this.random.seed}|${this.lifepoints}|${+this.summoned}|` +
-      `${this.monsters.join('')}|${this.spells.join('')}|${this.hand.join('')}|` +
-      `${this.banished.join('')}|${this.graveyard.join('')}|${this.deck.join('')}|` +
-      `${+this.reversed}`;
+    // Using `join` here on an array instead of using a template string or string concatenation
+    // is deliberate as it reuslts in V8 creating a flat string instead of a cons-string, the
+    // latter of which results in significantly higher memory usage. This is a V8 implementation
+    // detail and the approach to forcing a flattened string to be created may change over time.
+    // https://gist.github.com/mraleph/3397008
+    return [this.random.seed, this.lifepoints, +this.summoned,
+      this.monsters.join(''), this.spells.join(''), this.hand.join(''),
+      this.banished.join(''), this.graveyard.join(''), this.deck.join(''),
+      +this.reversed].join('|');
   }
 
   static fromString(s: string) {
