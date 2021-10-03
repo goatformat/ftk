@@ -1691,7 +1691,7 @@ class BigMap<K, V> implements Hash<K, V> {
   }
 }
 
-function search(
+export function search(
   self: IState, cutoff?: number, prescient?: boolean
 ): {visited: number} | SearchResult & {visited: number} {
   const hash: Hash<string, number> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
@@ -1706,18 +1706,20 @@ function bestfirst(
   cutoff?: number,
   prescient?: boolean
 ): SearchResult | undefined {
+  console.debug(node.key);
   visited.set(node.key, 1);
   path.push(node.key);
   if (cutoff && visited.size > cutoff) throw new RangeError();
-  // NOTE: filtering ahead of time means we retain less memory on the stack when we recurse
-  const children = node.state.next(prescient).filter(c => !visited.has(c.key));
+  const children = node.state.next(prescient);
   for (const child of children) {
-    if (child.score === Infinity) {
+    if (child.score >= Infinity) {
       path.push(child.key);
       return {path, trace: child.state.trace};
     }
-    const result = bestfirst(child, visited, path.slice(), cutoff, prescient);
-    if (result) return result;
+    if (!visited.has(child.key)) {
+      const result = bestfirst(child, visited, path.slice(), cutoff, prescient);
+      if (result) return result;
+    }
   }
   return undefined;
 }
@@ -1731,7 +1733,8 @@ const enum Status {
   COMPLETE = 2,
 }
 
-function bulb(node: IState, B = 5, cutoff?: number, prescient?: boolean) {
+// DEBUG
+export function bulb(node: IState, B = 5, cutoff?: number, prescient?: boolean) {
   const visited: Hash<string, Status> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
   for (let discrepancies = 0; visited.get(node.key) !== Status.COMPLETE; discrepancies++) {
     const result = probe(node, B, discrepancies, visited, [], cutoff, prescient);
@@ -1749,6 +1752,7 @@ function probe(
   cutoff?: number,
   prescient?: boolean
 ): SearchResult | undefined {
+  console.error(node.key); // DEBUG
   path.push(node.key);
 
   // No matter what, we will at least be visiting all of the first slice, thus we can mark this node
