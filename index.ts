@@ -1161,7 +1161,6 @@ export class State {
 
   search(cutoff?: number, prescient?: boolean) {
     return search({key: this.toString(), state: this, score: this.score()}, cutoff, prescient);
-    // DEBUG return bulb({key: this.toString(), state: this, score: this.score()}, 2, cutoff, prescient);
   }
 
   static transition(next: Map<string, IState>, state: State) {
@@ -1706,7 +1705,6 @@ function bestfirst(
   cutoff?: number,
   prescient?: boolean
 ): SearchResult | undefined {
-  console.debug(node.key);
   visited.set(node.key, 1);
   path.push(node.key);
   if (cutoff && visited.size > cutoff) throw new RangeError();
@@ -1733,7 +1731,6 @@ const enum Status {
   COMPLETE = 2,
 }
 
-// DEBUG
 export function bulb(node: IState, B = 5, cutoff?: number, prescient?: boolean) {
   const visited: Hash<string, Status> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
   for (let discrepancies = 0; visited.get(node.key) !== Status.COMPLETE; discrepancies++) {
@@ -1752,7 +1749,6 @@ function probe(
   cutoff?: number,
   prescient?: boolean
 ): SearchResult | undefined {
-  console.error(node.key); // DEBUG
   path.push(node.key);
 
   // No matter what, we will at least be visiting all of the first slice, thus we can mark this node
