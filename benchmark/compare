@@ -13,6 +13,7 @@ const stats = {
     success: {success: 0, fail: 0, exhaust: 0, crash: 0},
     fail: {success: 0, fail: 0, exhaust: 0, crash: 0},
     exhaust: {success: 0, fail: 0, exhaust: 0, crash: 0},
+    crash: {success: 0, fail: 0, exhaust: 0, crash: 0},
   }
 };
 
@@ -97,7 +98,18 @@ for (const result of ['success', 'fail', 'exhaust']) {
   if (!(b.cnt || a.cnt)) continue;
   console.log(`\n${result.toUpperCase()}\n---`);
   report(a, b);
-  console.log(`${stats.before[result].length} -> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}`);
+  if (stats.before.crash.length || stats.after.crash.length) {
+    console.log(`${stats.before[result].length} -> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}, crash: ${stats.diff[result].crash}`);
+  } else {
+    console.log(`${stats.before[result].length} -> success: ${stats.diff[result].success}, fail: ${stats.diff[result].fail}, exhaust: ${stats.diff[result].exhaust}`);
+  }
 }
+if (stats.before.crash.length || stats.after.crash.length) {
+  console.log(`\nCRASHES\n---`);
+  console.log(`${stats.after.crash.length} vs ${stats.before.crash.length}`);
+  if (stats.before.crash.length) {
+    console.log(`${stats.before.crash.length} -> success: ${stats.diff.crash.success}, fail: ${stats.diff.crash.fail}, exhaust: ${stats.diff.crash.exhaust}, crash: ${stats.diff.crash.crash}`);
+  }
+};
 console.log(`\nPATH\n---`);
 report(trakr.Stats.compute(stats.path.after), trakr.Stats.compute(stats.path.before));
