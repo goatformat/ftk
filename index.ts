@@ -1148,8 +1148,15 @@ export class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
-  search(cutoff?: number, prescient?: boolean) {
-    return search({key: this.toString(), state: this, score: this.score()}, cutoff, prescient);
+  search(
+    options: {cutoff?: number; prescient?: boolean; width?: number} = {}
+  ): {visited: number} | SearchResult & {visited: number} {
+    const node = {key: this.toString(), state: this, score: this.score()};
+    if (options.width) {
+      return bulbSearch(node, options.width, options.cutoff, options.prescient);
+    } else {
+      return bestFirstSearch(node, options.cutoff, options.prescient);
+    }
   }
 
   static transition(next: Map<string, IState>, state: State) {
@@ -1679,15 +1686,15 @@ class BigMap<K, V> implements Hash<K, V> {
   }
 }
 
-export function search(
-  self: IState, cutoff?: number, prescient?: boolean
+function bestFirstSearch(
+  node: IState, cutoff?: number, prescient?: boolean
 ): {visited: number} | SearchResult & {visited: number} {
   const hash: Hash<string, number> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
-  const result = bestfirst(self, hash, [], cutoff, prescient);
+  const result = bestFirstProbe(node, hash, [], cutoff, prescient);
   return {visited: hash.size, ...result};
 }
 
-function bestfirst(
+function bestFirstProbe(
   node: IState,
   visited: Hash<string, number>,
   path: string[],
@@ -1704,7 +1711,7 @@ function bestfirst(
       return {path, trace: child.state.trace};
     }
     if (!visited.has(child.key)) {
-      const result = bestfirst(child, visited, path.slice(), cutoff, prescient);
+      const result = bestFirstProbe(child, visited, path.slice(), cutoff, prescient);
       if (result) return result;
     }
   }
@@ -1720,16 +1727,18 @@ const enum Status {
   COMPLETE = 2,
 }
 
-export function bulb(node: IState, B = 5, cutoff?: number, prescient?: boolean) {
+function bulbSearch(
+  node: IState, B = 5, cutoff?: number, prescient?: boolean
+): {visited: number} | SearchResult & {visited: number} {
   const visited: Hash<string, Status> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
   for (let discrepancies = 0; visited.get(node.key) !== Status.COMPLETE; discrepancies++) {
-    const result = probe(node, B, discrepancies, visited, [], cutoff, prescient);
+    const result = bulbProbe(node, B, discrepancies, visited, [], cutoff, prescient);
     if (result) return {visited: visited.size, ...result};
   }
   return {visited: visited.size};
 }
 
-function probe(
+function bulbProbe(
   node: IState,
   B: number,
   discrepancies: number,
@@ -1740,8 +1749,8 @@ function probe(
 ): SearchResult | undefined {
   path.push(node.key);
 
-  // No matter what, we will at least be visiting all of the first slice, thus we can mark this node
-  // as partially visited
+  // No matter what, we will at least be visiting all of the first slice,
+  // thus we can mark this node as partially visited
   visited.set(node.key, Status.PARTIAL);
   if (cutoff && visited.size > cutoff) throw new RangeError();
 
@@ -1749,8 +1758,8 @@ function probe(
   const num = children.length;
   const split = B >= 1 ? B : Math.ceil(num * B);
   if (!discrepancies) {
-    // If we don't have any discrepancies we visit just the first slice (though this could be all of
-    // the children)
+    // If we don't have any discrepancies we visit just the first slice (though
+    // this could be all of the children)
     if (num > split) children = children.slice(0, split);
 
     let complete = 0;
@@ -1762,19 +1771,19 @@ function probe(
 
       const v = visited.get(child.key);
       if (v === Status.COMPLETE) {
-        // Track how many of our children are actually COMPLETE, as if they all are and we're visiting
-        // all of our children than we can mark this node as COMPLETE
+        // Track how many of our children are actually COMPLETE - if they all are
+        // and we're visiting all of our children than we can mark this node as COMPLETE
         complete++;
       } else if (!v) {
-        // If this node was visited at all we can skip visiting it further, as we will only ever be
-        // looking in the first slice anyway since we have no discrepancies
-        const result = probe(child, B, 0, visited, path.slice(), cutoff, prescient);
+        // If this node was visited at all we can skip visiting it further, as we will only
+        // ever be looking in the first slice anyway since we have no discrepancies
+        const result = bulbProbe(child, B, 0, visited, path.slice(), cutoff, prescient);
         if (result) return result;
         if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
-    // If the slice actually encompassed all children and they were all COMPLETE we can mark this
-    // node as COMPLETE
+    // If the slice actually encompassed all children and they were all COMPLETE
+    //  we can mark this node as COMPLETE
     if (complete === num) {
       visited.set(node.key, Status.COMPLETE);
     }
@@ -1793,11 +1802,12 @@ function probe(
       if (v === Status.COMPLETE) {
         complete++;
       } else {
-        // If we only have one discrepancy we don't need to bother recursing into children that have
-        // already been partially searched as we would only be expanding their first slice anyway
-        // which has all already been searched
+        // If we only have one discrepancy we don't need to bother recursing into children
+        //  that have already been partially searched as we would only be expanding their
+        // first slice anyway which has all already been searched
         if (discrepancies === 1 && v) continue;
-        const result = probe(child, B, discrepancies - 1, visited, path.slice(), cutoff, prescient);
+        const result =
+          bulbProbe(child, B, discrepancies - 1, visited, path.slice(), cutoff, prescient);
         if (result) return result;
         if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
@@ -1811,19 +1821,20 @@ function probe(
 
       const v = visited.get(child.key);
       if (v === Status.COMPLETE) {
-        // Track how many of our children are actually COMPLETE, as if they all are and we're visiting
-        // all of our children than we can mark this node as COMPLETE
+        // Track how many of our children are actually COMPLETE - if they all are
+        // and we're visiting all of our children than we can mark this node as COMPLETE
         complete++;
       } else {
-        // In this case, we need to explore the child even if it is PARTIAL visited as we now have
-        // discrepancies to spare which would cause us to explore into the other slices
-        const result = probe(child, B, discrepancies, visited, path.slice(), cutoff, prescient);
+        // In this case, we need to explore the child even if it is PARTIAL visited as we now
+        // have discrepancies to spare which would cause us to explore into the other slices
+        const result =
+          bulbProbe(child, B, discrepancies, visited, path.slice(), cutoff, prescient);
         if (result) return result;
         if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
-    // If the slice actually encompassed all children and they were all COMPLETE we can mark
-    // this node as COMPLETE
+    // If the slice actually encompassed all children and they were all COMPLETE
+    //  we can mark this node as COMPLETE
     if (complete === num) {
       visited.set(node.key, Status.COMPLETE);
     }

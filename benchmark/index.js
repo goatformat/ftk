@@ -47,6 +47,7 @@ const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers});
   const results = [];
   const start = Date.now();
   const n = +process.argv[2] || 1000;
+  const width = +process.argv[3] || undefined;
 
   const progress = new ProgressBar('[:bar] :current/:total (:percent) | :elapsed/:etas', {
     total: n,
@@ -55,7 +56,7 @@ const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers});
   const interval = setInterval(() => progress.render(), 1000);
 
   for (let i = 0; i < n; i++) {
-    results.push(pool.exec('search', [Random.seed(i)]).then(result => {
+    results.push(pool.exec('search', [Random.seed(i), width]).then(result => {
       progress.tick();
       return result;
     }).catch(() => {

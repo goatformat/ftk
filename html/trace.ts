@@ -76,7 +76,7 @@ const render = (path: string[], trace: string[]) => {
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const state = State.create(new Random(Random.seed(num)));
-const result = state.search(1e7, false);
+const result = state.search({cutoff: 1e7, prescient: false});
 if (!('path' in result)) {
   console.error(`Unsuccessfully searched ${result.visited} states`);
 } else {
