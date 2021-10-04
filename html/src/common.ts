@@ -361,3 +361,17 @@ export const track = <T>(input: T[], output: T[], activated?: T) => {
 
   return output;
 };
+
+function setTheme(theme: 'dark' | 'light') {
+  document.documentElement.setAttribute('data-theme', theme);
+}
+
+const pref = window.matchMedia('(prefers-color-scheme: dark)');
+const listener = (e: MediaQueryListEvent) => {
+  setTheme(e.matches ? 'dark' : 'light');
+};
+try {
+  pref.addEventListener('change', listener);
+} catch (err) {
+  pref.addListener(listener);
+}

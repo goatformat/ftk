@@ -1,20 +1,12 @@
 :root {
   --bg-color: #fff;
   --fg-color: #000;
-  --hard-color: #aaa;
-  --toggle-hover-color: #f5f5f5;
-  --toggle-checked-color: #e3e3e3;
-  --collapsible-bg-color: #fafafa;
-  --filter: invert(0%);
+  --trace-bg-color: #f7f7f7;
 }
 [data-theme="dark"] {
   --bg-color: #000;
   --fg-color: #ddd;
-  --hard-color: #555;
-  --toggle-hover-color: #1a1a1a;
-  --toggle-checked-color: #3c3c3c;
-  --collapsible-bg-color: #151515;
-  --filter: invert(87.5%);
+  --trace-bg-color: #151515;
 }
 
 @font-face {
@@ -63,6 +55,8 @@ body {
   font-family: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
   margin: 2em auto;
   max-width: 95%;
+  background-color: var(--bg-color);
+  color: var(--fg-color);
 }
 #content {
   --card-border: 1px;
@@ -289,7 +283,7 @@ tr:first-child td {
     background: linear-gradient(90deg, rgb(255, 153, 0), rgb(255, 0, 0));
     padding: 2px;
     width: 35%;
-    border: 2px solid black;
+    border: 2px solid var(--fg-color);
     border-radius: 10px;
     position: relative;
     -webkit-background-clip: padding-box;
@@ -303,7 +297,7 @@ tr:first-child td {
     height: 100%;
     background-color: black;
     position: absolute;
-    border-radius: 5px 0 0 5px;
+    border-radius: 8px 0 0 8px;
   }
   .text {
     width: 100%;
