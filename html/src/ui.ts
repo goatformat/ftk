@@ -1,10 +1,13 @@
 import './ui.css';
+
+import * as workerpool from 'workerpool';
 import assert from 'assert';
 import {State, Random, ID, DeckID, FieldID, Location, Ids} from '../../src';
 import {renderState} from './common';
 
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
+const RANDOM = new Random(Random.seed(num));
 const STATE = State.create(new Random(Random.seed(num)));
 STATE.madd('L3' as FieldID); // DEBUG
 STATE.madd('S' as FieldID); // DEBUG
@@ -137,3 +140,12 @@ function handler(e: HTMLElement, location: Location, id: FieldID, i: number) {
 }
 
 update();
+
+const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+pool.exec('search', [STATE.toString(), RANDOM.seed, 1e6, 0.5]).then(r => {
+  console.log(r);
+}).catch(e => {
+  console.error(e);
+}).then(() => {
+  pool.terminate();
+});

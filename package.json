@@ -14,6 +14,7 @@
     "typescript": "^4.4.3"
   },
   "optionalDependencies": {
+    "@types/workerpool": "^6.1.0",
     "progress": "^2.0.3",
     "source-map-support": "^0.5.20",
     "tippy.js": "^6.3.1",
@@ -25,7 +26,6 @@
     "lint": "eslint --cache benchmark html src --ext ts,js",
     "fix": "eslint --fix benchmark html src --ext ts,js",
     "prepare": "npm run compile",
-    "prestart": "npm run compile",
     "start": "parcel html/index.html",
     "build": "parcel build html/index.html",
     "prebenchmark": "npm run compile",
