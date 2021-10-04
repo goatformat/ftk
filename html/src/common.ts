@@ -3,7 +3,7 @@ import 'tippy.js/dist/tippy.css';
 import './common.css';
 import {State, ID, DeckID, Card, FieldID, Location} from '../../src';
 
-type Handler = (e: HTMLElement, location: Location, id?: FieldID, i?: number) => void;
+type Handler = (e: HTMLElement, location: Location, id: FieldID, i: number) => void;
 
 export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, ...classes: string[]): HTMLElementTagNameMap[K];
 export function createElement(tag: string, ...classes: string[]) {
@@ -230,7 +230,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
     if (!id) {
       div.appendChild(makeCard());
     } else {
-      div.appendChild(makeCard(ID.decode(id), handler && ((e: HTMLElement) => handler(e, 'monsters', id, i)), {
+      div.appendChild(makeCard(ID.decode(id), handler && ((e: HTMLElement) => handler(e, 'monsters', id, i!)), {
         facedown: ID.facedown(id),
         counter: ID.data(id),
         equip: equips[i!],
@@ -242,8 +242,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td = createElement('td');
   div = createElement('div', 'zone');
   if (banished.length) {
-    const fn = handler && ((e: HTMLElement) => handler(e, 'banished'));
-    const top = makeCard(ID.decode(banished[banished.length - 1]), fn, {
+    const top = makeCard(ID.decode(banished[banished.length - 1]), undefined, {
       notip: true,
       label: banished.length,
     });
@@ -266,7 +265,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
       const card = ID.decode(id);
       const facedown = ID.facedown(id);
       const counter = ID.data(id);
-      const fn = handler && ((e: HTMLElement) => handler(e, 'spells', id, i));
+      const fn = handler && ((e: HTMLElement) => handler(e, 'spells', id, i!));
       if (!facedown && card.type === 'Spell' && card.subType === 'Equip') {
         div.appendChild(makeCard(card, fn, {facedown, equip: equips[counter]}));
       } else {
@@ -279,8 +278,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td = createElement('td');
   div = createElement('div', 'zone');
   if (graveyard.length) {
-    const fn = handler && ((e: HTMLElement) => handler(e, 'graveyard'));
-    const top = makeCard(ID.decode(graveyard[graveyard.length - 1]), fn, {
+    const top = makeCard(ID.decode(graveyard[graveyard.length - 1]), undefined, {
       notip: true,
       label: graveyard.length,
     });
@@ -304,8 +302,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td = createElement('td');
   div = createElement('div', 'zone');
   if (state.deck.length) {
-    const fn = handler && ((e: HTMLElement) => handler(e, 'deck'));
-    const top = makeCard(ID.decode(state.deck[state.deck.length - 1]), fn, {
+    const top = makeCard(ID.decode(state.deck[state.deck.length - 1]), undefined, {
       facedown: !state.reversed,
       notip: true,
       label: state.deck.length,

@@ -9,6 +9,9 @@
 .counter .label-text {
   top: -10%;
 }
+.selected {
+  border: var(--card-border) solid blue;
+}
 @media(min-width: 390px) {
   #content {
     font-size: 0.65em;
@@ -34,11 +37,6 @@
   }
   .counter .label-text {
     top: -15%;
-  }
-}
-@media(min-width: 1024px) {
-  h1 {
-    font-size: 4em;
   }
 }
 
