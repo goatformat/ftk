@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 require('source-map-support').install();
 
-const {State, Random} = require('./build');
+const {State, Random} = require('./build/src');
 
 const state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
 const width = process.argv[3] ? +process.argv[3] : undefined;

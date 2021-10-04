@@ -2,7 +2,7 @@ require('source-map-support').install();
 
 const workerpool = require('workerpool');
 
-const {State, Random} = require('../build');
+const {State, Random} = require('../build/src');
 
 const STATES = 1e7;
 

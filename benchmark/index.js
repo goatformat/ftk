@@ -8,7 +8,7 @@ const os = require('os');
 const workerpool = require('workerpool');
 const ProgressBar = require('progress');
 
-const {Random} = require('../build');
+const {Random} = require('../build/src');
 
 // Technically, storing 10M state strings (length ~68 = 12 + 4 * Math.ceil(68 /4) = 80 bytes) should
 // require 800 MB, though if they're in a cons-string representation instead of flat strings they
