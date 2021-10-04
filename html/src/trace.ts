@@ -1,5 +1,5 @@
 import './trace.css';
-import {State, Random, ID, DeckID, CARDS} from '../../src';
+import {State, Random, ID, DeckID, DATA} from '../../src';
 import {createElement, track, renderState} from './common';
 
 const render = (path: string[], trace: string[]) => {
@@ -25,8 +25,8 @@ const render = (path: string[], trace: string[]) => {
       if (path[major - 1]) {
         const s = State.fromString(path[major - 1]);
         const activated =
-          last.startsWith('Activate') ? CARDS[/"(.*?)"/.exec(last)![1]].id
-          : last.startsWith('Set') ? CARDS[/then activate "(.*?)"/.exec(last)![1]].id
+          last.startsWith('Activate') ? DATA[/"(.*?)"/.exec(last)![1]].id
+          : last.startsWith('Set') ? DATA[/then activate "(.*?)"/.exec(last)![1]].id
           : undefined;
         track(s.banished, banished, activated);
         track(s.graveyard, graveyard, activated);

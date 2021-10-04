@@ -1,4 +1,4 @@
-import {DATA} from './data';
+import {CARDS} from './data';
 
 // An ID is just a branded single character string chosen to represent each card in question (see
 // Ids below). A DeckID is an ID or an ID surrounded by parantheses to indicate that it is either
@@ -28,7 +28,7 @@ export const ID = new class {
     return id.charAt(this.facedown(id) ? 1 : 0) as ID;
   }
   decode(id: ID | FieldID | DeckID) {
-    return DATA[this.id(id)];
+    return CARDS[this.id(id)];
   }
   pretty(id: ID | FieldID | DeckID) {
     const card = this.decode(id);

@@ -11,12 +11,15 @@ export type Attribute = 'Dark' | 'Light';
 export type Location = 'monsters' | 'spells' | 'hand' | 'banished' | 'graveyard' | 'deck';
 
 // Data contains basic data about each card as well as housing the main handler function which
-// determines which additional states can be transitioned to by playing said card. The play function
-// is passed a reference to the current state, whether the card is being played from the hand or
-// whether it is being activated from the Spell & Trap Zone, the index of where the card is within
-// its location, the transition map of subsequent states and a reference to the card itself.
+// determines which additional states can be transitioned to by playing said card. The `play`
+// function is passed a reference to the current state, whether the card is being played from the
+// hand or whether it is being activated from the Spell & Trap Zone, the index of where the card is
+// within its location, the transition map of subsequent states and a reference to the card itself.
 // Handlers are expected to add all legal transition states to the map, though may elide states
-// which are redundant (eg. due to symmetry) as a performance optimization.
+// which are redundant (eg. due to symmetry) as a performance optimization. The `can` function
+// returns true if the card is able to be played from the location given the current state, and
+// the `score` function (which defaults to 1 if the card can be played and 0 otherwise) allows
+// cards to have a custom score to inform the heuristic search algorithm base on the current state.
 export type Data = {
   id: ID;
   type: Type;
@@ -56,6 +59,11 @@ export type Card = Data & {
   ): number;
 };
 
+// The Level 4 and lower Monsters all have the same activation. Note tributing Thunder Dragon or
+// setting Cyber Jar face-down/flipping it are handled elsewhere. Only face-up Attack Position and
+// face-down Defense Position are supported by the protocol - while Level Limit - Area B changes all
+// Monsters to Defense Position this makes no meaningful difference on whether or not we can achieve
+// the FTK (though obviously makes a large difference for protection in multi-turn scenarios).
 const MONSTER: Data['play'] = (state, location, i, next, card) => {
   const s = state.clone();
   s.remove(location, i);
@@ -64,8 +72,10 @@ const MONSTER: Data['play'] = (state, location, i, next, card) => {
   State.transition(next, s);
 };
 
+// Basic Spell activations all follow the same pattern, differing only in their effect fn.
 const SPELL: (fn?: (s: State) => void) => Data['play'] = (fn?: (s: State) => void) =>
   (state, location, i, next, card) => {
+    // We're avoiding checking 'can' in card here because this is a hot function and its safe.
     if (!(card as any).can(state, location)) return;
     const s = state.clone();
     s.remove(location, i);
@@ -81,7 +91,14 @@ const SPELL: (fn?: (s: State) => void) => Data['play'] = (fn?: (s: State) => voi
     State.transition(next, s);
   };
 
+// Actually activating Archfiend's Oath's *effect* is different than simply playing Archfiend's
+// Oath and can happen when you play the card or separately. There are also two difference scenarios
+// to cover - we either known the top-card of the deck and thus are paying the cost to be able to
+// draw the card, or we don't know the top-card and we are simply paying to help us reach the win
+// condition and to deck thin.
+// TODO: support probabilisitcally "guessing" the top card.
 export const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
+  // We know Archfiend's Oath has a can function so this case is safe.
   if (!(card as any).can(state, location)) return;
 
   const play = location === 'hand' || ID.facedown(state[location][i]);
@@ -115,11 +132,27 @@ export const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   State.transition(next, unknown);
 };
 
+// Reload (and Card Destruction) requires that we have at least one card other than ourselves in our
+// hand and the same number we would be reloading for in our deck.
 const CAN_RELOAD = (state: State, location: 'hand' | 'spells' | 'monsters') => {
   const h = (location === 'hand' ? 1 : 0);
   return state.hand.length > h && state.deck.length >= state.hand.length - h;
 };
 
+// Reload / Card Destruction are handled a little bit unusually here. In Yu-Gi-Oh! Spell cards may
+// be set before being played, but in the context of this deck setting Spell cards serves only to
+// increase the depth and width of all game tree. One optimization is to only allow for setting
+// Spell cards if Reload or Card Destruction are Set or in the hand (as the only time it is
+// advantageous to have a card Set as opposed to in the hand where it can be more readily used as a
+// resource is to avoid them being reloaded/discarded by these two cards), however an even better
+// optimization is to simply defer actually setting any cards until one of these two cards are
+// activated. This has several benefits - superficially it makes for more realistic traces, but more
+// importantly it dramatically cuts down on tree depth and allows a better informed decision to be
+// made as all combination of set cards can be evaluated at the same time to figure out which is
+// most optimal. One downside is that generating subsets is expensive and this has the potential to
+// create very wide and heterogenous nodes (which can cause the same problems as Different Dimension
+// Capsule), though ultimately results in about a 5% reduction in exhaustion and increase in overall
+// success rate.
 const RELOAD: (fn: (s: State) => void) => Data['play'] =
   (fn: (s: State) => void) => (state, location, i, next, card) => {
     if (!CAN_RELOAD(state, location)) return;
@@ -163,7 +196,7 @@ const RELOAD: (fn: (s: State) => void) => Data['play'] =
   };
 
 
-export const CARDS: { [name: string]: Data } = {
+export const DATA: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
     id: Ids.AFeatherOfThePhoenix,
     type: 'Spell',
@@ -709,13 +742,14 @@ export const CARDS: { [name: string]: Data } = {
   },
 };
 
-export const DATA: Record<ID, Card> = {};
-for (const name in CARDS) {
-  const card = CARDS[name];
+// Convert the raw card Data into Cards
+export const CARDS: Record<ID, Card> = {};
+for (const name in DATA) {
+  const card = DATA[name];
   const score = 'can' in card
     ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters') => +card.can(s, loc)
     : () => 0;
-  DATA[card.id] = {score, ...card, name};
+  CARDS[card.id] = {score, ...card, name};
 }
 
 // Basic k-subset function required by Graceful Charity and Spell Reproduction to determine
