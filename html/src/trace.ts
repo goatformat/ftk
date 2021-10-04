@@ -75,7 +75,7 @@ const render = (path: string[], trace: string[]) => {
 
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
-const state = State.create(new Random(Random.seed(num)));
+const state = State.create(new Random(Random.seed(num)), true);
 const result = state.search({cutoff: 1e7, prescient: false, width: 0.5});
 if (!('path' in result)) {
   console.error(`Unsuccessfully searched ${result.visited} states`);
@@ -85,5 +85,5 @@ if (!('path' in result)) {
   div.textContent = `Found a path of length ${result.path.length} after searching ${result.visited} states:`;
   content.appendChild(div);
   content.appendChild(createElement('br'));
-  content.appendChild(render(result.path, result.trace));
+  content.appendChild(render(result.path, result.trace!));
 }

@@ -3,7 +3,7 @@ require('source-map-support').install();
 
 const {State, Random} = require('./build/src');
 
-const state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random());
+const state = State.create(process.argv[2] ? new Random(Random.seed(+process.argv[2])) : new Random(), true);
 const width = process.argv[3] ? +process.argv[3] : undefined;
 if (process.env.DEBUG) console.debug(state, state.hand.slice().sort().join(''));
 const result = state.search({cutoff: 1e7, width});

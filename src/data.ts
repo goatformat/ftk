@@ -323,7 +323,7 @@ export const DATA: { [name: string]: Data } = {
         const s = state.clone();
         s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
         s.remove(location, i);
-        s.add('spells', `${card.id}0` as FieldID);
+        s.add('spells', `${card.id}${state.turn}` as FieldID);
         s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
         // In this deck, all banishing is face-down banished, so the (ID) notation merely indicates
         // what the card could possibly return from play if Different Dimension Capsule actually

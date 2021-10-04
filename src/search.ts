@@ -5,7 +5,7 @@ export interface SearchResult {
   // Encoded array of State objects which represent each step required to win
   path: string[];
   // The trace of the final State object - the human readable description of the playout
-  trace: string[];
+  trace?: string[];
 }
 
 // Simplistic Map-compatible interface that we can implement with BigMap below

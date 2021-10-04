@@ -6,11 +6,6 @@ import * as deckJSON from './deck.json';
 
 const DECK: {[name: string]: number} = deckJSON;
 
-// By default a 'trace' is built during a search to provide a detailed human-readable representation
-// of how to arrive at a solution. This can be disabled (eg. during benchmarking to save time and
-// memory) if you are only interested in whether or not a solution is possible.
-// NOTE: set PROD to anything, even false and it will be turn off tracing (as its actually 'false')
-const TRACE = !process.env.PROD;
 // Used to enable state verification sanity checking which has a large impact on performance.
 // NOTE: set DEBUG to anything, even false and it will be turn on verification (as its actually 'false')
 const DEBUG = !!process.env.DEBUG;
@@ -24,6 +19,7 @@ export interface IState {
 export class State {
   random: Random;
   lifepoints: number;
+  turn: number;
   summoned: boolean;
   monsters: FieldID[];
   spells: FieldID[];
@@ -33,16 +29,16 @@ export class State {
   deck: DeckID[];
   reversed: boolean;
 
-  trace: string[];
+  trace?: string[];
 
-  static create(random: Random) {
+  static create(random: Random, trace?: boolean) {
     const deck: ID[] = [];
     for (const name in DECK) {
       for (let i = 0; i < DECK[name]; i++) deck.push(DATA[name].id);
     }
     random.shuffle(deck);
 
-    const state = new State(random, 8000, false, [], [], [], [], [], deck, false, []);
+    const state = new State(random, 8000, 1, false, [], [], [], [], [], deck, false, trace ? [] : undefined);
     state.draw(6, true);
     return state;
   }
@@ -50,6 +46,7 @@ export class State {
   constructor(
     random: Random,
     lifepoints: number,
+    turn: number,
     summoned: boolean,
     monsters: FieldID[],
     spells: FieldID[],
@@ -58,10 +55,11 @@ export class State {
     graveyard: ID[],
     deck: DeckID[],
     reversed: boolean,
-    trace: string[],
+    trace?: string[],
   ) {
     this.random = random;
     this.lifepoints = lifepoints;
+    this.turn = turn;
     this.summoned = summoned;
     this.monsters = monsters;
     this.spells = spells;
@@ -144,7 +142,7 @@ export class State {
   }
 
   summon(id: ID | FieldID, special = false) {
-    this.summoned = !special;
+    this.summoned = this.summoned || !special;
     return this.madd(id);
   }
 
@@ -171,11 +169,11 @@ export class State {
   }
 
   major(s: string) {
-    if (TRACE) this.trace.push(s);
+    if (this.trace) this.trace.push(s);
   }
 
   minor(s: string) {
-    if (TRACE) this.trace.push(`  ${s}`);
+    if (this.trace) this.trace.push(`  ${s}`);
   }
 
   discard(indices: number[]) {
@@ -269,8 +267,7 @@ export class State {
       const errors = State.verify(state);
       if (errors.length) {
         console.error(`INVALID STATE ${key}:\n\n${errors.join('\n')}`);
-        console.error(state);
-        console.error(state.trace.join('\n'));
+        if (state.trace) console.error(state.trace.join('\n'));
         process.exit(1);
       }
     }
@@ -491,6 +488,7 @@ export class State {
     return new State(
       new Random(this.random.seed),
       this.lifepoints,
+      this.turn,
       this.summoned,
       this.monsters.slice(),
       this.spells.slice(),
@@ -499,7 +497,7 @@ export class State {
       this.graveyard.slice(),
       this.deck.slice(),
       this.reversed,
-      this.trace.slice(),
+      this.trace?.slice(),
     );
   }
 
@@ -537,7 +535,7 @@ export class State {
     // latter of which results in significantly higher memory usage. This is a V8 implementation
     // detail and the approach to forcing a flattened string to be created may change over time.
     // https://gist.github.com/mraleph/3397008
-    return [this.random.seed, this.lifepoints, +this.summoned,
+    return [this.random.seed, this.lifepoints, this.turn, +this.summoned,
       this.monsters.join(''), this.spells.join(''), this.hand.join(''),
       this.banished.join(''), this.graveyard.join(''), this.deck.join(''),
       +this.reversed].join('|');
@@ -551,6 +549,10 @@ export class State {
     i = j + 1;
     j = s.indexOf('|', i);
     const lifepoints = +s.slice(i, j);
+
+    i = j + 1;
+    j = s.indexOf('|', i);
+    const turn = +s.slice(i, j);
 
     i = j + 1;
     j = j + 2;
@@ -584,7 +586,7 @@ export class State {
     const reversed = s.slice(i) === '1';
 
     return new State(
-      random, lifepoints, summoned, monsters, spells, hand, banished, graveyard, deck, reversed, []
+      random, lifepoints, turn, summoned, monsters, spells, hand, banished, graveyard, deck, reversed
     );
   }
 

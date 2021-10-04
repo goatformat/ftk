@@ -6,8 +6,6 @@ const {State, Random} = require('../build/src');
 
 const STATES = 1e7;
 
-process.env.PROD = 'true';
-
 workerpool.worker({
   search: (seed, width) => {
     const state = State.create(new Random(seed));
