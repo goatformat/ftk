@@ -12,9 +12,9 @@ const {Random} = require('../build');
 
 // Technically, storing 10M state strings (length ~68 = 12 + 4 * Math.ceil(68 /4) = 80 bytes) should
 // require 800 MB, though if they're in a cons-string representation instead of flat strings they
-// will use considerably more. Empirically allowing threads ~3.2 GiB of memory each helps ensure we
+// will use considerably more. Empirically allowing threads ~2 GB of memory each helps ensure we
 // stay at around 75-85% utilization for the system and don't start swapping or crashing.
-const MEMORY = 3.436e9;
+const MEMORY = 2e9;
 
 const hhmmss = (ms, round = true) => {
   let s = ms / 1000;
