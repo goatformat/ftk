@@ -9,8 +9,8 @@ const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const RANDOM = new Random(Random.seed(num));
 const STATE = State.create(new Random(Random.seed(num)));
-STATE.madd('L3' as FieldID); // DEBUG
-STATE.madd('S' as FieldID); // DEBUG
+// STATE.madd('L3' as FieldID); // DEBUG
+// STATE.madd('S' as FieldID); // DEBUG
 const BANISHED: DeckID[] = [];
 const GRAVEYARD: ID[] = [];
 
@@ -141,6 +141,7 @@ function handler(e: HTMLElement, location: Location, id: FieldID, i: number) {
 
 update();
 
+// @ts-ignore
 const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
 pool.exec('search', [STATE.toString(), RANDOM.seed, 1e6, 0.5]).then(r => {
   console.log(r);
