@@ -1,5 +1,5 @@
 import './ui.css';
-import {State, Random} from '..';
+import {State, Random, FieldID, Location} from '../../src';
 import {createElement, renderState} from './common';
 
 export const HANDLERS: { [name: string]: any } = {
@@ -53,13 +53,19 @@ export const HANDLERS: { [name: string]: any } = {
   },
 };
 
+// add handle on click which calls into gloabl handler function with id and location, global handler is tracking state for what is and isnt allowed
+function handler(e: HTMLElement, location: Location, id?: FieldID, i?: number) {
+  console.log(e, location, id, i);
+}
+
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const state = State.create(new Random(Random.seed(num)));
-state.summon('L3' as any);
+state.summon('L3' as FieldID); // DEBUG
 
 const content = document.getElementById('content')!;
 const div = createElement('div');
 content.appendChild(div);
 content.appendChild(createElement('br'));
-content.appendChild(renderState(state, [], []));
+content.appendChild(renderState(state, [], [], handler));
+

@@ -2,5 +2,6 @@ build/
 dist/
 node_modules/
 .tsbuildinfo
+.eslintcache
 .parcel*
 *.csv

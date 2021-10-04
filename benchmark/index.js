@@ -1,6 +1,6 @@
 require('source-map-support').install();
 
-const fs = require('fs')
+const fs = require('fs');
 const path = require('path');
 const {execFileSync} = require('child_process');
 const os = require('os');

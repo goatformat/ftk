@@ -22,15 +22,15 @@
   },
   "scripts": {
     "compile": "tsc -p .",
-    "fix": "eslint --fix *.ts html/*.ts",
-    "lint": "eslint --cache *.ts html/*.ts",
+    "lint": "eslint --cache benchmark html src --ext ts,js",
+    "fix": "eslint --fix benchmark html src --ext ts,js",
     "prepare": "npm run compile",
     "prestart": "npm run compile",
     "start": "parcel html/index.html",
     "build": "parcel build html/index.html",
     "prebenchmark": "npm run compile",
     "benchmark": "node benchmark/index",
-    "test": "npm run compile && npm run fix"
+    "test": "npm run compile && npm run lint"
   },
   "eslintConfig": {
     "extends": "@pkmn",

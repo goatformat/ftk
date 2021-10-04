@@ -27,5 +27,5 @@ workerpool.worker({
       }
     }
     return result.join(',');
-  }
+  },
 });
