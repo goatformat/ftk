@@ -197,30 +197,9 @@ function bulbProbe(
   } else {
     // Pull out the best slice from children
     const best = children.splice(0, split);
-    // Use up a discrepancy by investigating the other slices
-    let complete = 0;
-    for (const child of children) {
-      if (child.score >= Infinity) {
-        path.push(child.key);
-        return {path, trace: child.state.trace};
-      }
-
-      const v = visited.get(child.key);
-      if (v === Status.COMPLETE) {
-        complete++;
-      } else {
-        // If we only have one discrepancy we don't need to bother recursing into children
-        //  that have already been partially searched as we would only be expanding their
-        // first slice anyway which has all already been searched
-        if (discrepancies === 1 && v) continue;
-        const result =
-          bulbProbe(child, B, discrepancies - 1, visited, path.slice(), cutoff, prescient);
-        if (result) return result;
-        if (visited.get(child.key) === Status.COMPLETE) complete++;
-      }
-    }
-    // FIXME try moving this first and seeing what happens
+    // FIXME move this back to the bottom
     // Preserve our discrepancy by choosing the best slice
+    let complete = 0;
     for (const child of best) {
       if (child.score >= Infinity) {
         path.push(child.key);
@@ -241,8 +220,31 @@ function bulbProbe(
         if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
-    // If the slice actually encompassed all children and they were all COMPLETE
-    //  we can mark this node as COMPLETE
+    // FIXME
+
+    // Use up a discrepancy by investigating the other slices
+    for (const child of children) {
+      if (child.score >= Infinity) {
+        path.push(child.key);
+        return {path, trace: child.state.trace};
+      }
+
+      const v = visited.get(child.key);
+      if (v === Status.COMPLETE) {
+        complete++;
+      } else {
+        // If we only have one discrepancy we don't need to bother recursing into children
+        //  that have already been partially searched as we would only be expanding their
+        // first slice anyway which has all already been searched
+        if (discrepancies === 1 && v) continue;
+        const result =
+          bulbProbe(child, B, discrepancies - 1, visited, path.slice(), cutoff, prescient);
+        if (result) return result;
+        if (visited.get(child.key) === Status.COMPLETE) complete++;
+      }
+    }
+
+    // If all of the children were COMPLETE we can mark this node as COMPLETE
     if (complete === num) {
       visited.set(node.key, Status.COMPLETE);
     }

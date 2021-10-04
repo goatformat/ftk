@@ -157,6 +157,9 @@ with oath oath oath convulsion its very high value
 deck thin = value depends on value of cards left in deck + how it helps get to win condition
 everything is expected value +1/3 not that useful if the card to be drawn isn't very good
 
+http://idm-lab.org/bib/abstracts/papers/ijcai05a.pdf
+https://www.cs.unh.edu/~ruml/cs730/paper-examples/wilt.pdf
+
 ## Future Work
 
 ### Multi-turn
