@@ -1,10 +1,14 @@
 import {IState} from './state';
 
+// Use State.display() to actually turn these results into something useful
 export interface SearchResult {
+  // Encoded array of State objects which represent each step required to win
   path: string[];
+  // The trace of the final State object - the human readable description of the playout
   trace: string[];
 }
 
+// Simplistic Map-compatible interface that we can implement with BigMap below
 export interface Hash<K, V> {
   size: number;
   has(k: K): boolean;
@@ -16,6 +20,8 @@ export interface Hash<K, V> {
 // https://bugs.chromium.org/p/v8/issues/detail?id=11852
 const LIMIT = Math.pow(2, 24) - 1;
 
+// Workaround for V8's system limits - please note that if you are storing enough states that you
+// need this you will probably also need to set --max-old-space-size=8092 or higher to avoid OOMs.
 class BigMap<K, V> implements Hash<K, V> {
   private readonly maps: Map<K, V>[];
 
@@ -63,6 +69,14 @@ class BigMap<K, V> implements Hash<K, V> {
   }
 }
 
+// Standard best-first search - most game trees have far too many children to exhaustively search
+// with BFS or even uninformed DFS (consider trees of depth 50 with 5-20+ nodes at each depth...).
+// cutoff should probably be set to around 10M to avoid running out of memory. This can perform
+// better than BULB search when the heuristic is good, especially since it can more effectively
+// take advantage of caching. Note that while tracking each state isn't strictly required for
+// correctness reasons (nothing should cause a true cycle), in large trees 95%+ of the nodes are
+// duplicates (sometimes seen 1000s of times), so removing the cache would effectively result in a
+// 20-100x performance hit (ie. we trade memory for latency).
 export function bestFirstSearch(
   node: IState, cutoff?: number, prescient?: boolean
 ): {visited: number} | SearchResult & {visited: number} {
@@ -104,6 +118,22 @@ const enum Status {
   COMPLETE = 2,
 }
 
+// A modified Limited Discrepancy Beam Search (BULB) implementation. In the original paper
+// (http://idm-lab.org/bib/abstracts/papers/ijcai05a.pdf) the hash table is used to ensure
+// correctness in the presence of cycles (which as stated above, is not possible here), and a
+// solution is always assumed to exist. The latter isn't the case, so we need to track each visited
+// node in order to determine when we have completed the search in the case of failure (as opposed
+// to continually trying with more and more discrepancies). More importantly, due to the nature of
+// the game tree having so many duplicated states, we rely on being able to leverage the hash to
+// dedupe for performance reasons. Because of how the search works we need to be more careful about
+// tracking the visited status of the node to know whether it is safe to use the cache or not, but
+// ultimately it still pays off tremendously performance wise.
+//
+// The beam width B is typically a fixed width, but this implementation also allows for having the
+// beam width change dynamically depending on the number of children a node has. This is very useful
+// given that some states have 1-5 children while others (eg. Reload / Card Destruction / Spell
+// Reproduction / Different Dimension Capsule) can result in tens if not 100+ children meaning
+// a fractional width is generally more useful.
 export function bulbSearch(
   node: IState, B = 5, cutoff?: number, prescient?: boolean
 ): {visited: number} | SearchResult & {visited: number} {
@@ -189,6 +219,7 @@ function bulbProbe(
         if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
+    // FIXME try moving this first and seeing what happens
     // Preserve our discrepancy by choosing the best slice
     for (const child of best) {
       if (child.score >= Infinity) {

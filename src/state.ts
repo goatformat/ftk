@@ -1,4 +1,4 @@
-import {ARCHFIEND, CARDS, Type, Location} from './data';
+import {ARCHFIEND, DATA, Type, Location} from './data';
 import {Ids, ID, DeckID, FieldID} from './ids';
 import {Random} from './random';
 import {bestFirstSearch, bulbSearch, SearchResult} from './search';
@@ -38,7 +38,7 @@ export class State {
   static create(random: Random) {
     const deck: ID[] = [];
     for (const name in DECK) {
-      for (let i = 0; i < DECK[name]; i++) deck.push(CARDS[name].id);
+      for (let i = 0; i < DECK[name]; i++) deck.push(DATA[name].id);
     }
     random.shuffle(deck);
 
@@ -694,7 +694,7 @@ export class State {
 
     const start = [];
     for (const name in DECK) {
-      for (let i = 0; i < DECK[name]; i++) start.push(CARDS[name].id);
+      for (let i = 0; i < DECK[name]; i++) start.push(DATA[name].id);
     }
     start.sort();
     const now = [

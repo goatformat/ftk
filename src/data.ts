@@ -305,6 +305,7 @@ export const DATA: { [name: string]: Data } = {
     def: 900,
     text: 'Rock/Flip/Effect – FLIP: Destroy all monsters on the field, then both players reveal the top 5 cards from their Decks, then Special Summon all revealed Level 4 or lower monsters in face-up Attack Position or face-down Defense Position, also add any remaining cards to their hand. (If either player has less than 5 cards in their Deck, reveal as many as possible).',
     score: (state, location) => (state.summoned || location === 'hand') ? 0 : 1 / 3,
+    // TODO: handle flipping Cyber Jar in multi-turn scenarios
     play: MONSTER,
   },
   'Different Dimension Capsule': {
@@ -324,6 +325,11 @@ export const DATA: { [name: string]: Data } = {
         s.remove(location, i);
         s.add('spells', `${card.id}0` as FieldID);
         s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
+        // In this deck, all banishing is face-down banished, so the (ID) notation merely indicates
+        // what the card could possibly return from play if Different Dimension Capsule actually
+        // resolves. Reversal Quiz / Heavy Storm / Giant Trunade which prevent Different Dimension
+        // Capsule from resolving are responsible for clearing this data, resulting in the card
+        // being banished for good.
         s.add('banished', `(${ID.id(s.deck.splice(j, 1)[0])})` as DeckID);
         s.shuffle();
         s.inc();
@@ -346,6 +352,8 @@ export const DATA: { [name: string]: Data } = {
         const card = ID.decode(id);
         s.add('hand', card.id);
         if (ID.facedown(id)) continue;
+        // We need to revert the effects of any Convulsion of Nature / Different Dimension Capsule
+        // cards that may be on the field.
         if (card.id === Ids.ConvulsionOfNature) {
           s.reverse(true);
         } else if (card.id === Ids.DifferentDimensionCapsule) {
@@ -456,9 +464,14 @@ export const DATA: { [name: string]: Data } = {
         const card = ID.decode(id);
         s.add('graveyard', card.id);
         if (ID.facedown(id)) continue;
+        // We need to revert the effects of any Convulsion of Nature / Different Dimension Capsule
+        // cards that may be on the field, and also deal with destroyed monsters with Premature
+        // Burial equipped (and properly fixing up equip indices and pointers after Black Pendant)
         if (card.id === Ids.ConvulsionOfNature) {
           s.reverse(true);
         } else if (card.id === Ids.BlackPendant) {
+          s.mclear(ID.data(id));
+        } else if (card.id === Ids.PrematureBurial) {
           const removed = s.mremove(ID.data(id));
           s.add('graveyard', removed.id);
           s.minor(`Sending "${ID.decode(removed.id).name}" to the Graveyard after its equipped "${ID.decode(id).name}" was destroyed`);
@@ -489,6 +502,11 @@ export const DATA: { [name: string]: Data } = {
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
     can: s => !!s.deck.length,
     score: () => 1,
+    // State.end() already checks for using Reversal Quiz as the win condition, but Reversal Quiz
+    // also has a niche use that will probably never actually be relevant where it clears the field
+    // and procs Sangan. Because this ends up wiping out so many resources it will pretty much
+    // always sort to the very end of any transition set that includes it, but for completeness it
+    // needs to be supported.
     // NOTE: we are not supporting the case where we actually guess correctly prematurely
     play(state, location, _, next, self) {
       if (!this.can(state, location)) return;
@@ -568,9 +586,10 @@ export const DATA: { [name: string]: Data } = {
     atk: 0,
     def: 2000,
     text: 'Spellcaster/Effect – Each time a Spell is activated, place 1 Spell Counter on this card when that Spell resolves (max. 3). You can remove 3 Spell Counters from this card; draw 1 card.',
-    score(_, location) {
-      return location === 'monsters' ? 4 : 1.3; // FIXME
-    },
+    // It is hard to know how to score this, but it's pretty much always the case that having a
+    // Library is the Monster Zone is hugely beneficial and even having it in the hand is useful to
+    // then be able to discard it (and bring it back via Premature Burial).
+    score: (_, location) => location === 'monsters' ? 4 : 1.3,
     // NOTE: draw effect handled directly in State#next, and all spells use Stat#inc to update counters
     play: MONSTER,
   },
@@ -582,6 +601,8 @@ export const DATA: { [name: string]: Data } = {
     atk: 1000,
     def: 600,
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
+    // Possibly should be lower - ultimately it is incredibly unlikely to proc Sangan and then
+    // actually get the Royal Magical Library target onto the field.
     score: (state, location) => (state.summoned || location === 'hand') ? 0 : 1 / 3,
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
@@ -646,6 +667,9 @@ export const DATA: { [name: string]: Data } = {
     atk: 1600,
     def: 1500,
     text: 'Thunder/Effect – You can discard this card; add up to 2 "Thunder Dragon" from your Deck to your hand.',
+    // Thunder Dragon isn't really worth anything on the field (it can indirectly proc Sangan but
+    // getting value out of that is even more convoluted than the Reversal Quiz Sangan proc
+    // scenario) and thus purely is useful as discard fodder / deck thinning / manipulating the deck
     score: (state, location) => +(state.deck.length && location === 'hand'),
     // NOTE: discard effect handled directly in State#next
     play(state, _, i, next, self) {
@@ -653,6 +677,9 @@ export const DATA: { [name: string]: Data } = {
         const s = state.clone();
         const target = ID.decode(state.monsters[j]);
         s.major(`Tribute "${target.name}" to Summon "${self.name}"`);
+        // Tributing is incidentally the only thing that makes us keep track of where equip cards
+        // are assigned, as otherwise we could always just say they are associated with the monster
+        // in the first Zone.
         s.tribute(j, i);
         if (target.id === Ids.Sangan) {
           const targets = new Set<ID>();
