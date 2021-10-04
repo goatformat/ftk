@@ -37,14 +37,7 @@ TODO stats
 - state space (heuristic ranking, BULB search)
 - "known" final card for Oath/Quiz
 
-## Heuristics
-
-In all cases, keep set for in location, same ID in same location = same score?
-combination of immediate value + potential value - trunade with td td td sangan in hand is low value, but
-with oath oath oath convulsion its very high value
-deck thin = value depends on value of cards left in deck + how it helps get to win condition
-everything is expected value
-- +1/3 not that useful if the card to be drawn isn't very good
+## Cards
 
 - [**A Feather of the Phoenix**](https://yugioh.fandom.com/wiki/A_Feather_of_the_Phoenix) (`F`): A
   Feather of the Phoenix serves three main purposes - to draw cards by reusing the "power spells"
@@ -62,72 +55,107 @@ everything is expected value
   can be advantageous purely to get closer to the required 500 LP threshold to activate the win
   condition and to thin the deck (guessing the top card is also an option, either based on the
   statistically likely result or based on what would be most useful at that stage).
-  - if known top card = super for reusabe +1, otherwise low value (can still blindly manipulate RNG)
 - [**Black Pendant**](https://yugioh.fandom.com/wiki/Black_Pendant) (`B`): Black Pendant is a
   required piece of the win condition, as if it is equipped to a monster on the field when Reversal
   Quiz is activated it will inflict the finishing blow to the opponent. However, it can also serve
   a purpose in the mid-game, as once equipped to a monster it stays on the field, meaning it can be
   returned to the hand by Giant Trunade, effectively making it a resuable source of counters on any
   face-up Royal Magic Library cards.
-- [**Card Destruction**](https://yugioh.fandom.com/wiki/Card_Destruction):
+- [**Card Destruction**](https://yugioh.fandom.com/wiki/Card_Destruction) (`C`):
   - value depends on value of current hand, higher if low value cards cant summon
 - [**Convulsion of Nature**](https://yugioh.fandom.com/wiki/Convulsion_of_Nature):
   - reusable 1/3
   - increases power of shuffle cards (can force reshuffles to get better draws)
   - large booster for archfiends oath
-- [**Giant Trunade**](https://yugioh.fandom.com/wiki/Giant_Trunade):
+- [**Giant Trunade**](https://yugioh.fandom.com/wiki/Giant_Trunade) (`T`):
   - can reuse all current activated spell cards
   = always want to get spell counters as high as possible by playing all continuous beforehand
   - should be able to judge next state after trunade was played to tell how positive
-- [**Graceful Charity**](https://yugioh.fandom.com/wiki/Graceful_Charity):
+- [**Graceful Charity**](https://yugioh.fandom.com/wiki/Graceful_Charity) (`G`):
   - can use to get more cards and get rid of bad cards = ie. graceful - 2 TD = "+3"
-- [**Level Limit - Area B**](https://yugioh.fandom.com/wiki/Level_Limit_-_Area_B):
-  - reusuable 1/3
-- [**Pot of Greed**](https://yugioh.fandom.com/wiki/Pot_of_Greed):
-  - value isn't just as good as what you draw into, also want it to be higher value due to POTENTIAL value
-- [**Premature Burial**](https://yugioh.fandom.com/wiki/Premature_Burial):
-  - needs monsters in graveyard
-  - huge plus if can get a second/third library onto the field
-  - reusable 1/3
-- [**Reload**](https://yugioh.fandom.com/wiki/Reload)]:
+- [**Level Limit - Area B**](https://yugioh.fandom.com/wiki/Level_Limit_-_Area_B): Level Limit -
+  Area B is one of the least valuable Spell cards, serving simply as a reusable way to increment
+  Spell Counters on any face-up Royal Magical Library cards, however, in the event the deck is not
+  able to win on the first turn Level Limit - Area B exists as the sole source of protection for
+  your monsters and lifepoints.
+- [**Pot of Greed**](https://yugioh.fandom.com/wiki/Pot_of_Greed) (`P`): Renowned for being one of
+  the most complicated cards to understand in Yu-Gi-Oh!, Pot of Greed is also one of the most
+  powerful cards in the deck and is often a good target for A Feather of the Phoenix or Spell
+  Reproduction's recursion. Like with the other draw spells it can be saved for when the draw
+  engine stalls out, though generally is better to play sooner as getting it in to the Graveyard
+  early on allows for reuse potential.
+- [**Premature Burial**](https://yugioh.fandom.com/wiki/Premature_Burial) (`K`): Premature Burial is
+  useful for getting multiple Royal Magical Library cards on the field, as its effect to Special
+  Summon monsters bypasses the regular Normal Summon limit. It can also be reused via Great Trunade
+  and its 800 LP cost is helpful for getting in range of the win condition. Premature Burial depends
+  on having monsters in the Graveyard, so prioritizing discarding monsters via Card Destruction or A
+  Feather of the Phoenix is important for unlocking Premature Burial's potential.
+- [**Reload**](https://yugioh.fandom.com/wiki/Reload) (`R`):
   - depends on exchanging value of current hand for value of what you draw into
   - value is higher if current hand is low value. but that should already be implicit
   - may be more useful than Card Destruction if dont have a lot of pure zero value cards (TDs, monsters if already summoned)
-- [**Reversal Quiz**](https://yugioh.fandom.com/wiki/Reversal_Quiz):
+- [**Reversal Quiz**](https://yugioh.fandom.com/wiki/Reversal_Quiz) (`Q`):
   - very low value unless win condition (though should be easy to see because wipes rest of hand etc)
-- [**Royal Magical Library**](https://yugioh.fandom.com/wiki/Royal_Magical_Library):
+- [**Royal Magical Library**](https://yugioh.fandom.com/wiki/Royal_Magical_Library) (`L`):
   - if not summoned, summoning should always be priority to start getting counters
   - if summoned, high discard to be able to get back on field
   - monsters need to have some value on the field to incentvize summoning/discarding
   - has "potential value" in hand if not summoned (but should be less than summoned to force summoning)
   - when at 3/3, need to be
-- [**Sangan**](https://yugioh.fandom.com/wiki/Sangan):
+- [**Sangan**](https://yugioh.fandom.com/wiki/Sangan) (`S`):
   - generally low value unless need a monster for win condition
   - can be procced via thunder dragon/reversal quiz
-- [**Spell Reproduction**](https://yugioh.fandom.com/wiki/Spell_Reproduction):
+- [**Spell Reproduction**](https://yugioh.fandom.com/wiki/Spell_Reproduction) (`Z`):
   - useful for bringing back high value draw spells, win con pieces, trunade, premature
   - better late game when things in graveyard
-- [**Thunder Dragon**](https://yugioh.fandom.com/wiki/Thunder_Dragon):
+- [**Thunder Dragon**](https://yugioh.fandom.com/wiki/Thunder_Dragon) (`Y`):
   - can force shuffles
   - value = deck thinning (n/N)
   - can force shuffles
   - useful for card D
   - can tribute over to proc Sangan brought back via Premature
-- [**Toon Table of Contents**](https://yugioh.fandom.com/wiki/Toon_Table_of_Contents):
+- [**Toon Table of Contents**](https://yugioh.fandom.com/wiki/Toon_Table_of_Contents) (`X`):
   - value = deck thining (n/N)
   - can fetch reusable 1/3 + 1000 LP card
   - can force shuffles
-- [**Toon World**](https://yugioh.fandom.com/wiki/Toon_World):
-  - reusable 1/3 + 1000 LP card
-- [**Upstart Goblin**](https://yugioh.fandom.com/wiki/Upstart_Goblin):
-  - deck thin by (1/n) + value relative to card brought in
+- [**Toon World**](https://yugioh.fandom.com/wiki/Toon_World) (`W`): The search target for Toon
+  Table of Contents, Toon World also serves as probably the most efficient way to resuably pay the
+  lifepoints required for the win condition (while accumulating Spell Counters) via its 1000 LP
+  activate cost.
+- [**Upstart Goblin**](https://yugioh.fandom.com/wiki/Upstart_Goblin) (`U`): Purely used for deck
+  thinning, with no downsides since our opponent's lifepoints don't matter. There isn't really a
+  'wrong' time to play Upstart Goblin, though it is likely to be most valuable when the draw engine
+  is otherwise stuck and it can possibly unblock things.
 
-- [**Cyber Jar**](https://yugioh.fandom.com/wiki/Cyber_Jar):
-  - potentially draw 5/bypass symmon limits, but very hard to pull off
-- [**Different Dimension Capsule**](https://yugioh.fandom.com/wiki/Different_Dimension_Capsule):
-  - pure deck thin, though reusable by trunade
-- [**Heavy Storm**](https://yugioh.fandom.com/wiki/Heavy_Storm):
-  - low value, wipes existing cards (cant be returned via trunade)
+### Alternatives
+
+- [**Cyber Jar**](https://yugioh.fandom.com/wiki/Cyber_Jar) (`J`): Cyber Jar has no potential to
+  activate its Flip Effect during the first turn meaning it is effectively a vanilla monster in
+  terms of the FTK. However, in multi-turn playouts Cyber Jar can be tremendously powerful as it
+  serves as a draw-5 and a way to get multiple Royal Magical Library cards on the field all at once,
+  bypassing summoning restrictions.
+- [**Different Dimension Capsule**](https://yugioh.fandom.com/wiki/Different_Dimension_Capsule) (`D`):
+  Different Dimension Capsule effectively functions as a reusable deck-thinning mechanism. While
+  theoretically Different Dimension Capsule could be used for its intended purpose to eventually
+  retrieve the card banished, in actuality the game will be over far before the banished card would
+  return. Instead, Different Dimension Capsule can be returned to the hand via Giant Trunade to
+  repeatedly banish the lowest value card from the deck (forcing shuffles and incrementing Spell
+  Counters as it does so). This can also be helpful in the end-game for banishing the remaining
+  Monster cards from the deck to be able to resolve Reversal Quiz successfully.
+- [**Heavy Storm**](https://yugioh.fandom.com/wiki/Heavy_Storm) (`H`): When attempting to execute
+  the FTK, Heavy Storm is strictly the worst card - at best it is worth some Spell Counters and
+  frees up Spell & Trap Zones, though at the cost of wiping out useful resources. However, Heavy
+  Storm is one of the cards most likely to be sided in for Games 1 and 2, as seeing it in the early
+  game can allow you to wipe out an opponent's opportunities for interruption (eg. in the form of
+  Solem Judgement) that might otherwise disrupt your game plan.
+
+## Heuristics
+
+In all cases, keep set for in location, same ID in same location = same score?
+combination of immediate value + potential value - trunade with td td td sangan in hand is low value, but
+with oath oath oath convulsion its very high value
+deck thin = value depends on value of cards left in deck + how it helps get to win condition
+everything is expected value +1/3 not that useful if the card to be drawn isn't very good
 
 ## Future Work
 
