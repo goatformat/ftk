@@ -352,6 +352,10 @@ export class State {
             State.transition(next, s);
           }
         }
+        // Thunder Dragon can also possibly be Tribute Summoned
+        if (this.monsters.length && this.monsters.length < 5 && !this.summoned) {
+          card.play(this, 'hand', i, next, card, prescient);
+        }
       } else if (card.type === 'Monster' && this.monsters.length < 5 && !this.summoned) {
         card.play(this, 'hand', i, next, card, prescient);
 
