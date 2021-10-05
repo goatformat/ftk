@@ -166,6 +166,7 @@ const RELOAD: (fn: (s: State) => void) => Data['play'] =
     const h = (location === 'hand' ? 1 : 0);
     const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
     for (let n = 1; n <= max; n++) {
+      // FIXME do funky here where we already filter out monsters but keep indices!
       for (const set of isubsets(d.hand, n)) {
         if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
         const s = d.clone();
@@ -549,6 +550,8 @@ export const DATA: { [name: string]: Data } = {
         State.transition(next, s);
         return;
       }
+
+      // FIXME does sangan search come before or after shuffle (reveal)
 
       const targets = new Set<ID>();
       for (let j = 0; j < state.deck.length; j++) {

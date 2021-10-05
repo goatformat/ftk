@@ -1,6 +1,7 @@
-import './trace.css';
 import {State, Random, ID, DeckID, DATA} from '../../src';
 import {createElement, track, renderState} from './common';
+
+import './trace.css';
 
 const render = (path: string[], trace: string[]) => {
   const banished: DeckID[] = [];

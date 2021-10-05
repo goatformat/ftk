@@ -1,9 +1,11 @@
 import tippy from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
-import './common.css';
+
 import {State, ID, DeckID, Card, FieldID, Location} from '../../src';
 
-type Handler = (e: HTMLElement, location: Location, id: FieldID, i: number) => void;
+import './common.css';
+
+type Handler = (location: Location, id: FieldID, i: number) => void;
 
 export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, ...classes: string[]): HTMLElementTagNameMap[K];
 export function createElement(tag: string, ...classes: string[]) {
@@ -103,7 +105,7 @@ const compress = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '');
 
 export const makeCard = (
   card?: Card,
-  handler?: (e: HTMLElement) => void,
+  handler?: () => void,
   options: {facedown?: boolean; notip?: boolean; label?: number; counter?: number; equip?: string} = {},
 ) => {
   const root = createElement('div', 'card');
@@ -179,7 +181,7 @@ export const makeCard = (
   }
 
   if (!options.notip) tippy(root, {content: tooltip(card)});
-  if (handler) root.addEventListener('click', () => handler(root));
+  if (handler) root.addEventListener('click', () => handler());
   return root;
 };
 
@@ -230,7 +232,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
     if (!id) {
       div.appendChild(makeCard());
     } else {
-      div.appendChild(makeCard(ID.decode(id), handler && ((e: HTMLElement) => handler(e, 'monsters', id, i!)), {
+      div.appendChild(makeCard(ID.decode(id), handler && (() => handler( 'monsters', id, i!)), {
         facedown: ID.facedown(id),
         counter: ID.data(id),
         equip: equips[i!],
@@ -265,7 +267,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
       const card = ID.decode(id);
       const facedown = ID.facedown(id);
       const counter = ID.data(id);
-      const fn = handler && ((e: HTMLElement) => handler(e, 'spells', id, i!));
+      const fn = handler && (() => handler('spells', id, i!));
       if (!facedown && card.type === 'Spell' && card.subType === 'Equip') {
         div.appendChild(makeCard(card, fn, {facedown, equip: equips[counter]}));
       } else {
@@ -295,7 +297,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td = createElement('td');
   div = createElement('div', 'zone', 'hand');
   for (const [i, id] of state.hand.entries()) {
-    div.appendChild(makeCard(ID.decode(id), handler && ((e: HTMLElement) => handler(e, 'hand', id, i))));
+    div.appendChild(makeCard(ID.decode(id), handler && (() => handler('hand', id, i))));
   }
   td.appendChild(div);
   tr.appendChild(td);
