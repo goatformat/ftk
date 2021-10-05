@@ -197,7 +197,7 @@ const wrap = <T>(a: T[], n = 5) => {
   return b;
 };
 
-export const renderState = (state: State, banished: DeckID[], graveyard: ID[], handler?: Handler) => {
+export const renderState = (state: State, banished: DeckID[], graveyard: ID[], handler?: Handler, transform?: Handler) => {
   let equip = false;
   const equips: {[i: number]: string} = {};
   for (const id of state.spells) {

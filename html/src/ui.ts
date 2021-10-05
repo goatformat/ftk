@@ -2,7 +2,7 @@ import './ui.css';
 
 import * as workerpool from 'workerpool';
 import assert from 'assert';
-import {State, Random, ID, DeckID, FieldID, Location, Ids} from '../../src';
+import {State, Random, ID, DeckID, Card, FieldID, Location, Ids} from '../../src';
 import {renderState} from './common';
 
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
@@ -14,6 +14,20 @@ const STATE = State.create(new Random(Random.seed(num)));
 const BANISHED: DeckID[] = [];
 const GRAVEYARD: ID[] = [];
 
+function SPELL(fn?: (s: State) => void) {
+  return (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
+    s.remove(location, i);
+    s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+    if (card.type === 'Spell' && card.subType === 'Continuous') {
+      s.add('spells', card.id);
+    } else {
+      s.add('graveyard', card.id);
+    }
+    if (fn) fn(s);
+    s.inc();
+  };
+}
+
 export const HANDLERS: { [name: string]: any } = {
   'A Feather of the Phoenix': {
   },
@@ -23,46 +37,66 @@ export const HANDLERS: { [name: string]: any } = {
   },
   'Card Destruction': {
   },
-  'Convulsion of Nature': {
-  },
-  'Cyber Jar': {
-  },
+  'Convulsion of Nature': SPELL(s => s.reverse()),
   'Different Dimension Capsule': {
   },
-  'Giant Trunade': {
-  },
+  'Giant Trunade': SPELL(s => {
+    for (const id of s.spells) {
+      const card = ID.decode(id);
+      s.add('hand', card.id);
+      if (ID.facedown(id)) continue;
+      if (card.id === Ids.ConvulsionOfNature) {
+        s.reverse(true);
+      } else if (card.id === Ids.DifferentDimensionCapsule) {
+        s.banish();
+      }
+    }
+    s.minor(`Return ${ID.names(s.spells)} to hand`);
+    s.spells = [];
+  }),
   'Graceful Charity': {
   },
-  'Level Limit - Area B': {
-  },
-  'Pot of Greed': {
-  },
+  'Level Limit - Area B': SPELL(),
+  'Pot of Greed': SPELL(s => s.draw(2)),
   'Premature Burial': {
   },
-  'Heavy Storm': {
-  },
+  'Heavy Storm': SPELL(s => {
+    for (const id of s.spells) {
+      const card = ID.decode(id);
+      s.add('graveyard', card.id);
+      if (ID.facedown(id)) continue;
+      if (card.id === Ids.ConvulsionOfNature) {
+        s.reverse(true);
+      } else if (card.id === Ids.BlackPendant) {
+        s.mclear(ID.data(id));
+      } else if (card.id === Ids.PrematureBurial) {
+        const removed = s.mremove(ID.data(id));
+        s.add('graveyard', removed.id);
+        s.minor(`Sending "${ID.decode(removed.id).name}" to the Graveyard after its equipped "${ID.decode(id).name}" was destroyed`);
+      } else if (card.id === Ids.DifferentDimensionCapsule) {
+        s.banish();
+      }
+    }
+    s.minor(`Send ${ID.names(s.spells)} to Graveyard`);
+    s.spells = [];
+  }),
   'Reload': {
   },
   'Reversal Quiz': {
-  },
-  'Royal Magical Library': {
-  },
-  'Sangan': {
+    // TODO call, sangan search
   },
   'Spell Reproduction': {
     // does nothing unless condition is passed (2+ in hand, 1+ in grave)
     // if only one option does that one option, otherwise fades out invalid options and lets choose
     // progress to state with choice = want to restruction index.ts to pass in choices instead!
   },
-  'Thunder Dragon': {
-    // if choice, pass in instead of generate
-  },
   'Toon Table of Contents': {
   },
-  'Toon World': {
-  },
-  'Upstart Goblin': {
-  },
+  'Toon World': SPELL(s => {
+    s.minor(`Pay 1000 LP (${s.lifepoints} -> ${s.lifepoints - 1000})`);
+    s.lifepoints -= 1000;
+  }),
+  'Upstart Goblin': SPELL(s => s.draw()),
 };
 
 // target = highlight valid targets
@@ -73,19 +107,25 @@ export const HANDLERS: { [name: string]: any } = {
 //
 
 
-type Action = 'play' | 'discard' | 'target' |'search';
-const action: Action = 'play';
+type Action = 'play' | 'discard' | 'target' | 'search';
 
-function update() {
+const CONTROL: {
+  action: Action,
+  origin?: {e: HTMLElement, location: Location, id: FieldID, i: number},
+} = {
+  action: 'play',
+  origin: undefined,
+};
+
+function update(transform?: (e: HTMLElement, location: Location, id: FieldID, i: number) => void) {
   const $content = document.getElementById('content')!;
   if ($content.children[0]) $content.removeChild($content.children[0]);
-  $content.appendChild(renderState(STATE, BANISHED, GRAVEYARD, handler));
+  $content.appendChild(renderState(STATE, BANISHED, GRAVEYARD, handler, transform));
 }
 
 function handler(e: HTMLElement, location: Location, id: FieldID, i: number) {
-  console.log(e, location, id, i);
-
-  e.classList.add('selected');
+  const action = CONTROL.action;
+  console.log(action, e, location, id, i); // DEBUG
 
   switch (location) {
   case 'banished': return;
@@ -94,7 +134,7 @@ function handler(e: HTMLElement, location: Location, id: FieldID, i: number) {
     return; // TODO
   }
   case 'deck': {
-    if (action !== 'search') return;
+    if (!(action === 'search' || action === 'target')) return;
     return; // TODO
   }
   case 'monsters': {
@@ -121,19 +161,51 @@ function handler(e: HTMLElement, location: Location, id: FieldID, i: number) {
     return; // TODO
   }
   case 'hand': {
-    const card = ID.decode(id);
-    if (card.id === Ids.ThunderDragon) {
-      // FIXME need to choose... -> can also discard OR summon!!!
-    } else if (card.type === 'Monster') {
-      if (STATE.monsters.length >= 5 || STATE.summoned) return;
-      STATE.remove(location, i);
-      STATE.major(`Summon "${card.name}" in Attack Position`);
-      STATE.summon(card.id);
-      return update();
-    } else {
-      if (STATE.spells.length >= 5 || !card.can(STATE, location)) return;
+    if (action === 'play') {
+      const card = ID.decode(id);
+      if (card.id === Ids.ThunderDragon) {
+        if (STATE.monsters.length && STATE.monsters.length < 5 && !STATE.summoned) {
+          CONTROL.action = 'target';
+          CONTROL.origin = {e, location, id, i};
+          update((e, loc, __, j) => {
+            if (loc === 'spells' ) {
+              e.classList.add('disabled');
+            } else if (loc === 'hand') {
+              e.classList.add(i === j ? 'selected' : 'disabled');
+            }
+          });
 
-      // FIXME play
+
+
+
+          // TODO handle Sangan
+          if (STATE.monsters.length === 1) {
+
+          } else {
+            // FIXME select tribute
+          }
+        } else {
+          // cant summon, must discard
+        }
+      } else if (card.type === 'Monster') {
+        if (STATE.monsters.length >= 5 || STATE.summoned) return;
+        STATE.remove(location, i);
+        STATE.major(`Summon "${card.name}" in Attack Position`);
+        STATE.summon(card.id);
+        return update();
+      } else {
+        if (STATE.spells.length >= 5 || !card.can(STATE, location)) return;
+
+        // TODO
+        const handler = HANDLERS[card.name];
+        if (handler) {
+          handler(STATE, location, i, card);
+          return update();
+        }
+
+      }
+    } else if (action === 'discard') {
+      // FIXME
     }
   }
   }
@@ -142,11 +214,11 @@ function handler(e: HTMLElement, location: Location, id: FieldID, i: number) {
 update();
 
 // @ts-ignore
-const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
-pool.exec('search', [STATE.toString(), RANDOM.seed, 1e6, 0.5]).then(r => {
-  console.log(r);
-}).catch(e => {
-  console.error(e);
-}).then(() => {
-  pool.terminate();
-});
+// const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+// pool.exec('search', [STATE.toString(), RANDOM.seed, 1e6, 0.5]).then(r => {
+//   console.log(r);
+// }).catch(e => {
+//   console.error(e);
+// }).then(() => {
+//   pool.terminate();
+// });

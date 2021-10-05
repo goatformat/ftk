@@ -12,6 +12,12 @@
 .selected {
   border: var(--card-border) solid blue;
 }
+.option {
+  border: var(--card-border) solid yellow;
+}
+.disabled {
+  filter: brightness(0.8);
+}
 @media(min-width: 390px) {
   #content {
     font-size: 0.65em;
