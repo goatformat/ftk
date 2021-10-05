@@ -166,9 +166,7 @@ const RELOAD: (fn: (s: State) => void) => Data['play'] =
     const h = (location === 'hand' ? 1 : 0);
     const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
     for (let n = 1; n <= max; n++) {
-      // FIXME do funky here where we already filter out monsters but keep indices!
-      for (const set of isubsets(d.hand, n)) {
-        if (set.some(j => ID.decode(d.hand[j]).type === 'Monster')) continue;
+      for (const set of isubsets(d.hand, n, id => ID.decode(id).type === 'Spell')) {
         const s = d.clone();
         const ids = [];
         for (const [offset, j] of set.entries()) {
@@ -811,11 +809,12 @@ function subsets<T>(s: T[], k: number): T[][] {
 // such unique subsets. This function doesn't quite accomplish the former: 2-subsets of [A, A, B, B]
 // will still return [0, 1], [0, 2], [1, 2], [2, 3] instead of [0, 1], [1, 2], [2, 3], though these
 // redundant subsets can be deduped by the higher level symmetry detection mechanisms.
-function isubsets<T>(s: T[], k: number): number[][] {
+function isubsets<T>(s: T[], k: number, filter?: (t: T) => boolean): number[][] {
   // NOTE: this still potentially returns redundant subsets
   const unique = new Map<T, number>();
   const is: number[] = [];
   for (let i = 0; i < s.length; i++) {
+    if (filter && !filter(s[i])) continue;
     const u = unique.get(s[i]);
     if (u && u >= k) continue;
     unique.set(s[i], (u || 0) + 1);
