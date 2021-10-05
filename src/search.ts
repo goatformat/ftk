@@ -137,6 +137,7 @@ const enum Status {
 export function bulbSearch(
   node: IState, B = 5, cutoff?: number, prescient?: boolean
 ): {visited: number} | SearchResult & {visited: number} {
+  if (B <= 0) throw new RangeError(`Width B must be > 0 but is ${B}`);
   const visited: Hash<string, Status> = cutoff && cutoff > LIMIT ? new BigMap() : new Map();
   for (let discrepancies = 0; visited.get(node.key) !== Status.COMPLETE; discrepancies++) {
     const result = bulbProbe(node, B, discrepancies, visited, [], cutoff, prescient);
