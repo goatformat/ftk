@@ -8,13 +8,15 @@ const os = require('os');
 const workerpool = require('workerpool');
 const ProgressBar = require('progress');
 
-const {Random} = require('../build/src');
+const {Random} = require('../build');
 
 // Technically, storing 10M state strings (length ~68 = 12 + 4 * Math.ceil(68 /4) = 80 bytes) should
 // require 800 MB, though if they're in a cons-string representation instead of flat strings they
 // will use considerably more. Empirically allowing threads ~2 GB of memory each helps ensure we
 // stay at around 75-85% utilization for the system and don't start swapping or crashing.
 const MEMORY = 2e9;
+
+const TIMEOUT = 20 * 60 * 1000;
 
 const hhmmss = (ms, round = true) => {
   let s = ms / 1000;
@@ -56,12 +58,16 @@ const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers});
   const interval = setInterval(() => progress.render(), 1000);
 
   for (let i = 0; i < n; i++) {
-    results.push(pool.exec('search', [Random.seed(i), width]).then(result => {
+    results.push(pool.exec('search', [Random.seed(i), width]).timeout(TIMEOUT).then(result => {
       progress.tick();
       return result;
-    }).catch(() => {
+    }).catch(err => {
       progress.tick();
-      return ['crash', 0, undefined, undefined, undefined].join(',');
+      if (err instanceof workerpool.Promise.TimeoutError) {
+        return ['exhaust', TIMEOUT, undefined, undefined, undefined].join(',');
+      } else {
+        return ['crash', 0, undefined, undefined, undefined].join(',');
+      }
     }));
   }
 

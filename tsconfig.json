@@ -18,5 +18,5 @@
     "target": "es2017",
     "tsBuildInfoFile": ".tsbuildinfo"
   },
-  "exclude": ["html"]
+  "exclude": ["build", "dist", "html", "node_modules"]
 }
