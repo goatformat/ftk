@@ -499,7 +499,7 @@ export const DATA: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
-    can: s => !!s.deck.length,
+    can: s => !!(s.deck.length && (s.monsters.length || s.spells.length || s.hand.length)),
     score: () => 1,
     // State.end() already checks for using Reversal Quiz as the win condition, but Reversal Quiz
     // also has a niche use that will probably never actually be relevant where it clears the field
@@ -541,41 +541,34 @@ export const DATA: { [name: string]: Data } = {
       s.spells = [];
       s.graveyard.sort();
 
+
+      const reveal = s.deck[s.deck.length - 1];
+      if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
+      s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
+
       if (!sangan) {
-        const reveal = s.deck[s.deck.length - 1];
-        if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
-        s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
         State.transition(next, s);
         return;
       }
-
-      // FIXME does sangan search come before or after shuffle (reveal)
 
       const targets = new Set<ID>();
       for (let j = 0; j < state.deck.length; j++) {
         const id = ID.id(state.deck[j]);
         if (targets.has(id)) continue;
         const card = ID.decode(id);
-        if ('attribute' in card && card.attribute === 'Dark' && card.atk <= 1500) {
+        if (card.type === 'Monster' && card.atk <= 1500) {
           const t = s.clone();
           t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
           t.add('hand', ID.id(s.deck.splice(j, 1)[0]));
           t.shuffle();
-          const reveal = t.deck[t.deck.length - 1];
-          if (!ID.known(reveal)) t.deck[t.deck.length - 1] = `(${reveal})` as DeckID;
-          t.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
           State.transition(next, t);
         }
       }
       // Failure to find (mandatory effect)
       if (!targets.size) {
-        const t = s.clone();
-        t.minor('Fail to find "Sangan" target in Deck');
-        t.shuffle();
-        const reveal = t.deck[t.deck.length - 1];
-        if (!ID.known(reveal)) t.deck[t.deck.length - 1] = `(${reveal})` as DeckID;
-        t.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
-        State.transition(next, t);
+        s.minor('Fail to find "Sangan" target in Deck');
+        s.shuffle();
+        State.transition(next, s);
       }
     },
   },
@@ -688,7 +681,7 @@ export const DATA: { [name: string]: Data } = {
             const id = ID.id(state.deck[k]);
             if (targets.has(id)) continue;
             const card = ID.decode(id);
-            if ('attribute' in card && card.attribute === 'Dark' && card.atk <= 1500) {
+            if (card.type === 'Monster' && card.atk <= 1500) {
               const t = s.clone();
               t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
               t.add('hand', ID.id(s.deck.splice(k, 1)[0]));

@@ -7,15 +7,33 @@ import * as deckJSON from './deck.json';
 const DECK: {[name: string]: number} = deckJSON;
 
 // Used to enable state verification sanity checking which has a large impact on performance.
-// NOTE: set DEBUG to anything, even false and it will be turn on verification (as its actually 'false')
+// NOTE: set DEBUG to anything, even false and it will be turn on verification (!!'false')
 const DEBUG = !!process.env.DEBUG;
 
+// An 'immutable' State. State follows somewhat of a builder pattern, and once it is built it can be
+// turned into an IState. Because the `state` is no longer being mutated we can cache the `score`
+// and the toString representation in `key` to avoid redundant work during search
 export interface IState {
   key: string;
-  state: State;
+  state: Readonly<State>;
   score: number;
 }
 
+// The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
+// where handlers clone a State object, mutate it, and then 'freeze' it as an immutable IState.
+// State contains all the fields required for Library FTK (though note this is not a sufficient
+// encapsulation of general-purpose Yu-Gi-Oh! duel state). The most glaring difference (besides only
+// tracking data for one player and not supporting phases) is that the hand, Graveyard, banished
+// zone, Monster Zones and Spell & Trap Zones are all sorted - in regular Yu-Gi-Oh! the exact
+// location of a card in a zone can be relevant, but in the limited subset of Yu-Gi-Oh! required to
+// simulate the Library FTK we only care about precise zones with respect to the two Equip Spells
+// (and in that case it only actually matters in the case of Tribute Summoning) and we handle this
+// with the addition of data on the ID and special cases adding/removing monsters.
+//
+// In addition to the core required fields for simulating the game there is also an optional `trace`
+// field that tracks the human-readable description of all of the state transitions that occur. Note
+// that this information is preserved through cloning but does *not* round trip through
+// toString/fromString.
 export class State {
   random: Random;
   lifepoints: number;
@@ -38,7 +56,9 @@ export class State {
     }
     random.shuffle(deck);
 
-    const state = new State(random, 8000, 1, false, [], [], [], [], [], deck, false, trace ? [] : undefined);
+    const state = new State(
+      random, 8000, 1, false, [], [], [], [], [], deck, false, trace ? [] : undefined
+    );
     state.draw(6, true);
     return state;
   }
@@ -68,15 +88,19 @@ export class State {
     this.graveyard = graveyard;
     this.deck = deck;
     this.reversed = reversed;
-
     this.trace = trace;
   }
 
+  // Adds id to location and returns the index of id within the new location
+  // NOTE: you still must handle removing the id from the previous location
   add(location: 'spells', id: FieldID): number;
   add(location: 'banished', id: DeckID): number;
   add(location: 'hand' | 'graveyard', id: ID): number;
   add(location: Exclude<Location, 'deck' | 'monsters'>, id: ID /* | DeckID | FieldID */) {
     let i = 0;
+    // We need to keep things sorted, but doing a linear scan of the already sorted array is faster
+    // than doing a binary search to find the new location because the length of the arrays in
+    // question is always < 40
     for (; i < this[location].length; i++) {
       if (this[location][i] >= id) {
         this[location].splice(i, 0, id);
@@ -87,6 +111,8 @@ export class State {
     return i;
   }
 
+  // Removes the id from location at index i and returns the removed id
+  // NOTE: you still must handle adding the id to a new location
   remove(location: 'spells', i: number): FieldID;
   remove(location: 'banished', id: number): DeckID;
   remove(location: 'hand' | 'graveyard', i: number): ID;
@@ -95,6 +121,10 @@ export class State {
     return this[location].splice(i, 1)[0];
   }
 
+  // add, but for monsters. This needs to be special cased as reorganizing the monsters might
+  // require also rewriting the data of any Equip Spells if the monsters they were pointing to ended
+  // up at a new index after the sort.
+  // NOTE: you still must handle removing the id from the previous location
   madd(id: ID | FieldID) {
     const zone = this.add('monsters' as any, id); // "I know what I'm doing" (handle equips below)
     for (let i = 0; i < this.spells.length; i++) {
@@ -108,6 +138,10 @@ export class State {
     return zone;
   }
 
+  // remove, but for monsters. This also needs to be special cased for Equip Spells - instead of
+  // simply returning the id of the removed monster at index i we also return any equips that may
+  // have been equipped to it (to either reequip or to remove).
+  // NOTE: you still must handle adding the id (and equips) to a new location
   mremove(i: number) {
     const id = ID.id(this.remove('monsters' as any, i)); // "I am very smrt" (handle equips below)
     const equips: ID[] = [];
@@ -133,6 +167,8 @@ export class State {
     return {id, equips};
   }
 
+  // Wipe the data of the monster at index i. This may affect the sort order of the monster in
+  // question which might also affect the data of any Equip Cards that may be equipped to it.
   mclear(i: number) {
     const {id, equips} = this.mremove(i);
     const zone = this.madd(ID.id(id));
@@ -141,11 +177,18 @@ export class State {
     }
   }
 
+  // Summons the monster id. This is a simple wrapper around madd which handles also updated the
+  // summoned bit. NOTE: You must ensure there is room in the Monster zones and that you have not
+  // already performed a Normal Summon this turn. You must also still must handle removing the id
+  // from the previous location
   summon(id: ID | FieldID, special = false) {
     this.summoned = this.summoned || !special;
     return this.madd(id);
   }
 
+  // Tribute a monster at index fi in the monster zone to summon a single-tribute monster at index
+  // hi from the hand. This method *does* handle moving the tributed monster to the graveyard and
+  // removing the summoned monster from the hand. NOTE: You must ensure the Tribute Summon is legal
   tribute(fi: number, hi: number) {
     const {id, equips} = this.mremove(fi);
     this.add('graveyard', id);
@@ -159,8 +202,10 @@ export class State {
     return this.summon(h);
   }
 
+  // Mark any cards which were temporarily banished by Different Dimension Capsule's effect as
+  // permanently banished.
   banish() {
-    // There is at most one face-down banished card at a time and since '(' always sorts before
+    // There is at most one temporarily banished card at a time and since '(' always sorts before
     // any ID we simply need to check the first element
     if (this.banished[0] && ID.facedown(this.banished[0])) {
       const id = this.remove('banished', 0);
@@ -168,14 +213,17 @@ export class State {
     }
   }
 
+  // Add a 'major' trace action to the log. Major actions are used for primary player choices.
   major(s: string) {
     if (this.trace) this.trace.push(s);
   }
 
+  // Add a 'minor' trace action to the log. Minor actions occur as a result of major actions.
   minor(s: string) {
     if (this.trace) this.trace.push(`  ${s}`);
   }
 
+  // Discard the cards located at the sorted indices to the graveyard.
   discard(indices: number[]) {
     // PRECONDITION: sorted indices
     let removed = 0;
@@ -185,6 +233,9 @@ export class State {
     }
   }
 
+  // Add a Spell Counter to all face up Royal Magical Library cards that have less than 3 Spell
+  // Counters unless the card is at index ignore (this is necessary to avoid adding a counter to a
+  // Royal Magical Library on the turn it gets Special Summoned by Premature Burial).
   inc(ignore?: number) {
     for (let i = 0; i < this.monsters.length; i++) {
       if (typeof ignore === 'number' && ignore === i) continue;
@@ -200,12 +251,15 @@ export class State {
     }
   }
 
+  // Shuffle the deck, wiping out any knowledge of where cards were in the deck.
   shuffle() {
     this.deck = this.deck.map(id => ID.id(id));
     this.random.shuffle(this.deck);
     this.minor('Shuffle Deck');
   }
 
+  // Reverse the deck (or return it to its original position if revert is true) if it is not already
+  // reversed.
   reverse(revert = false) {
     if (revert) {
       if (!this.reversed) return;
@@ -225,6 +279,10 @@ export class State {
     }
   }
 
+  // Return the top card of the deck if it is known (because the deck is face-up, the deck was
+  // stacked by A Feather of the Phoenix, or via process of elimination) for Archfiend's Oath. If
+  // quiz is true this method will instead determine if the *type* of the card that *will* be on
+  // top of the deck *after* Reversal Quiz resolves (ie. the current bottom of the deck) is known
   known(quiz = false) {
     if (!this.deck.length) return undefined;
     const top = this.deck[this.deck.length - 1];
@@ -249,6 +307,12 @@ export class State {
     return (quiz && this.reversed) ? this.deck[0] : top;
   }
 
+  // Search for path from this state to the win condition. The cutoff should pretty much always be
+  // set to limit the number of states visited as pathological trees would likely result in an OOM.
+  // If width (must be > 0) is specified then a BULB search will be performed instead of a
+  // best-first search - BULB search usually is slightly slower but produces slightly better paths
+  // and increased success rates, though performance is very much dependent on thw width and shape
+  // of the tree.
   search(
     options: {cutoff?: number; prescient?: boolean; width?: number} = {}
   ): {visited: number} | SearchResult & {visited: number} {
@@ -260,7 +324,8 @@ export class State {
     }
   }
 
-  static transition(next: Map<string, IState>, state: State) {
+  // Add fully-built-and-never-to-be-mutated-again state to the transition map
+  static transition(next: Map<string, IState>, state: Readonly<State>) {
     const key = state.toString();
     next.set(key, {key, state, score: state.score()});
     if (DEBUG) {
@@ -273,10 +338,20 @@ export class State {
     }
   }
 
+  // Compute all unique and relevant states that can be transitioned to from this state.
+  // prescient determines whether or not the search should be allowed to "Fail to find" Thunder
+  // Dragon and Toon Table of Contents searches when the top card is not known - no human player
+  // would ever do this, but because the search is effectively allowed to 'peek' ahead to evaluate
+  // the result of its action it can potentially leverage the searches to get a more favorable draw.
+  // In addition to removing symmetrical states, next() also eliminates the possibility for states
+  // with set Spell cards where it would not be advantageous to do so. This optimization means the
+  // pedantically all unique states are not representable, but correctness-wise all states which
+  // could lead to a solution are. See the comment on RELOAD in data.ts for more information.
   next(prescient = true) {
     if (this.lifepoints <= 0) return [];
     const next = new Map<string, IState>();
 
+    // The only thing actionable on Monster cards is counters on Royal Magical Library
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
       const card = ID.decode(id);
@@ -484,6 +559,22 @@ export class State {
     return true;
   }
 
+  // Draw cards (or the opening hand if initial = true)
+  draw(n = 1, initial = false) {
+    if (n > this.deck.length) throw new Error('Deck out');
+    const ids = [];
+    for (let i = 0; i < n; i++) {
+      const id = ID.id(this.deck.pop()!);
+      ids.push(id);
+      this.add('hand', id);
+    }
+    if (initial) {
+      this.major(`Opening hand contains ${ID.names(ids)}`);
+    } else {
+      this.minor(`Draw ${ID.names(ids)}`);
+    }
+  }
+
   clone() {
     return new State(
       new Random(this.random.seed),
@@ -501,24 +592,10 @@ export class State {
     );
   }
 
-  draw(n = 1, initial = false) {
-    if (n > this.deck.length) throw new Error('Deck out');
-    const ids = [];
-    for (let i = 0; i < n; i++) {
-      const id = ID.id(this.deck.pop()!);
-      ids.push(id);
-      this.add('hand', id);
-    }
-    if (initial) {
-      this.major(`Opening hand contains ${ID.names(ids)}`);
-    } else {
-      this.minor(`Draw ${ID.names(ids)}`);
-    }
-  }
-
   equals(s: State) {
     return (this.random.seed === s.random.seed &&
       this.lifepoints === s.lifepoints &&
+      this.turn === s.turn &&
       this.summoned === s.summoned &&
       this.reversed === s.reversed &&
       equals(this.monsters, s.monsters) &&
@@ -526,7 +603,8 @@ export class State {
       equals(this.hand, s.hand) &&
       equals(this.banished, s.banished) &&
       equals(this.graveyard, s.graveyard) &&
-      equals(this.deck, s.deck));
+      equals(this.deck, s.deck) &&
+      (this.trace === s.trace || equals(this.trace!, s.trace!)));
   }
 
   toString() {
@@ -590,6 +668,7 @@ export class State {
     );
   }
 
+  // Stitch together a path of encoded States and a trace
   static display(path: string[], trace: string[]) {
     const buf = [];
 
@@ -606,6 +685,7 @@ export class State {
     return buf.join('\n');
   }
 
+  // Parse string s string into an array of ids (really Field[] | DeckID[])
   private static parse(s: string): (FieldID | DeckID)[] {
     const ids: (FieldID | DeckID)[] = [];
     let id = '';
@@ -623,6 +703,7 @@ export class State {
     return ids;
   }
 
+  // Perform basic (slow) sanity checks on State
   static verify(s: State) {
     const errors: string[] = [];
     const pretty = (ids: (ID | FieldID | DeckID)[]) => ids.map(id => ID.pretty(id)).join(', ');
@@ -719,6 +800,7 @@ export class State {
   }
 }
 
+// Fucking JS really doesn't have an Array.equals? smfh
 function equals<T>(a: T[], b: T[]) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {

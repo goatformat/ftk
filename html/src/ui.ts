@@ -88,7 +88,7 @@ function ARCHFIEND(s: State, location: 'hand' | 'spells', i: number, card: Card)
 
 function SANGAN_TARGET(location: Location, id: FieldID) {
   const card = ID.decode(id);
-  return location === 'deck' && 'attribute' in card && card.attribute === 'Dark' && card.atk <= 1500;
+  return location === 'deck' && card.type === 'Monster' && card.atk <= 1500;
 }
 
 function RELOAD(fn: (s: State) => void) {
@@ -269,12 +269,11 @@ const SPELLS: { [name: string]: any } = {
     s.spells = [];
     s.graveyard.sort();
 
-    if (!sangan) {
-      const reveal = s.deck[s.deck.length - 1];
-      if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
-      s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
-      return update();
-    }
+
+    const reveal = s.deck[s.deck.length - 1];
+    if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
+    s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
+    if (!sangan) return update();
 
     search({location, i}, SANGAN_TARGET, (_, j) => {
       if (j < 0) {
@@ -285,9 +284,6 @@ const SPELLS: { [name: string]: any } = {
         s.add('hand', id);
       }
       s.shuffle();
-      const reveal = s.deck[s.deck.length - 1];
-      if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
-      s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
       update();
     });
   },
