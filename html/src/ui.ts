@@ -3,6 +3,8 @@ import * as workerpool from 'workerpool';
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
 import {renderState, track} from './common';
 
+import './swipe';
+
 import './ui.css';
 
 type Action = 'play' | 'target' | 'search';
@@ -491,3 +493,7 @@ update();
 // }).then(() => {
 //   pool.terminate();
 // });
+
+
+document.addEventListener('swiped-left', () => console.log('TODO undo'));
+document.addEventListener('swiped-right', () => console.log('TODO redo'));
