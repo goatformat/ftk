@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+require('source-map-support').install();
+
+const fs = require('fs');
+const path = require('path');
+
+const parse = line => {
+  const [result, d, hand, visited, p] = line.split(',');
+  return {result, duration: +d, hand, visited, path: +p};
+};
+
+const read = csv => {
+  const result = [];
+  const lines = fs.readFileSync(path.join(__dirname, csv), 'utf8').split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i]) continue;
+    result.push(parse(lines[i]));
+  }
+  return result;
+};
+
+const bfsNonPrescient = read('logs/2357567b/bfs.nonprescient.csv');
+const bfsPrescient = read('logs/2357567b/bfs.prescient.csv');
+const bulbNonPrescient = read('logs/2357567b/bulb05.nonprescient.greedy.csv');
+const bulbPrescient = read('logs/2357567b/bulb05.prescient.greedy.csv');
+
+const fail = {};
+const exhaust = {};
+for (let i = 0; i < 10000; i++) {
+  const results = [bfsNonPrescient[i].result, bfsPrescient[i].result, bulbNonPrescient[i].result, bulbPrescient[i].result];
+  const success = results.some(r => r === 'success');
+  if (!success) {
+    if (results.some(r => r === 'fail')) {
+      fail[i] = results;
+    } else {
+      exhaust[i] = results;
+    }
+  }
+}
+console.log(Object.keys(fail).length, Object.keys(exhaust).length);
+
+// 85.85-9%, 11.8% fail, 2.31-5% ???
+
+
+
+
+
+

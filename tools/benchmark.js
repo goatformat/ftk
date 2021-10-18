@@ -18,6 +18,8 @@ const MEMORY = 2e9;
 
 const TIMEOUT = 20 * 60 * 1000;
 
+const CUTOFF = 1e7;
+
 const hhmmss = (ms, round = true) => {
   let s = ms / 1000;
   const h = Math.floor(s / 3600);
@@ -58,23 +60,24 @@ const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers});
   const interval = setInterval(() => progress.render(), 1000);
 
   for (let i = 0; i < n; i++) {
-    results.push(pool.exec('search', [Random.seed(i), width]).timeout(TIMEOUT).then(result => {
+    results.push(pool.exec('search', [Random.seed(i), CUTOFF, true, width]).timeout(TIMEOUT).then(result => {
       progress.tick();
       return result;
     }).catch(err => {
       progress.tick();
       if (err instanceof workerpool.Promise.TimeoutError) {
-        return ['exhaust', TIMEOUT, undefined, undefined, undefined].join(',');
+        return ['exhaust', TIMEOUT, undefined, undefined, undefined];
       } else {
-        return ['crash', 0, undefined, undefined, undefined].join(',');
+        return ['crash', 0, undefined, undefined, undefined];
       }
     }));
   }
 
   // Not really much point in turning this into a write stream as we're collecting all the results
   // in memory first anyway to be able to order them correctly.
-  fs.writeFileSync(csv,
-    `result,duration,hand,visited,path\n${(await Promise.all(results)).join('\n')}`);
+  const out = (await Promise.all(results)).map(
+    ([result, duration, hand, visited, p]) => [result, duration, hand, visited, p?.length].join(','));
+  fs.writeFileSync(csv, `result,duration,hand,visited,path\n${out.join('\n')}`);
 
   pool.terminate();
   clearInterval(interval);

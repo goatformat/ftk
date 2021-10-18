@@ -23,13 +23,13 @@
   },
   "scripts": {
     "compile": "tsc -p .",
-    "lint": "eslint --cache benchmark html src --ext ts,js",
-    "fix": "eslint --fix benchmark html src --ext ts,js",
+    "lint": "eslint --cache html src tools --ext ts,js",
+    "fix": "eslint --fix html src tools --ext ts,js",
     "prepare": "npm run compile",
     "start": "parcel html/index.html",
     "build": "parcel build html/index.html",
     "prebenchmark": "npm run compile",
-    "benchmark": "node benchmark/index",
+    "benchmark": "node tools/benchmark",
     "test": "npm run compile && npm run lint"
   },
   "eslintConfig": {
