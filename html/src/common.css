@@ -257,7 +257,7 @@ li {
 table {
   margin: 0 auto;
   width: fit-content;
-  min-width: calc(var(--card-width) * 10);
+  min-width: calc(var(--card-width) * calc(var(--card-row)));
   padding: 5px;
   border-spacing: 0;
 }

@@ -1,6 +1,6 @@
 #content {
   --max-width: 0.95;
-  --card-row: 10;
+  --card-row: 8;
   --card-width: calc((100vw * var(--max-width) - (var(--card-row) * 2 * var(--card-spacing))) / var(--card-row));
 }
 .stats {
