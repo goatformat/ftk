@@ -52,7 +52,8 @@ const hhmmss = (ms, round = true) => {
             pool.terminate(true);
           } else if (result[0] === 'fail') {
             console.log(`Searched all ${result[3]} states in ${hhmmss(result[1])} with ${search} and did not find any winning path.`);
-            pool.terminate(true);
+            // NOTE: we can only terminate if prescient because non-prescient might report failures due to having a smaller search space
+            if (prescient) pool.terminate(true);
           } else {
             console.log(`Gave up after searching ${CUTOFF} states in ${hhmmss(result[1])} with ${search} due to exhaustion.`);
           }

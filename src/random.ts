@@ -38,4 +38,18 @@ export class Random {
     }
     return arr;
   }
+
+  sample<T>(arr: T[], remove = false) {
+    if (arr.length === 0) throw new RangeError('Cannot sample an empty array');
+    const index = this.next(arr.length);
+    const val = arr[index];
+    if (remove) {
+      arr[index] = arr[arr.length - 1];
+      arr.pop();
+  }
+    if (val === undefined && !Object.prototype.hasOwnProperty.call(arr, index)) {
+      throw new RangeError('Cannot sample a sparse array');
+    }
+    return val;
+  }
 }
