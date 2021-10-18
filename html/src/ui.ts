@@ -1,7 +1,7 @@
 
 import * as workerpool from 'workerpool';
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
-import {renderState, track} from './common';
+import {createElement, renderState, track} from './common';
 
 import './swipe';
 
@@ -11,7 +11,7 @@ type Action = 'play' | 'target' | 'search';
 
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
-const start = State.create(new Random(Random.seed(num)));
+const start = State.create(new Random(Random.seed(num)), true);
 const STATE = {
   random: new Random(Random.seed(num)),
   now: start,
@@ -23,31 +23,66 @@ const STATE = {
 
 function update(transform?: (location: Location, id: FieldID, i: number) => void) {
   const $content = document.getElementById('content')!;
-  if ($content.children[0]) $content.removeChild($content.children[0]);
+  while ($content.firstChild) $content.removeChild($content.firstChild);
 
   const {now: s, banished, graveyard} = STATE;
-  const activated = parseLastActivated(STATE.last);
-  track(s.banished, banished, activated);
-  track(s.graveyard, graveyard, activated);
+  const trace = renderTrace(s, banished, graveyard);
 
   $content.appendChild(renderState(s, banished, graveyard, handler, transform, true));
+  if (trace) {
+    $content.appendChild(trace);
+    trace.scrollTop = trace.scrollHeight;
+  }
 
   STATE.last = s.clone();
 }
 
-function parseLastActivated(s: State) {
-  if (!s.trace) return undefined;
-  let major = '';
-  for (let i = s.trace.length; i >= 0; i++) {
-    if (!s.trace[i].startsWith('  ')) {
-      major = s.trace[i];
-      break;
+function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
+  if (!s.trace?.length) return undefined;
+
+  const trace = createElement('div', 'trace');
+  let p = createElement('p');
+  let ul = createElement('ul');
+
+  let last = '';
+  let major = 0;
+  for (const line of s.trace) {
+    const minor = line.startsWith('  ');
+    if (!minor) {
+      if (major) {
+        p.appendChild(ul);
+        ul = createElement('ul');
+        trace.appendChild(p);
+        p = createElement('p');
+      }
+      last = line;
+      major++;
+
+      const span = createElement('span');
+      span.innerHTML = line.replace(/"(.*?)"/g, (_, g: string) => `"<b>${g}</b>"`);
+      p.appendChild(span);
+    } else {
+      const li = createElement('li');
+      li.textContent = line;
+      ul.appendChild(li);
     }
   }
-  return !major ? undefined : (major.startsWith('Activate') ? DATA[/"(.*?)"/.exec(major)![1]].id
-    : major.startsWith('Set') ? DATA[/then activate "(.*?)"/.exec(major)![1]].id
-    : undefined);
-}
+
+  p.appendChild(ul);
+  ul = createElement('ul');
+  trace.appendChild(p);
+
+
+  if (last) {
+    const activated = (last.startsWith('Activate') ? DATA[/"(.*?)"/.exec(last)![1]].id
+      : last.startsWith('Set') ? DATA[/then activate "(.*?)"/.exec(last)![1]].id
+      : undefined);
+    track(s.banished, banished, activated);
+    track(s.graveyard, graveyard, activated);
+  }
+
+  return trace;
+};
 
 function SPELL(fn?: (s: State) => void) {
   return (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
@@ -494,6 +529,30 @@ update();
 //   pool.terminate();
 // });
 
+function undo() {
+  console.log('TODO undo');
+}
 
-document.addEventListener('swiped-left', () => console.log('TODO undo'));
-document.addEventListener('swiped-right', () => console.log('TODO redo'));
+function redo() {
+  console.log('TODO redo');
+}
+
+document.addEventListener('swiped-left', undo);
+document.addEventListener('swiped-right', redo);
+document.addEventListener("keydown", e => {
+  var key = e.which || e.keyCode;
+  switch(key) {
+    case 37:
+      undo();
+      break;
+    case 39:
+      redo();
+      break;
+    default:
+      return true;
+  }
+
+  e.preventDefault();
+  e.stopPropagation();
+  return false;
+});

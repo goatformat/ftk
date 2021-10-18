@@ -268,9 +268,6 @@ td:nth-child(2) {
 tr {
   height: var(--card-height);
 }
-tr:first-child {
-  height: 3em;
-}
 tr:first-child td {
   display: flex;
   justify-content: center;
@@ -302,6 +299,15 @@ tr:first-child td {
   position: relative;
   text-align: center;
   color: white;
+}
+.trace {
+  margin: 1em auto;
+  line-height: 1.4em;
+  background-color: var(--trace-bg-color);
+  border: 1px solid var(--fg-color);
+}
+.trace ul {
+  margin: 0;
 }
 
 @media(min-width: 500px) {

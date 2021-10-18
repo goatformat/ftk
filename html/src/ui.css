@@ -18,6 +18,20 @@
 .disabled {
   filter: brightness(0.8);
 }
+tr:first-child {
+  height: 3em;
+}
+.trace {
+  padding: 0 1em;
+  max-height: max(var(--card-height), 20vh);
+  max-width: max(690px, calc(5.5 * var(--card-width)));
+  overflow: scroll;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.trace::-webkit-scrollbar{
+  display: none;
+}
 @media(min-width: 390px) {
   #content {
     font-size: 0.65em;
@@ -43,6 +57,14 @@
   }
   .counter .label-text {
     top: -15%;
+  }
+  .trace {
+    font-size: 1.5em;
+  }
+}
+@media(min-width: 1440px) {
+  .trace {
+    font-size: 2em;
   }
 }
 

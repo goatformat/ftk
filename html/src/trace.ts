@@ -58,15 +58,14 @@ const render = (path: string[], trace: string[]) => {
       }
       last = line;
       major++;
-    }
-    if (minor) {
-      const li = createElement('li');
-      li.textContent = line;
-      ul.appendChild(li);
-    } else {
+
       const span = createElement('span');
       span.innerHTML = line.replace(/"(.*?)"/g, (_, g: string) => `"<b>${g}</b>"`);
       div.appendChild(span);
+    } else {
+      const li = createElement('li');
+      li.textContent = line;
+      ul.appendChild(li);
     }
   }
   root.appendChild(div);

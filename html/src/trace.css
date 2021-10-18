@@ -20,23 +20,16 @@ details {
 table {
   max-width: 95%;
 }
-.trace {
-  padding: 1em;
-  max-width: 690px;
-  margin: 1em auto;
-  line-height: 1.4em;
-  background-color: var(--trace-bg-color);
-  border: 1px solid var(--fg-color);
-}
-.trace ul {
-  margin: 0;
-}
 td:nth-child(2) {
   width: var(--card-width);
   padding: 5px;
 }
 tr {
   height: var(--card-height);
+}
+.trace {
+  padding: 1em;
+  max-width: 690px;
 }
 .wrapper {
   overflow: scroll;
