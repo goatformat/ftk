@@ -28,7 +28,7 @@ function update(transform?: (location: Location, id: FieldID, i: number) => void
   track(s.banished, banished, activated);
   track(s.graveyard, graveyard, activated);
 
-  $content.appendChild(renderState(s, banished, graveyard, handler, transform));
+  $content.appendChild(renderState(s, banished, graveyard, handler, transform, true));
 
   STATE.last = s.clone();
 }

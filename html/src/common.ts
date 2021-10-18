@@ -106,7 +106,7 @@ const compress = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '');
 export const makeCard = (
   card?: Card,
   handler?: () => void,
-  options: {facedown?: boolean; notip?: boolean; label?: number; counter?: number; equip?: string} = {},
+  options: {facedown?: boolean; notip?: boolean; label?: number; counter?: number; equip?: string; hold?: boolean} = {},
 ) => {
   const root = createElement('div', 'card');
   if (!card) {
@@ -180,7 +180,7 @@ export const makeCard = (
     root.appendChild(div);
   }
 
-  if (!options.notip) tippy(root, {content: tooltip(card)});
+  if (!options.notip) tippy(root, {content: tooltip(card), touch: options.hold ? ['hold', 500] : true});
   if (handler) root.addEventListener('click', () => handler());
   return root;
 };
@@ -199,7 +199,7 @@ const wrap = <T>(a: T[], n = 5) => {
   return b;
 };
 
-export const renderState = (state: State, banished: DeckID[], graveyard: ID[], handler?: Handler, transform?: Handler) => {
+export const renderState = (state: State, banished: DeckID[], graveyard: ID[], handler?: Handler, transform?: Handler, hold = false) => {
   let equip = false;
   const equips: {[i: number]: string} = {};
   for (const id of state.spells) {
@@ -233,6 +233,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
       div.appendChild(makeCard());
     } else {
       div.appendChild(makeCard(ID.decode(id), handler && (() => handler( 'monsters', id, i!)), {
+        hold,
         facedown: ID.facedown(id),
         counter: ID.data(id),
         equip: equips[i!],
@@ -269,9 +270,9 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
       const counter = ID.data(id);
       const fn = handler && (() => handler('spells', id, i!));
       if (!facedown && card.type === 'Spell' && card.subType === 'Equip') {
-        div.appendChild(makeCard(card, fn, {facedown, equip: equips[counter]}));
+        div.appendChild(makeCard(card, fn, {hold, facedown, equip: equips[counter]}));
       } else {
-        div.appendChild(makeCard(card, fn, {facedown, counter}));
+        div.appendChild(makeCard(card, fn, {hold, facedown, counter}));
       }
     }
   }
@@ -297,7 +298,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td = createElement('td');
   div = createElement('div', 'zone', 'hand');
   for (const [i, id] of state.hand.entries()) {
-    div.appendChild(makeCard(ID.decode(id), handler && (() => handler('hand', id, i))));
+    div.appendChild(makeCard(ID.decode(id), handler && (() => handler('hand', id, i)), {hold}));
   }
   td.appendChild(div);
   tr.appendChild(td);
