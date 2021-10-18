@@ -55,7 +55,7 @@ html {
 }
 body {
   font-family: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
-  margin: 2em auto;
+  margin: 1em auto;
   max-width: 95%;
   background-color: var(--bg-color);
   color: var(--fg-color);
@@ -268,48 +268,48 @@ td:nth-child(2) {
 tr {
   height: var(--card-height);
 }
-.text {
-  font-weight: bold;
-}
 tr:first-child {
-  height: 25px;
+  height: 3em;
 }
 tr:first-child td {
   display: flex;
   justify-content: center;
 }
+.lifepoints {
+  text-align: center;
+  font-weight: bold;
+  background: linear-gradient(90deg, rgb(255, 153, 0), rgb(255, 0, 0));
+  padding: 2px;
+  width: 35%;
+  border-radius: 10px;
+  position: relative;
+  -webkit-background-clip: padding-box;
+  -moz-background-clip: padding;
+  background-clip: padding-box;
+}
+.overlay {
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background-color: black;
+  position: absolute;
+  border-radius: 8px 0 0 8px;
+}
+.text {
+  font-weight: bold;
+  width: 100%;
+  position: relative;
+  text-align: center;
+  color: white;
+}
 
 @media(min-width: 500px) {
+  body {
+    margin: 2em auto;
+  }
   .lifepoints {
-    text-align: center;
-    font-weight: bold;
-    background: linear-gradient(90deg, rgb(255, 153, 0), rgb(255, 0, 0));
-    padding: 2px;
-    width: 35%;
     border: 2px solid var(--fg-color);
-    border-radius: 10px;
-    position: relative;
-    -webkit-background-clip: padding-box;
-    -moz-background-clip: padding;
-    background-clip: padding-box;
-  }
-  .overlay {
-    top: 0;
-    left: 0;
-    width: 50%;
-    height: 100%;
-    background-color: black;
-    position: absolute;
-    border-radius: 8px 0 0 8px;
-  }
-  .text {
-    width: 100%;
-    position: relative;
-    text-align: center;
-    color: white;
-  }
-  tr:first-child {
-    height: 40px;
   }
   .tooltip {
     font-size: 1em;
