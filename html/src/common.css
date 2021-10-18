@@ -2,11 +2,13 @@
   --bg-color: #fff;
   --fg-color: #000;
   --trace-bg-color: #f7f7f7;
+  --blank-border-color: #000;
 }
 [data-theme="dark"] {
   --bg-color: #000;
   --fg-color: #ddd;
   --trace-bg-color: #151515;
+  --blank-border-color: #333;
 }
 
 @font-face {
@@ -164,6 +166,7 @@ body {
   border-width: max(var(--card-border), 2px);
 }
 .blank {
+  border-color: var(--blank-border-color);
   border-width: max(var(--card-border), 2px);
 }
 .card img {
