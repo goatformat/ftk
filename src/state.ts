@@ -3,6 +3,7 @@ import {Ids, ID, DeckID, FieldID} from './ids';
 import {Random} from './random';
 import {bestFirstSearch, bulbSearch, SearchResult} from './search';
 import * as deckJSON from './deck.json';
+import * as WEIGHTS from './weights.json';
 
 const DECK: {[name: string]: number} = deckJSON;
 
@@ -472,13 +473,15 @@ export class State {
       score += card.score(this, 'monsters', id);
     }
 
+    const library =
+      libraries.active * WEIGHTS.activeLibraries + libraries.total * WEIGHTS.totalLibraries;
     for (const id of this.spells) {
       const card = ID.decode(id);
       const n = card.score(this, 'spells', id);
       if (!n) continue;
       if (ID.facedown(id)) {
-        score += n * 0.9; // TODO how much to reduce for facedown?
-        score += libraries.active / 3 + libraries.total / 6;
+        score += n * WEIGHTS.facedown;
+        score += library;
       } else {
         score += n;
       }
@@ -490,7 +493,7 @@ export class State {
       if (card.type === 'Spell' && !open) continue;
       if (card.type === 'Monster' && this.summoned) continue;
       score += card.score(this, 'hand', id);
-      if (card.type === 'Spell') score += libraries.active / 3 + libraries.total / 6;
+      if (card.type === 'Spell') score += library;
     }
 
     return score;
