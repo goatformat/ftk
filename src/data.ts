@@ -539,14 +539,14 @@ export const DATA: { [name: string]: Data } = {
       }
 
       const targets = new Set<ID>();
-      for (let j = 0; j < state.deck.length; j++) {
-        const id = ID.id(state.deck[j]);
+      for (let j = 0; j < s.deck.length; j++) {
+        const id = ID.id(s.deck[j]);
         if (targets.has(id)) continue;
         const card = ID.decode(id);
         if (card.type === 'Monster' && card.atk <= 1500) {
           const t = s.clone();
           t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
-          t.add('hand', ID.id(s.deck.splice(j, 1)[0]));
+          t.add('hand', ID.id(t.deck.splice(j, 1)[0]));
           t.shuffle();
           State.transition(next, t);
         }
