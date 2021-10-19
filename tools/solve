@@ -89,8 +89,11 @@ const log = (...args) => VERBOSE && console.log(...args);
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
     }
-    const out = (Object.entries(cohorts)).map(
-      ([seed, [result, duration, hand, visited, p]]) => [result, duration, hand, visited, p?.length, seed].join(','));
+    const out = (Object.entries(cohorts)).map(([seed, [result, duration, hand, visited, p]]) =>
+      (typeof result === 'string'
+        ? [result, duration, hand, visited, p?.length, seed]
+        : ['exhaust', 0, undefined, undefined, undefined, seed]
+      ).join(','));
     fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
     console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);
     execFileSync(path.join(__dirname, 'compare'), [csv], {stdio: 'inherit'});
