@@ -13,7 +13,7 @@ const {hhmmss, maxWorkers} = require('./utils');
 const TIMEOUT = 60 * 60 * 1000;
 const CUTOFF = 2e7;
 
-var VERBOSE = !!process.env.VERBOSE;
+var VERBOSE = isNaN(+process.env.VERBOSE) ? +!!process.env.VERBOSE : +process.env.VERBOSE;
 const log = (...args) => VERBOSE && console.log(...args);
 
 (async () => {
@@ -49,7 +49,7 @@ const log = (...args) => VERBOSE && console.log(...args);
           if (typeof cohorts[seed][0] === 'string') return;
 
           if (result[0] === 'success') {
-            log(`Found a path of length ${result[4].length} for seed ${seed} in ${hhmmss(result[1])} after searching ${result[3]} states using ${desc}:\n${State.display(result[4], result[5])}`);
+            log(`Found a path of length ${result[4].length} for seed ${seed} in ${hhmmss(result[1])} after searching ${result[3]} states using ${desc}${VERBOSE > 1 ? `:\n${State.display(result[4], result[5])}` : ''}`);
             for (const s of cohorts[seed]) if (s.pending && s !== search) s.cancel();
             cohorts[seed] = result;
           } else if (result[0] === 'fail') {
