@@ -241,13 +241,12 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
     if (!id) {
       div.appendChild(makeCard());
     } else {
-
-      div.appendChild(makeCard(ID.decode(id), handler && (() => handler( 'monsters', id, i!)), {
+      div.appendChild(makeCard(ID.decode(id), handler && (() => handler('monsters', id, i!)), {
         hold,
         facedown: ID.facedown(id),
         counter: ID.data(id),
         equip: equips[i!],
-        className: transform && transform('monsters', id, i!),
+        className: transform?.('monsters', id, i!),
       }));
     }
   }
@@ -260,7 +259,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
     const top = makeCard(ID.decode(id), undefined, {
       notip: true,
       label: banished.length,
-      className: transform && transform('banished', id, banished.length - 1),
+      className: transform?.('banished', id, banished.length - 1),
     });
     tippy(top, {content: pileTooltip(state, 'banished')});
     div.appendChild(top);
@@ -282,7 +281,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
       const facedown = ID.facedown(id);
       const counter = ID.data(id);
       const fn = handler && (() => handler('spells', id, i!));
-      const className = transform && transform('spells', id, i!);
+      const className = transform?.('spells', id, i!);
       if (!facedown && card.type === 'Spell' && card.subType === 'Equip') {
         div.appendChild(makeCard(card, fn, {hold, facedown, equip: equips[counter], className}));
       } else {
@@ -299,7 +298,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
     const top = makeCard(ID.decode(id), undefined, {
       notip: true,
       label: graveyard.length,
-      className: transform && transform('graveyard', id, graveyard.length - 1),
+      className: transform?.('graveyard', id, graveyard.length - 1),
     });
     tippy(top, {content: pileTooltip(state, 'graveyard')});
     div.appendChild(top);
@@ -316,7 +315,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   for (const [i, id] of state.hand.entries()) {
     div.appendChild(makeCard(ID.decode(id), handler && (() => handler('hand', id, i)), {
       hold,
-      className: transform && transform('hand', id, i)
+      className: transform?.('hand', id, i),
     }));
   }
   td.appendChild(div);
@@ -329,7 +328,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
       facedown: !state.reversed,
       notip: true,
       label: state.deck.length,
-      className: transform && transform('deck', id, state.deck.length - 1),
+      className: transform?.('deck', id, state.deck.length - 1),
     });
     tippy(top, {content: pileTooltip(state, 'deck')});
     div.appendChild(top);

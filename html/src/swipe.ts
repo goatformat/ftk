@@ -1,4 +1,4 @@
-/*! Modified from John Doherty's MIT-licensed https://github.com/john-doherty/swiped-events */
+/* ! Modified from John Doherty's MIT-licensed https://github.com/john-doherty/swiped-events */
 (() => {
   'use strict';
 
@@ -15,7 +15,7 @@
   if (typeof window.CustomEvent !== 'function') {
     // @ts-ignore
     window.CustomEvent = (event: string, params: any) => {
-      params = params || { bubbles: false, cancelable: false, detail: undefined };
+      params = params || {bubbles: false, cancelable: false, detail: undefined};
       const e = document.createEvent('CustomEvent');
       e.initCustomEvent(event, params.bubbles, params.cancelable, params.detail);
       return e;
@@ -50,7 +50,7 @@
     }
 
     if (eventType) {
-      startElement!.dispatchEvent(new CustomEvent(eventType, { bubbles: true, cancelable: true }));
+      startElement!.dispatchEvent(new CustomEvent(eventType, {bubbles: true, cancelable: true}));
     }
 
     downX = null;

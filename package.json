@@ -23,8 +23,8 @@
   },
   "scripts": {
     "compile": "tsc -p .",
-    "lint": "eslint --cache html src tools --ext ts,js",
-    "fix": "eslint --fix html src tools --ext ts,js",
+    "lint": "eslint --cache src tools --ext ts,js",
+    "fix": "eslint --fix src tools --ext ts,js",
     "prepare": "npm run compile",
     "start": "parcel html/index.html",
     "build": "parcel build html/index.html",

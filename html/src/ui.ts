@@ -7,22 +7,22 @@ import './swipe';
 import './ui.css';
 
 type Action = {
-  type: 'play'
+  type: 'play';
 } | {
-  type: 'target' | 'search',
-  origin: {location: Location, i: number},
-  filter: (location: Location, id: FieldID) => boolean,
-  fn: (location: Location, ...j: number[]) => void,
-  num: number,
-  targets: [Location, number][],
+  type: 'target' | 'search';
+  origin: {location: Location; i: number};
+  filter: (location: Location, id: FieldID) => boolean;
+  fn: (location: Location, ...j: number[]) => void;
+  num: number;
+  targets: [Location, number][];
 };
 
-const num = (window.location.hash && +window.location.hash.slice(1)) ||
+const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
-const start = State.create(new Random(Random.seed(num)), true);
+const START = State.create(new Random(Random.seed(NUM)), true);
 const STATE = {
   stack: [{
-    state: start,
+    state: START,
     banished: [] as DeckID[],
     graveyard: [] as ID[],
     action: {type: 'play'} as Action,
@@ -108,7 +108,7 @@ function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
   }
 
   return trace;
-};
+}
 
 function SPELL(fn?: (s: State) => void) {
   return (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
@@ -191,13 +191,13 @@ function RELOAD(fn: (s: State) => void) {
       s.inc();
       update();
     }, -max);
-  }
-};
+  };
+}
 
 const SPELLS: { [name: string]: any } = {
   'A Feather of the Phoenix': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     target({location, i}, loc => loc === 'hand', (_, j) => {
-      search({location, i}, loc => loc === 'graveyard', (_, k) => {
+      search({location, i}, loc => loc === 'graveyard', (__, k) => {
         s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
         s.minor(`Discard "${ID.decode(s.hand[j]).name}"`);
         const gid = s.remove('graveyard', k);
@@ -365,7 +365,7 @@ const SPELLS: { [name: string]: any } = {
   },
   'Spell Reproduction': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     target({location, i}, (loc, id) => loc === 'hand' && ID.decode(id).type === 'Spell', (_, j, k) => {
-      search({location, i}, (loc, id) => loc === 'graveyard' && ID.decode(id).type === 'Spell', (_, g) => {
+      search({location, i}, (loc, id) => loc === 'graveyard' && ID.decode(id).type === 'Spell', (__, g) => {
         s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
         s.minor(`Discard "${ID.decode(s.hand[j]).name}" and "${ID.decode(s.hand[k]).name}"`);
         const gid = s.remove('graveyard', g);
@@ -410,10 +410,9 @@ function handler(location: Location, id: FieldID, i: number) {
   const action = STATE.stack[STATE.index].action;
   console.log(action, location, id, i); // DEBUG
   switch (action.type) {
-    case 'play': return onPlay(location, id, i);
-    case 'target': return onTarget(location, id, i);
-    case 'search': return onSearch(location, id, i);
-    default: throw new Error(`Unknown action: ${action}`);
+  case 'play': return onPlay(location, id, i);
+  case 'target': return onTarget(location, id, i);
+  case 'search': return onSearch(location, id, i);
   }
 }
 
@@ -422,133 +421,133 @@ function onPlay(location: Location, id: FieldID, i: number) {
 
   const card = ID.decode(id);
   switch (location) {
-    case 'monsters': {
-      if (card.id === Ids.RoyalMagicalLibrary) {
-        if (ID.facedown(id) || ID.data(id) !== 3 || !state.deck.length) return;
-        state.major(`Remove 3 Spell Counters from "${card.name}"`);
-        state.mclear(i);
-        state.draw();
-        return update();
-      }
-      return;
+  case 'monsters': {
+    if (card.id === Ids.RoyalMagicalLibrary) {
+      if (ID.facedown(id) || ID.data(id) !== 3 || !state.deck.length) return;
+      state.major(`Remove 3 Spell Counters from "${card.name}"`);
+      state.mclear(i);
+      state.draw();
+      return update();
     }
-    case 'spells': {
-      if (card.type !== 'Spell' || !card.can(state, location)) return;
-      if (ID.facedown(id)) {
-        const spell = SPELLS[card.name];
-        if (spell) spell(state, location, i, card);
-      } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
-        ARCHFIEND(state, location, i, card);
-      }
-      return;
+    return;
+  }
+  case 'spells': {
+    if (card.type !== 'Spell' || !card.can(state, location)) return;
+    if (ID.facedown(id)) {
+      const spell = SPELLS[card.name];
+      if (spell) spell(state, location, i, card);
+    } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
+      ARCHFIEND(state, location, i, card);
     }
-    case 'hand': {
-      if (card.id === Ids.ThunderDragon) {
-        const find = (s: State) => {
-          search({location, i}, (loc, id) => loc === 'deck' && ID.id(id) === Ids.ThunderDragon, (_, ...targets) => {
-            s.major(`Discard "${card.name}"`);
-            s.remove('hand', i);
-            s.add('graveyard', card.id);
-            if (targets.length === 2) {
-              s.minor(`Add 2 "${card.name}" from Deck to hand`);
-              // PRECONDITION: targets[0] < targets[1]
-              s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
-              s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
-            } else if (targets.length === 1) {
-              s.minor(`Add "${card.name}" from Deck to hand`);
-              s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
-            } else {
-              s.minor(`Fail to find "${card.name}" in Deck`);
-            }
-            s.shuffle();
-            update();
-          })
-        };
+    return;
+  }
+  case 'hand': {
+    if (card.id === Ids.ThunderDragon) {
+      const find = (s: State) => {
+        search({location, i}, (loc, sid) => loc === 'deck' && ID.id(sid) === Ids.ThunderDragon, (_, ...targets) => {
+          s.major(`Discard "${card.name}"`);
+          s.remove('hand', i);
+          s.add('graveyard', card.id);
+          if (targets.length === 2) {
+            s.minor(`Add 2 "${card.name}" from Deck to hand`);
+            // PRECONDITION: targets[0] < targets[1]
+            s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
+            s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
+          } else if (targets.length === 1) {
+            s.minor(`Add "${card.name}" from Deck to hand`);
+            s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
+          } else {
+            s.minor(`Fail to find "${card.name}" in Deck`);
+          }
+          s.shuffle();
+          update();
+        });
+      };
 
-        if (state.monsters.length && state.monsters.length < 5 && !state.summoned) {
-          target({location, i}, loc => loc === 'deck' || loc === 'monsters', (loc, j) => {
-            if (loc === 'deck') {
-              find(state);
-            } else {
-              const target = ID.decode(state.monsters[j]);
-              state.major(`Tribute "${target.name}" to Summon "${self.name}"`);
-              state.tribute(j, i);
-              if (target.id === Ids.Sangan) {
-                search({location, i}, SANGAN_TARGET, (_, j) => {
-                  if (j < 0) {
-                    state.minor('Fail to find "Sangan" target in Deck');
-                  } else {
-                    const id = ID.id(state.deck.splice(j, 1)[0]);
-                    state.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
-                    state.add('hand', id);
-                  }
-                  state.shuffle();
-                  update();
-                });
-              } else {
+      if (state.monsters.length && state.monsters.length < 5 && !state.summoned) {
+        target({location, i}, loc => loc === 'deck' || loc === 'monsters', (loc, j) => {
+          if (loc === 'deck') {
+            find(state);
+          } else {
+            const t = ID.decode(state.monsters[j]);
+            state.major(`Tribute "${t.name}" to Summon "${self.name}"`);
+            state.tribute(j, i);
+            if (t.id === Ids.Sangan) {
+              search({location, i}, SANGAN_TARGET, (_, k) => {
+                if (k < 0) {
+                  state.minor('Fail to find "Sangan" target in Deck');
+                } else {
+                  const did = ID.id(state.deck.splice(k, 1)[0]);
+                  state.minor(`Add "${ID.decode(did).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
+                  state.add('hand', did);
+                }
+                state.shuffle();
                 update();
-              }
+              });
+            } else {
+              update();
             }
-          });
-        } else {
-          find(state);
-        }
-      } else if (card.type === 'Monster') {
-        if (state.monsters.length >= 5 || state.summoned) return;
-        state.remove(location, i);
-        state.major(`Summon "${card.name}" in Attack Position`);
-        state.summon(card.id);
-        return update();
+          }
+        });
       } else {
-        if (state.spells.length >= 5 || !card.can(state, location)) return;
-        const spell = SPELLS[card.name];
-        if (spell) spell(state, location, i, card);
+        find(state);
       }
+    } else if (card.type === 'Monster') {
+      if (state.monsters.length >= 5 || state.summoned) return;
+      state.remove(location, i);
+      state.major(`Summon "${card.name}" in Attack Position`);
+      state.summon(card.id);
+      return update();
+    } else {
+      if (state.spells.length >= 5 || !card.can(state, location)) return;
+      const spell = SPELLS[card.name];
+      if (spell) spell(state, location, i, card);
     }
+  }
   }
 }
 
 function target(
-  origin: {location: Location, i: number},
+  origin: {location: Location; i: number},
   filter: (location: Location, id: FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
-  num = 1) {
-    const state = STATE.stack[STATE.index].state;
+  num = 1
+) {
+  const state = STATE.stack[STATE.index].state;
 
-    const targets: ['hand' | 'spells' | 'monsters' | 'deck', number][] = [];
-    for (const location of ['hand', 'spells', 'monsters'] as const) {
-      for (const [i, id] of state[location].entries()) {
-        if (location === origin.location && i == origin.i) continue;
-        if (filter(location, id)) targets.push([location, i]);
-      }
+  const targets: ['hand' | 'spells' | 'monsters' | 'deck', number][] = [];
+  for (const location of ['hand', 'spells', 'monsters'] as const) {
+    for (const [i, id] of state[location].entries()) {
+      if (location === origin.location && i === origin.i) continue;
+      if (filter(location, id)) targets.push([location, i]);
+    }
+  }
+  if (state.deck.length && filter('deck', state.deck[state.deck.length - 1] as FieldID)) {
+    targets.push(['deck', state.deck.length - 1]);
+  }
 
-    }
-    if (state.deck.length && filter('deck', state.deck[state.deck.length - 1] as FieldID)) {
-      targets.push(['deck', state.deck.length - 1]);
-    }
-
-    if (num > 0 && targets.length === num) {
-      // PRECONDITION: new Set(targets.map(t => t[0])).size === 1
-      return fn(targets[0][0], ...targets.map(t => t[1]).sort());
-    } else {
-      STATE.stack[STATE.index].action = {
-        type: 'target',
-        origin,
-        filter,
-        fn,
-        num,
-        targets: [],
-      };
-      update();
-    }
+  if (num > 0 && targets.length === num) {
+    // PRECONDITION: new Set(targets.map(t => t[0])).size === 1
+    return fn(targets[0][0], ...targets.map(t => t[1]).sort());
+  } else {
+    STATE.stack[STATE.index].action = {
+      type: 'target',
+      origin,
+      filter,
+      fn,
+      num,
+      targets: [],
+    };
+    update();
+  }
 }
 
 function onTarget(location: Location, id: FieldID, i: number) {
   const action = STATE.stack[STATE.index].action;
   if (action.type !== 'target') throw new Error(`Invalid action type ${action.type}`);
 
-  if (location === action.origin.location && i == action.origin.i) {
-    STATE.stack[STATE.index].action = { type: 'play'};
+  if (location === action.origin.location && i === action.origin.i) {
+    STATE.stack[STATE.index].action = {type: 'play'};
     if (action.num < 0) {
       if (action.targets.length) {
         // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
@@ -569,7 +568,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
     }
 
     if (action.targets.length === Math.abs(action.num)) {
-      STATE.stack[STATE.index].action = { type: 'play'};
+      STATE.stack[STATE.index].action = {type: 'play'};
       // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
       return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
     } else {
@@ -581,32 +580,33 @@ function onTarget(location: Location, id: FieldID, i: number) {
 function transform(location: Location, id: FieldID, i: number) {
   const action = STATE.stack[STATE.index].action;
   if (action.type === 'play') return;
-  if (location === action.origin.location && i == action.origin.i) return 'selected';
+  if (location === action.origin.location && i === action.origin.i) return 'selected';
   if (!action.filter(location, id)) return 'disabled';
   if (action.targets.find(([loc, j]) => loc === location && j === i)) return 'option';
 }
 
 // TODO CAN FAIL TO FIND
 function search(
-  origin: {location: Location, i: number},
+  origin: {location: Location; i: number},
   filter: (location: Location, id: FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
-  num = 1) { // FIXME: can be 1 OR 2 for thunder dragon...
-    // change border of origin
-    // highlight valid discards / grey out invalid
-    // if only num then cool
-    // if reselect origin then cancel
-    // make sure each target is distinct and not the original
+  num = 1
+) { // FIXME: can be 1 OR 2 for thunder dragon...
+  // change border of origin
+  // highlight valid discards / grey out invalid
+  // if only num then cool
+  // if reselect origin then cancel
+  // make sure each target is distinct and not the original
 }
 
 function onSearch(location: Location, id: FieldID, i: number) {
   switch (location) {
-    case 'graveyard': {
-      return; // TODO
-    }
-    case 'deck': {
-      return; // TODO
-    }
+  case 'graveyard': {
+    return; // TODO
+  }
+  case 'deck': {
+    return; // TODO
+  }
   }
 }
 
@@ -627,28 +627,28 @@ const undo = () => {
   //   STATE.index--;
   //   update(false);
   // }
-}
+};
 
 const redo = () => {
   // if (STATE.index < STATE.stack.length - 1) {
   //   STATE.index++;
   //   update(false);
   // }
-}
+};
 
 document.addEventListener('swiped-left', undo);
 document.addEventListener('swiped-right', redo);
-document.addEventListener("keydown", e => {
-  var key = e.which || e.keyCode;
-  switch(key) {
-    case 37:
-      undo();
-      break;
-    case 39:
-      redo();
-      break;
-    default:
-      return true;
+document.addEventListener('keydown', e => {
+  const key = e.which || e.keyCode;
+  switch (key) {
+  case 37:
+    undo();
+    break;
+  case 39:
+    redo();
+    break;
+  default:
+    return true;
   }
 
   e.preventDefault();

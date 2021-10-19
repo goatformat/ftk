@@ -23,4 +23,4 @@ const hhmmss = (ms, round = true) => {
 // stay at around 75-85% utilization for the system and don't start swapping or crashing.
 const maxWorkers = (cutoff) => Math.round(os.totalmem() / (200 * cutoff));
 
-module.exports = { hhmmss, maxWorkers };
+module.exports = {hhmmss, maxWorkers};
