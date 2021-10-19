@@ -17,26 +17,41 @@ type Action = {
   targets: [Location, number][];
 };
 
+interface Context {
+  state: State;
+  banished: DeckID[];
+  graveyard: ID[];
+  action: Action;
+}
+
 const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const START = State.create(new Random(Random.seed(NUM)), true);
 const STATE = {
   stack: [{
     state: START,
-    banished: [] as DeckID[],
-    graveyard: [] as ID[],
-    action: {type: 'play'} as Action,
-  }],
+    banished: [],
+    graveyard: [],
+    action: {type: 'play'},
+  } as Context],
   index: 0,
 };
 // window.STATE = STATE; // DEBUG
 
-function update(history = true) {
+function newContext() {
+
+}
+
+function newAction() {
+
+}
+
+function update(mutate = true) {
   const $content = document.getElementById('content')!;
   while ($content.firstChild) $content.removeChild($content.firstChild);
 
   const {state: s, banished, graveyard, action} = STATE.stack[STATE.index];
-  const trace = renderTrace(s, banished, graveyard);
+  const trace = renderTrace(s, banished, graveyard, mutate);
 
   $content.appendChild(renderState(s, banished, graveyard, handler, transform, true));
   if (trace) {
@@ -64,7 +79,7 @@ function update(history = true) {
   // }
 }
 
-function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
+function renderTrace(s: State, banished: DeckID[], graveyard: ID[], mutate = true) {
   if (!s.trace?.length) return undefined;
 
   const trace = createElement('div', 'trace');
@@ -99,7 +114,7 @@ function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
   ul = createElement('ul');
   trace.appendChild(p);
 
-  if (last) {
+  if (last && mutate) {
     const activated = (last.startsWith('Activate') ? DATA[/"(.*?)"/.exec(last)![1]].id
       : last.startsWith('Set') ? DATA[/then activate(?: face-down)? "(.*?)"/.exec(last)![1]].id
       : undefined);
