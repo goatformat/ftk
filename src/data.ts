@@ -598,6 +598,10 @@ export const DATA: { [name: string]: Data } = {
       const hand = state.hand.filter(id => ID.decode(id).type === 'Spell').length > (location === 'hand' ? 2 : 1);
       return !!(graveyard && hand);
     },
+    // FIXME: use default +this.can!
+    score(state, location) {
+      return WEIGHTS['Spell Reproduction'][+!!(state.graveyard.length && state.hand.length > (location === 'hand' ? 2 : 1))];
+    },
     play(state, location, i, next, card) {
       if (!(state.graveyard.length && state.hand.length > (location === 'hand' ? 2 : 1))) return;
 
