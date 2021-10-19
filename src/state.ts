@@ -13,7 +13,7 @@ const DEBUG = !!process.env.DEBUG;
 
 // An 'immutable' State. State follows somewhat of a builder pattern, and once it is built it can be
 // turned into an IState. Because the `state` is no longer being mutated we can cache the `score`
-// and the toString representation in `key` to avoid redundant work during search
+// and the toString representation in `key` to avoid work during search (ie. Schwartzian transform)
 export interface IState {
   key: string;
   state: Readonly<State>;
@@ -22,14 +22,15 @@ export interface IState {
 
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
 // where handlers clone a State object, mutate it, and then 'freeze' it as an immutable IState.
-// State contains all the fields required for Library FTK (though note this is not a sufficient
-// encapsulation of general-purpose Yu-Gi-Oh! duel state). The most glaring difference (besides only
-// tracking data for one player and not supporting phases) is that the hand, Graveyard, banished
-// zone, Monster Zones and Spell & Trap Zones are all sorted - in regular Yu-Gi-Oh! the exact
-// location of a card in a zone can be relevant, but in the limited subset of Yu-Gi-Oh! required to
-// simulate the Library FTK we only care about precise zones with respect to the two Equip Spells
-// (and in that case it only actually matters in the case of Tribute Summoning) and we handle this
-// with the addition of data on the ID and special cases adding/removing monsters.
+// State contains all the fields required for Library FTK (though note this is obviously not a
+// sufficient encapsulation of general-purpose Yu-Gi-Oh! duel state). The most glaring difference
+// (besides only tracking data for one player and not supporting phases) is that the hand,
+// Graveyard, banished zone, Monster Zones and Spell & Trap Zones are all sorted - in regular
+// Yu-Gi-Oh! the exact location of a card in a zone can be relevant, but in the limited subset of
+// Yu-Gi-Oh! required to simulate the Library FTK we only care about precise zones with respect to
+// the two Equip Spells (and in that case it only actually matters in the case of Tribute Summoning)
+// and we handle this with the addition of data on the ID and special cases adding/removing
+// monsters.
 //
 // In addition to the core required fields for simulating the game there is also an optional `trace`
 // field that tracks the human-readable description of all of the state transitions that occur. Note
@@ -178,7 +179,7 @@ export class State {
     }
   }
 
-  // Summons the monster id. This is a simple wrapper around madd which handles also updated the
+  // Summons the monster id. This is a simple wrapper around madd which handles also updateing the
   // summoned bit. NOTE: You must ensure there is room in the Monster zones and that you have not
   // already performed a Normal Summon this turn. You must also still must handle removing the id
   // from the previous location
@@ -310,10 +311,9 @@ export class State {
 
   // Search for path from this state to the win condition. The cutoff should pretty much always be
   // set to limit the number of states visited as pathological trees would likely result in an OOM.
-  // If width (must be > 0) is specified then a BULB search will be performed instead of a
-  // best-first search - BULB search usually is slightly slower but produces slightly better paths
-  // and increased success rates, though performance is very much dependent on thw width and shape
-  // of the tree.
+  // If width > 0 is specified then a BULB search will be performed instead of a best-first search -
+  // BULB search usually is slightly slower but produces slightly better paths and increased success
+  // rates, though performance is very much dependent on thw width and shape of the given tree.
   search(
     options: {cutoff?: number; prescient?: boolean; width?: number} = {}
   ): {visited: number} | SearchResult & {visited: number} {
@@ -352,7 +352,9 @@ export class State {
     if (this.lifepoints <= 0) return [];
     const next = new Map<string, IState>();
 
-    // The only thing actionable on Monster cards is counters on Royal Magical Library
+    // The only thing actionable on Monster cards is counters on Royal Magical Library. Note we
+    // don't dedupe removing counters from multiple libraries due to Equips potentially making
+    // things different (State.transition will dedupe if possible anyway)
     for (let i = 0; i < this.monsters.length; i++) {
       const id = this.monsters[i];
       const card = ID.decode(id);
@@ -448,6 +450,14 @@ export class State {
     return Array.from(next.values()).sort(State.compare);
   }
 
+  // We primarily sort by each State's score, though fallback on lifepoints (getting down to < 500
+  // LP is important for our win condition), deck length and whether the top card is known (helps
+  // reduce uncertainty about the deck state which is also required for our win condition).
+  //
+  // Ideally we would be able to incorporate all these tiebreakers directly into score such that we
+  // could rank order states regardless of where they appear in the tree (this would then allow us
+  // to do informed as opposed to chronological or discrepancy based backtracking), but its very
+  // difficult to come up with that type of metric.
   static compare(a: IState, b: IState) {
     return (b.score - a.score ||
     a.state.lifepoints - b.state.lifepoints ||
@@ -457,6 +467,22 @@ export class State {
     +b.state.reversed - +a.state.reversed);
   }
 
+  // Scoring function used to differentiate states among its siblings. At a high level:
+  //
+  //  - track the number of Royal Magical Library cards increase the score if we have spells that
+  //    can add counters to them
+  //  - score cards based on their current location and custom scoring functions (which should
+  //    usually return 0 if the card cannot be played). Further dock points from facedown spell
+  //    cards as they clog zones and can't be used for discards.
+  //
+  // Ultimately we want to encourage states that get us nearer to our win condition which involves
+  // spending lifepoints and drawing cards, so we are roughly trying to use score to capture the
+  // idea of 'draw potential'. The main difficulty is trying to capture the 'potential' aspect -
+  // calculating immediate draw potential/playability for the next turn is decently straightforward,
+  // but we want the score to also capture generic 'value' throughout the game (this is why a
+  // summoned/summonable Royal Magical Library is given the highest score - whether or not it can
+  // currently have counters added to it is less important than the potential for it to be used as a
+  // draw engine throughout the game as a force multiplier to the rest of our cards).
   score() {
     // If we have reached a winning state we can simply ensure this gets sorted
     // to the front to ensure we don't bother expanding any sibling states.
@@ -499,6 +525,29 @@ export class State {
     return score;
   }
 
+  // Determine whether the win condition is acheivable from the current state. Somewhat confusingly
+  // this doesn't determine whether the current state is terminal, just whether a terminal state
+  // *can* be acheived via a short sequence of actions. This distinction is important as the search
+  // would otherwise spend a large amount of time near the leaf nodes trying to stumble upon the
+  // correct sequence of plays to win - instead we perform a very limited lookahead/unrolling to
+  // guide the search. NOTE: if this function does find a path to victory it will clobber the
+  // existing state in order to produce the correct trace. We don't really care about state being
+  // preserved at this point as we only care about securing a path to victory, though this means we
+  // may "jump" several actions ahead at the end once a path becomes clear.
+  //
+  // For our win condition we obviously need < 500 LP to ensure once the Reversal Quiz swap occurs
+  // the Black Pendant can burn our opponent to end the game, but we also need to at least have one
+  // monster (to equip the pendant to) and at least one card in our deck (to be able to reveal with
+  // Reversal Quiz) that we also happen to know the type of. We then track whether we have the Black
+  // Pendant and Reversal Quiz in our hand or on the field, and that we have sufficient Spell & Trap
+  // Zones to play the cards in (if they're not already face-down on the field).
+  //
+  // In addition to this straightforward win condition we also have logic for using A Feather of the
+  // Phoenix to secure a missing piece of the win condition. This is essentially an extra step of
+  // lookahead for a scenario that often comes up and which can drastically cut down on path length.
+  // The search can already handle using Spell Reproduction to recover a missing piece much more
+  // easily as the Spell gets added directly to the hand as opposed to having to stack the deck and
+  // then draw it.
   end() {
     if (this.lifepoints > 500) return false;
     if (!this.monsters.length || !this.deck.length) return false;
@@ -551,16 +600,20 @@ export class State {
     }
 
     // If we have one piece of the win condition AND A Feather of the Phoenix we can possibly
-    // recover the missing piece if its in the graveyard and we have zones (0-2 required) and draw
+    // recover the missing piece if its in the Graveyard AND we have zones (0-2 required) AND draw
     // power. This is effectively performing a narrow one-turn "lookahead" - this is somewhat
     // expensive but given we're so close to the win condition its worth doing extra work to try to
     // terminate quicker. NOTE: Archfiend's Oath isn't sufficient as draw power here before we're
-    // already under 1000 LP, and Graceful Charity/Pot of Greed complicate things because drawing too
-    // deep can effect known.
+    // already under 500 LP, and Graceful Charity/Pot of Greed complicate things because drawing too
+    // deep can effect the known card for Reversal Quiz (consider the case where the card was only
+    // known because it was previously stacked from another A Feather of the Phoenix).
     if (!(hand.pendant || spells.pendant || hand.quiz || spells.quiz)) return false;
-    // Technically we could have multiple A Feather of the Phoenix (including one on hand and field)
+    // Technically we could have multiple A Feather of the Phoenix (including one on hand and
+    // field), meaning we are being overly conservative here with the amount of zones we need and
+    // having another card for the discard card.
     if (!(discard >= 0 && (hand.feather >= 0 || spells.feather >= 0))) return false;
     if (this.spells.length > 5 - ((+hand.pendant + +hand.quiz) + +(hand.feather >= 0))) return false;
+
     const hid = this.hand[discard];
     const gid = (hand.pendant || spells.pendant) ? Ids.ReversalQuiz : Ids.BlackPendant;
     const k = this.graveyard.indexOf(gid);
@@ -590,7 +643,7 @@ export class State {
     for (let i = 0; i < this.monsters.length; i++) {
       const id = ID.id(this.monsters[i]);
       // Since we will be playing A Feather of the Phoenix we only need a Library with 2 counters.
-      // TODO: we actually only need 1 counter if Black Pendant is face down
+      // TODO: we actually only need 1 counter if Black Pendant is face down...
       if (id === Ids.RoyalMagicalLibrary && ID.data(this.monsters[i]) >= 2) {
         if (hand.feather >= 0) {
           this.feather('hand', hand.feather, hid, gid, discard, k);
@@ -607,6 +660,8 @@ export class State {
     return false;
   }
 
+  // Add description of the winning path to the trace without caring about making sure we properly
+  // update State (the search is done, it doesn't matter to us what the terminal State looks like)
   win(known: DeckID, equip: boolean, facedown: {pendant: boolean; quiz: boolean}) {
     if (equip) {
       const monster = ID.decode(this.monsters[0]);
@@ -636,6 +691,8 @@ export class State {
     return true;
   }
 
+  // Actually active A Feather of the Phoenix at i from location, discarding the hid at j in the
+  // hand to return the gid at k in the graveyard.
   feather(location: 'hand' | 'spells', i: number, hid: ID, gid: ID, j: number, k: number) {
     this.major(`Activate${location === 'spells' ? ' face-down' : ''} "A Feather of the Phoenix"`);
     this.minor(`Discard "${ID.decode(hid).name}"`);
@@ -697,12 +754,13 @@ export class State {
       equals(this.banished, s.banished) &&
       equals(this.graveyard, s.graveyard) &&
       equals(this.deck, s.deck) &&
-      (this.trace === s.trace || equals(this.trace!, s.trace!)));
+      (this.trace === s.trace ||
+        (this.trace && s.trace && equals(this.trace, s.trace))));
   }
 
   toString() {
     // Using `join` here on an array instead of using a template string or string concatenation
-    // is deliberate as it reuslts in V8 creating a flat string instead of a cons-string, the
+    // is deliberate as it results in V8 creating a flat string instead of a cons-string, the
     // latter of which results in significantly higher memory usage. This is a V8 implementation
     // detail and the approach to forcing a flattened string to be created may change over time.
     // https://gist.github.com/mraleph/3397008
@@ -712,6 +770,7 @@ export class State {
       +this.reversed].join('|');
   }
 
+  // Decodes State which was encoded from State.toString (dropping trace)
   static fromString(s: string) {
     let i = 0;
     let j = s.indexOf('|');

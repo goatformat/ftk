@@ -2,7 +2,7 @@ import {CARDS} from './data';
 
 // An ID is just a branded single character string chosen to represent each card in question (see
 // Ids below). A DeckID is an ID or an ID surrounded by parantheses to indicate that it is either
-// known in the deck or facedown a zone. A FieldID further extends the concept of the DeckID,
+// known in the deck or facedown in a zone. A FieldID further extends the concept of the DeckID,
 // optionally allowing for a number to be appended to the ID character in question to indicate
 // additional state (eg. whether a card has been activated, which monster an Equip Spell is attached
 // to, the number of Spell Counters on a card, etc),
@@ -45,6 +45,7 @@ export const ID = new class {
   }
 };
 
+// TODO: consider using the numeric values here as they would then get treated as Smis?
 export const Ids = {
   LevelLimitAreaB: 'A' as ID,
   BlackPendant: 'B' as ID,

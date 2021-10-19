@@ -18,9 +18,9 @@ export type Location = 'monsters' | 'spells' | 'hand' | 'banished' | 'graveyard'
 // within its location, the transition map of subsequent states and a reference to the card itself.
 // Handlers are expected to add all legal transition states to the map, though may elide states
 // which are redundant (eg. due to symmetry) as a performance optimization. The `can` function
-// returns true if the card is able to be played from the location given the current state, and
-// the `score` function (which defaults to 1 if the card can be played and 0 otherwise) allows
-// cards to have a custom score to inform the heuristic search algorithm base on the current state.
+// returns true if the card is able to be played from the location given the current state, and the
+// `score` function allows cards to have a custom score to inform the heuristic search algorithm
+// based on the current state.
 export type Data = {
   id: ID;
   type: Type;
@@ -76,7 +76,7 @@ const MONSTER: Data['play'] = (state, location, i, next, card) => {
 // Basic Spell activations all follow the same pattern, differing only in their effect fn.
 const SPELL: (fn?: (s: State) => void) => Data['play'] = (fn?: (s: State) => void) =>
   (state, location, i, next, card) => {
-    // We're avoiding checking 'can' in card here because this is a hot function and its safe.
+    // We're avoiding doing `'can' in card` here because this is a hot function and its safe.
     if (!(card as any).can(state, location)) return;
     const s = state.clone();
     s.remove(location, i);
@@ -94,7 +94,7 @@ const SPELL: (fn?: (s: State) => void) => Data['play'] = (fn?: (s: State) => voi
 
 // Actually activating Archfiend's Oath's *effect* is different than simply playing Archfiend's
 // Oath and can happen when you play the card or separately. There are also two difference scenarios
-// to cover - we either known the top-card of the deck and thus are paying the cost to be able to
+// to cover - we either know the top-card of the deck and thus are paying the cost to be able to
 // draw the card, or we don't know the top-card and we are simply paying to help us reach the win
 // condition and to deck thin.
 // TODO: support probabilisitcally "guessing" the top card.
@@ -140,19 +140,19 @@ const CAN_RELOAD = (state: State, location: 'hand' | 'spells' | 'monsters') => {
   return state.hand.length > h && state.deck.length >= state.hand.length - h;
 };
 
-// Reload / Card Destruction are handled a little bit unusually here. In Yu-Gi-Oh! Spell cards may
-// be set before being played, but in the context of this deck setting Spell cards serves only to
-// increase the depth and width of all game tree. One optimization is to only allow for setting
+// Reload / Card Destruction are handled a little bit unusually here. In Yu-Gi-Oh!, Spell cards may
+// be set before being played, but in the context of this simulation setting Spell cards serves only
+// to increase the depth and width of our game tree. One optimization is to only allow for setting
 // Spell cards if Reload or Card Destruction are Set or in the hand (as the only time it is
 // advantageous to have a card Set as opposed to in the hand where it can be more readily used as a
 // resource is to avoid them being reloaded/discarded by these two cards), however an even better
 // optimization is to simply defer actually setting any cards until one of these two cards are
 // activated. This has several benefits - superficially it makes for more realistic traces, but more
 // importantly it dramatically cuts down on tree depth and allows a better informed decision to be
-// made as all combination of set cards can be evaluated at the same time to figure out which is
+// made as all combinations of set cards can be evaluated at the same time to figure out which is
 // most optimal. One downside is that generating subsets is expensive and this has the potential to
 // create very wide and heterogenous nodes (which can cause the same problems as Different Dimension
-// Capsule), though ultimately results in about a 5% reduction in exhaustion and increase in overall
+// Capsule), though ultimately results in about a 5%+ reduction in exhaustion and increase in overall
 // success rate.
 const RELOAD: (fn: (s: State) => void) => Data['play'] =
   (fn: (s: State) => void) => (state, location, i, next, card) => {
@@ -218,6 +218,7 @@ export const DATA: { [name: string]: Data } = {
           if (targets.graveyard.has(gid)) continue;
           targets.graveyard.add(gid);
           const s = state.clone();
+          // A Feather of the Phoenix gets privileged logic due to lookahead in the win condition
           s.feather(location, i, hid, gid, j, k);
           State.transition(next, s);
         }
@@ -313,7 +314,7 @@ export const DATA: { [name: string]: Data } = {
         s.add('spells', `${card.id}${state.turn}` as FieldID);
         s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
         // In this deck, all banishing is face-down banished, so the (ID) notation merely indicates
-        // what the card could possibly return from play if Different Dimension Capsule actually
+        // that the card could possibly return from play if Different Dimension Capsule actually
         // resolves. Reversal Quiz / Heavy Storm / Giant Trunade which prevent Different Dimension
         // Capsule from resolving are responsible for clearing this data, resulting in the card
         // being banished for good.
@@ -393,7 +394,12 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Equip',
     text: 'Activate this card by paying 800 Life Points, then target 1 monster in your Graveyard; Special Summon that target in Attack Position and equip it with this card. When this card is destroyed, destroy the equipped monster.',
     can(state) {
-      return (this as any).score(state) > 0;
+      if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return false;
+      for (const id of state.graveyard) {
+        const target = ID.decode(id);
+        if (target.type === 'Monster') return true;
+      }
+      return false
     },
     score(state) {
       if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return WEIGHTS['Premature Burial'][0];
@@ -556,7 +562,7 @@ export const DATA: { [name: string]: Data } = {
     def: 2000,
     text: 'Spellcaster/Effect – Each time a Spell is activated, place 1 Spell Counter on this card when that Spell resolves (max. 3). You can remove 3 Spell Counters from this card; draw 1 card.',
     // It is hard to know how to score this, but it's pretty much always the case that having a
-    // Library is the Monster Zone is hugely beneficial and even having it in the hand is useful to
+    // Library in the Monster Zone is hugely beneficial and even having it in the hand is useful to
     // then be able to discard it (and bring it back via Premature Burial).
     score: (_, location) => WEIGHTS['Royal Magical Library'][+(location === 'monsters')],
     // NOTE: draw effect handled directly in State#next, and all spells use Stat#inc to update counters
@@ -570,8 +576,8 @@ export const DATA: { [name: string]: Data } = {
     atk: 1000,
     def: 600,
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
-    // Possibly should be lower - ultimately it is incredibly unlikely to proc Sangan and then
-    // actually get the Royal Magical Library target onto the field.
+    // Should be very low - the score should reflect that ultimately it is incredibly unlikely to
+    // proc Sangan and then actually get the Royal Magical Library target onto the field.
     score: (state, location) => WEIGHTS['Sangan'][+!(state.summoned || location === 'hand')],
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
@@ -586,7 +592,7 @@ export const DATA: { [name: string]: Data } = {
       const hand = state.hand.filter(id => ID.decode(id).type === 'Spell').length > (location === 'hand' ? 2 : 1);
       return !!(graveyard && hand);
     },
-    // FIXME: use default +this.can!
+    // FIXME: for some reason using the default +this.can ruins the heuristic
     score(state, location) {
       return WEIGHTS['Spell Reproduction'][+!!(state.graveyard.length && state.hand.length > (location === 'hand' ? 2 : 1))];
     },
@@ -754,9 +760,9 @@ for (const name in DATA) {
 
 // Basic k-subset function required by Graceful Charity and Spell Reproduction to determine
 // discard targets (though they use the isubsets method below for further deduping). This is also
-// called several times by Reload / Card Destruction to determine possible sets before activation -
-// in that case a more generic subsets function instead of a k-subsets function would probably
-// improve performance.
+// called several times by Reload / Card Destruction to determine possible sets before activation.
+// TODO: a more generic subsets function instead of a k-subsets function would probably
+// improve performance of Reload / Card Destruction.
 function subsets<T>(s: T[], k: number): T[][] {
   if (k > s.length || k <= 0) return [];
   if (k === s.length) return [s];

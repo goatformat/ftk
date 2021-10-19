@@ -162,6 +162,11 @@ https://www.cs.unh.edu/~ruml/cs730/paper-examples/wilt.pdf
 
 ## Future Work
 
+### Performance
+
+- Smi optimization: scores and IDs as smis (need to set bits instead of creating strings)
+- DCE of trace (avoid creating the strings in the first place to avoid memory churn) https://github.com/terser/terser#conditional-compilation
+
 ### Multi-turn
 
 ### Probabilistic

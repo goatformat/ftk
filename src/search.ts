@@ -2,7 +2,8 @@ import {IState} from './state';
 
 // Use State.display() to actually turn these results into something useful
 export interface SearchResult {
-  // Encoded array of State objects which represent each step required to win
+  // Encoded array of State objects which represent each step required to win - note that
+  // the final state will be possibly several actions *before* Reversal Quiz is played
   path: string[];
   // The trace of the final State object - the human readable description of the playout
   trace?: string[];
@@ -70,7 +71,7 @@ class BigMap<K, V> implements Hash<K, V> {
 }
 
 // Standard best-first search - most game trees have far too many children to exhaustively search
-// with BFS or even uninformed DFS (consider trees of depth 50 with 5-20+ nodes at each depth...).
+// with BFS or even uninformed DFS (consider trees of depth 50-100 with 5-20+ nodes at each level...).
 // cutoff should probably be set to around 10M to avoid running out of memory. This can perform
 // better than BULB search when the heuristic is good, especially since it can more effectively
 // take advantage of caching. Note that while tracking each state isn't strictly required for
@@ -127,7 +128,7 @@ const enum Status {
 // the game tree having so many duplicated states, we rely on being able to leverage the hash to
 // dedupe for performance reasons. Because of how the search works we need to be more careful about
 // tracking the visited status of the node to know whether it is safe to use the cache or not, but
-// ultimately it still pays off tremendously performance wise.
+// ultimately it still pays off tremendously performance-wise.
 //
 // The beam width B is typically a fixed width, but this implementation also allows for having the
 // beam width change dynamically depending on the number of children a node has. This is very useful
@@ -196,6 +197,13 @@ function bulbProbe(
       visited.set(node.key, Status.COMPLETE);
     }
   } else {
+    // NOTE: we can instead rearrange the order of this block to search the best slice first instead
+    // of using up a discrepancy, effectively being more 'greedy' and making our visit pattern
+    // closer to best-first-search. The more greedy approach also yields slightly better results,
+    // but we instead use the more traditional ordering as it let's us find results which we can't
+    // find with best-first seach (ie. we get more solutions from 'non-greedy' BULB + best-first
+    // search than 'greedy' BULB + best-first search)
+
     // Pull out the best slice from children
     const best = children.splice(0, split);
     let complete = 0;
@@ -219,7 +227,7 @@ function bulbProbe(
         if (visited.get(child.key) === Status.COMPLETE) complete++;
       }
     }
-    // TODO: test moving this to the top...
+
     // Preserve our discrepancy by choosing the best slice
     for (const child of best) {
       if (child.score >= Infinity) {
