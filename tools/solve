@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+require('source-map-support').install();
+
+const fs = require('fs');
+const path = require('path');
+
+const workerpool = require('workerpool');
+
+const {State, Random} = require('../build');
+const {hhmmss} = require('./utils');
+
+const TIMEOUT = 60 * 60 * 1000;
+const CUTOFF = 2e7;
+
+(async () => {
+  const seeds = [];
+  if (process.argv.length < 3) process.exit(1);
+  if (isNaN(+process.argv[2])) {
+    for (const line of fs.readFileSync(process.argv[2], 'utf8').split('\n')) {
+      if (!line) continue;
+      seeds.push(Random.seed(+line));
+    }
+  } else {
+    seeds.push(Random.seed(+process.argv[2]));
+  }
+
+  const pool = workerpool.pool(path.join(__dirname, 'tools', 'worker.js'), {maxWorkers: maxWorkers(CUTOFF)});
+
+  const cohorts = {};
+  const searches = [];
+  for (const seed of seeds) {
+    cohorts[seed] = [];
+    for (const width of [0.5, 0, 10, 0.25, 5, 0.1, 15]) {
+      for (const prescient of [true, false]) {
+        if (typeof cohorts[seed][0] === 'string') continue;
+
+        const desc = `${prescient ? 'prescient' : 'non-prescient'} ${width === 0 ? 'best-first' : 'BULB'} search${width ? ` (width=${width})` : ''}`;
+        const search = pool.exec('search', [seed, CUTOFF, prescient, width]).timeout(TIMEOUT).then(result => {
+          if (typeof cohorts[seed][0] === 'string') return;
+
+          if (result[0] === 'success') {
+            console.log(`Found a path of length ${result[4].length} for seed ${seed} in ${hhmmss(result[1])} after searching ${result[3]} states using ${desc}:\n${State.display(result[4], result[5])}`);
+            for (const s of cohorts[seed]) if (s.pending) s.cancel();
+            cohorts[seed] = result;
+          } else if (result[0] === 'fail') {
+            console.log(`Searched all ${result[3]} states of seed ${seed} in ${hhmmss(result[1])} with ${desc} and did not find any winning path.`);
+            // NOTE: we can only terminate if prescient because non-prescient might report failures due to having a smaller search space
+            if (prescient) {
+              for (const s of cohorts[seed]) if (s.pending) s.cancel();
+              cohorts[seed] = result;
+            }
+          } else {
+            console.log(`Gave up after searching ${CUTOFF} states of seed ${seed} in ${hhmmss(result[1])} with ${desc} due to exhaustion.`);
+          }
+          return result;
+        }).catch(err => {
+          if (err instanceof workerpool.Promise.TimeoutError) {
+            console.log(`Timed out after ${hhmmss(TIMEOUT)} of searching seed ${seed} using ${desc}.`);
+          } else if (err instanceof workerpool.Promise.CancellationError) {
+            console.log(`Cancelled ${desc} of seed ${seed}.`);
+          } else {
+            console.log(`Crashed which searching seed ${seed} using ${desc}: ${e}`);
+          }
+        });
+        if (typeof cohorts[seed][0] !== 'string') cohorts[seed].push(search);
+      }
+    }
+  }
+
+  await Promise.all(searches);
+
+  if (seeds.length > 1) {
+      // FIXME all the cohorts should be either (success/fail/all exhaust/timeout/cancel/crash)
+  }
+})();

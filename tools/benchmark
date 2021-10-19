@@ -1,41 +1,18 @@
+#!/usr/bin/env node
 require('source-map-support').install();
 
 const fs = require('fs');
 const path = require('path');
 const {execFileSync} = require('child_process');
-const os = require('os');
 
 const workerpool = require('workerpool');
 const ProgressBar = require('progress');
 
 const {Random} = require('../build');
-
-// Technically, storing 10M state strings (length ~68 = 12 + 4 * Math.ceil(68 /4) = 80 bytes) should
-// require 800 MB, though if they're in a cons-string representation instead of flat strings they
-// will use considerably more. Empirically allowing threads ~2 GB of memory each helps ensure we
-// stay at around 75-85% utilization for the system and don't start swapping or crashing.
-const MEMORY = 2e9;
+const {hhmmss, maxWorkers} = require('./utils');
 
 const TIMEOUT = 20 * 60 * 1000;
-
 const CUTOFF = 1e7;
-
-const hhmmss = (ms, round = true) => {
-  let s = ms / 1000;
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s - (h * 3600)) / 60);
-  s = s - (h * 3600) - (m * 60);
-  if (round) s = Math.round(s);
-
-  const mm = m < 10 ? `0${m}` : `${m}`;
-  const ss = s < 10 ? `0${s}` : `${s}`;
-  if (h > 0) {
-    const hh = h < 10 ? `0${h}` : `${h}`;
-    return `${hh}h${mm}m${ss}s`;
-  } else {
-    return `${mm}m${ss}s`;
-  }
-};
 
 const csv = path.join(__dirname, 'logs', 'results.csv');
 const old = path.join(__dirname, 'logs', 'results.old.csv');
@@ -44,8 +21,7 @@ try {
 } catch (e) {
   if (e.code !== 'ENOENT') throw e;
 }
-const maxWorkers = Math.round(os.totalmem() / MEMORY);
-const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers});
+const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers: maxWorkers(CUTOFF)});
 
 (async () => {
   const results = [];

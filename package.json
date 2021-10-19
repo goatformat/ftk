@@ -30,6 +30,8 @@
     "build": "parcel build html/index.html",
     "prebenchmark": "npm run compile",
     "benchmark": "node tools/benchmark",
+    "presolve": "npm run compile",
+    "solve": "node tools/solve",
     "test": "npm run compile && npm run lint"
   },
   "eslintConfig": {
