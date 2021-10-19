@@ -4,7 +4,6 @@ import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../
 import {createElement, renderState, track} from './common';
 
 import './swipe';
-
 import './ui.css';
 
 type Action = 'play' | 'target' | 'search';
@@ -13,28 +12,41 @@ const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
 const start = State.create(new Random(Random.seed(num)), true);
 const STATE = {
-  random: new Random(Random.seed(num)),
-  now: start,
-  last: start.clone(),
-  banished: [] as DeckID[],
-  graveyard: [] as ID[],
-  action: 'play' as Action,
+  stack: [{
+    state: start,
+    banished: [] as DeckID[],
+    graveyard: [] as ID[],
+    action: 'play' as Action,
+  }],
+  index: 0,
 };
+// window.STATE = STATE; // DEBUG
 
-function update(transform?: (location: Location, id: FieldID, i: number) => void) {
+function update(push = true) {
   const $content = document.getElementById('content')!;
   while ($content.firstChild) $content.removeChild($content.firstChild);
 
-  const {now: s, banished, graveyard} = STATE;
+
+  const {state: s, banished, graveyard, action} = STATE.stack[STATE.index];
   const trace = renderTrace(s, banished, graveyard);
 
-  $content.appendChild(renderState(s, banished, graveyard, handler, transform, true));
+  $content.appendChild(renderState(s, banished, graveyard, handler, true));
   if (trace) {
     $content.appendChild(trace);
     trace.scrollTop = trace.scrollHeight;
   }
 
-  STATE.last = s.clone();
+  // FIXME
+  if (push) {
+    while (STATE.index < STATE.stack.length - 1) STATE.stack.pop();
+    STATE.stack.push({
+      state: s.clone(),
+      banished: banished.slice(),
+      graveyard: graveyard.slice(),
+      action,
+    });
+    STATE.index = STATE.stack.length - 1;
+  }
 }
 
 function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
@@ -306,7 +318,6 @@ const SPELLS: { [name: string]: any } = {
     s.spells = [];
     s.graveyard.sort();
 
-
     const reveal = s.deck[s.deck.length - 1];
     if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
     s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
@@ -368,17 +379,18 @@ const SPELLS: { [name: string]: any } = {
 };
 
 function handler(location: Location, id: FieldID, i: number) {
-  console.log(STATE.action, location, id, i); // DEBUG
-  switch (STATE.action) {
+  const action = STATE.stack[STATE.index].action;
+  console.log(action, location, id, i); // DEBUG
+  switch (action) {
     case 'play': return onPlay(location, id, i);
     case 'target': return onTarget(location, id, i);
     case 'search': return onSearch(location, id, i);
-    default: throw new Error(`Unknown action: ${STATE.action}`);
+    default: throw new Error(`Unknown action: ${action}`);
   }
 }
 
 function onPlay(location: Location, id: FieldID, i: number) {
-  const state = STATE.now;
+  const state = STATE.stack[STATE.index].state;
 
   const card = ID.decode(id);
   switch (location) {
@@ -529,12 +541,18 @@ update();
 //   pool.terminate();
 // });
 
-function undo() {
-  console.log('TODO undo');
+const undo = () => {
+  if (STATE.index) {
+    STATE.index--;
+    update(false);
+  }
 }
 
-function redo() {
-  console.log('TODO redo');
+const redo = () => {
+  if (STATE.index < STATE.stack.length - 1) {
+    STATE.index++;
+    update(false);
+  }
 }
 
 document.addEventListener('swiped-left', undo);
