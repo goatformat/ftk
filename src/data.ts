@@ -140,6 +140,30 @@ const CAN_RELOAD = (state: State, location: 'hand' | 'spells' | 'monsters') => {
   return state.hand.length > h && state.deck.length >= state.hand.length - h;
 };
 
+// Both Reversal Quiz and tributing Thunder Dragon can potentially proc Sangan's search effect.
+const SANGAN = (s: State, next: Map<string, IState>) => {
+  const targets = new Set<ID>();
+  for (let j = 0; j < s.deck.length; j++) {
+    const id = ID.id(s.deck[j]);
+    if (targets.has(id)) continue;
+    const card = ID.decode(id);
+    if (card.type === 'Monster' && card.atk <= 1500) {
+      const t = s.clone();
+      t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
+      t.add('hand', ID.id(t.deck.splice(j, 1)[0]));
+      t.shuffle();
+      State.transition(next, t);
+    }
+  }
+  // Failure to find (mandatory effect)
+  if (!targets.size) {
+    const t = s.clone();
+    t.minor('Fail to find "Sangan" target in Deck');
+    t.shuffle();
+    State.transition(next, t);
+  }
+};
+
 // Reload / Card Destruction are handled a little bit unusually here. In Yu-Gi-Oh!, Spell cards may
 // be set before being played, but in the context of this simulation setting Spell cards serves only
 // to increase the depth and width of our game tree. One optimization is to only allow for setting
@@ -527,28 +551,9 @@ export const DATA: { [name: string]: Data } = {
       if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
       s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
 
-      if (!sangan) {
-        State.transition(next, s);
-        return;
-      }
-
-      const targets = new Set<ID>();
-      for (let j = 0; j < s.deck.length; j++) {
-        const id = ID.id(s.deck[j]);
-        if (targets.has(id)) continue;
-        const card = ID.decode(id);
-        if (card.type === 'Monster' && card.atk <= 1500) {
-          const t = s.clone();
-          t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
-          t.add('hand', ID.id(t.deck.splice(j, 1)[0]));
-          t.shuffle();
-          State.transition(next, t);
-        }
-      }
-      // Failure to find (mandatory effect)
-      if (!targets.size) {
-        s.minor('Fail to find "Sangan" target in Deck');
-        s.shuffle();
+      if (sangan) {
+        SANGAN(s, next);
+      } else {
         State.transition(next, s);
       }
     },
@@ -661,26 +666,7 @@ export const DATA: { [name: string]: Data } = {
         // in the first Zone.
         s.tribute(j, i);
         if (target.id === Ids.Sangan) {
-          const targets = new Set<ID>();
-          for (let k = 0; k < state.deck.length; k++) {
-            const id = ID.id(state.deck[k]);
-            if (targets.has(id)) continue;
-            const card = ID.decode(id);
-            if (card.type === 'Monster' && card.atk <= 1500) {
-              const t = s.clone();
-              t.minor(`Add "${ID.decode(id).name}" from Deck to hand after "Sangan" was sent to the Graveyard`);
-              t.add('hand', ID.id(s.deck.splice(k, 1)[0]));
-              t.shuffle();
-              State.transition(next, t);
-            }
-          }
-          // Failure to find (mandatory effect)
-          if (!targets.size) {
-            const t = s.clone();
-            t.minor('Fail to find "Sangan" target in Deck');
-            t.shuffle();
-            State.transition(next, t);
-          }
+          SANGAN(s, next);
         } else {
           State.transition(next, s);
         }
