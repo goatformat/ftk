@@ -218,19 +218,7 @@ export const DATA: { [name: string]: Data } = {
           if (targets.graveyard.has(gid)) continue;
           targets.graveyard.add(gid);
           const s = state.clone();
-          s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
-          s.minor(`Discard "${ID.decode(hid).name}"`);
-          s.minor(`Return "${ID.decode(gid).name}" in the Graveyard to the top of the Deck`);
-          s.remove('graveyard', k);
-          if (location === 'hand') {
-            s.discard(i < j ? [i, j] : [j, i]);
-          } else {
-            s.remove(location, i);
-            s.add('graveyard', card.id);
-            s.add('graveyard', s.remove('hand', j));
-          }
-          s.deck.push(`(${gid})` as DeckID);
-          s.inc();
+          s.feather(location, i, hid, gid, j, k);
           State.transition(next, s);
         }
       }

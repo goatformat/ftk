@@ -504,26 +504,40 @@ export class State {
     if (!this.monsters.length || !this.deck.length) return false;
     const known = this.known(true);
     if (!known) return false;
-    const hand = {pendant: false, quiz: false};
-    for (const id of this.hand) {
+
+    const hand = { pendant: false, quiz: false, feather: -1, upstart: -1 };
+    let discard = -1;
+    for (let i = 0; i < this.hand.length; i++) {
+      const id = this.hand[i];
       if (id === Ids.BlackPendant) {
         hand.pendant = true;
       } else if (id === Ids.ReversalQuiz) {
         hand.quiz = true;
+      } else if (id === Ids.AFeatherOfThePhoenix) {
+        hand.feather = i;
+      } else if (id === Ids.UpstartGoblin) {
+        hand.upstart = i;
+      } else {
+        discard = i;
       }
     }
     if (hand.pendant && hand.quiz && this.spells.length <= 3) {
       return this.win(known, true, {pendant: false, quiz: false});
     }
+
     let equip = true;
-    const spells = {pendant: false, quiz: false};
-    for (const fid of this.spells) {
-      const id = ID.id(fid);
+    const spells = { pendant: false, quiz: false, feather: -1, upstart: -1 };
+    for (let i = 0; i < this.spells.length; i++) {
+      const id = ID.id(this.spells[i]);
       if (id === Ids.BlackPendant) {
         spells.pendant = true;
         if (!ID.facedown(id)) equip = false;
       } else if (id === Ids.ReversalQuiz) {
         spells.quiz = true;
+      } else if (id === Ids.AFeatherOfThePhoenix) {
+        spells.feather = i;
+      } else if (id === Ids.UpstartGoblin) {
+        spells.upstart = i;
       }
     }
     if (spells.quiz && spells.pendant) {
@@ -535,6 +549,61 @@ export class State {
     if (hand.quiz && this.spells.length <= 4 && spells.pendant) {
       return this.win(known, equip, {pendant: true, quiz: false});
     }
+
+    // If we have one piece of the win condition AND A Feather of the Phoenix we can possibly
+    // recover the missing piece if its in the graveyard and we have zones (0-2 required) and draw
+    // power. This is effectively performing a narrow one-turn "lookahead" - this is somewhat
+    // expensive but given we're so close to the win condition its worth doing extra work to try to
+    // terminate quicker. NOTE: Archfiend's Oath isn't sufficient as draw power here before we're
+    // already under 1000 LP, and Graceful Charity/Pot of Greed complicate things because drawing too
+    // deep can effect known.
+    if (!(hand.pendant || spells.pendant || hand.quiz || spells.quiz)) return false;
+    // Technically we could have multiple A Feather of the Phoenix (including one on hand and field)
+    if (!(discard >= 0 && (hand.feather >= 0 || spells.feather >= 0))) return false;
+    if (this.spells.length > 5 - ((+hand.pendant + +hand.quiz) + +(hand.feather >= 0))) return false;
+    const hid = this.hand[discard];
+    const gid = (hand.pendant || spells.pendant) ? Ids.ReversalQuiz : Ids.BlackPendant;
+    const k = this.graveyard.indexOf(gid);
+    if (k < 0) return false;
+
+    if ((hand.upstart >= 0 || spells.upstart >= 0)) {
+      if (hand.feather >= 0) {
+        this.feather('hand', hand.feather, hid, gid, discard, k);
+      } else {
+        this.feather('spells', spells.feather, hid, gid, discard, k);
+      }
+
+      if (hand.upstart >= 0) {
+        this.remove('hand', hand.upstart);
+        this.major(`Activate "Upstart Goblin"`);
+      } else {
+        this.remove('spells', spells.upstart);
+        this.major(`Activate face-down "Upstart Goblin"`);
+      }
+      this.add('graveyard', Ids.UpstartGoblin);
+      this.draw();
+      this.inc();
+
+      return this.win(known, equip, {pendant: spells.pendant, quiz: spells.quiz});
+    }
+
+    for (let i = 0; i < this.monsters.length; i++) {
+      const id = ID.id(this.monsters[i]);
+      // Since we will be playing A Feather of the Phoenix we only need a Library with 2 counters.
+      // TODO: we actually only need 1 counter if Black Pendant is face down
+      if (id === Ids.RoyalMagicalLibrary && ID.data(this.monsters[i]) >= 2) {
+        if (hand.feather >= 0) {
+          this.feather('hand', hand.feather, hid, gid, discard, k);
+        } else {
+          this.feather('spells', spells.feather, hid, gid, discard, k);
+        }
+        this.major(`Remove 3 Spell Counters from "Royal Magical Library"`);
+        this.mclear(i);
+        this.draw();
+        return this.win(known, equip, {pendant: spells.pendant, quiz: spells.quiz});
+      }
+    }
+
     return false;
   }
 
@@ -544,11 +613,16 @@ export class State {
       this.major(`${facedown.pendant ? 'Flip face-down "Black Pendant" and equip' : 'Equip "Black Pendant"'}  to "${monster.name}"`);
     }
     this.major(`Activate${facedown.quiz ? ' face-down' : ''} "Reversal Quiz"`);
-    if (this.hand.length) {
-      this.minor(`Send ${ID.names(this.hand)} from hand to Graveyard`);
+    // Filter out Reversal Quiz from the messages about what gets sent to the Graveyard
+    const fn = (id: ID | FieldID | DeckID) => ID.id(id) !== Ids.ReversalQuiz;
+    const hand = this.hand.filter(fn)
+    if (hand.length) {
+      this.minor(`Send ${ID.names(hand)} from hand to Graveyard`);
     }
-    if (this.monsters.length || this.spells.length) {
-      this.minor(`Send ${ID.names([...this.monsters, ...this.spells])} from field to Graveyard`);
+    const monsters = this.monsters.filter(fn);
+    const spells = this.spells.filter(fn);
+    if (monsters.length || spells.length) {
+      this.minor(`Send ${ID.names([...monsters, ...spells])} from field to Graveyard`);
     }
     for (const id of this.spells) {
       const card = ID.decode(id);
@@ -560,6 +634,22 @@ export class State {
     this.minor(`Call "${ID.decode(known).type}", reveal "${ID.decode(this.deck[this.deck.length - 1]).name}"`);
     this.major(`After exchanging Life Points, opponent has ${this.lifepoints} LP and then takes 500 damage from "Black Pendant" being sent from the field to the Graveyard`);
     return true;
+  }
+
+  feather(location: 'hand' | 'spells', i: number, hid: ID, gid: ID, j: number, k: number) {
+    this.major(`Activate${location === 'spells' ? ' face-down' : ''} "A Feather of the Phoenix"`);
+    this.minor(`Discard "${ID.decode(hid).name}"`);
+    this.minor(`Return "${ID.decode(gid).name}" in the Graveyard to the top of the Deck`);
+    this.remove('graveyard', k);
+    if (location === 'hand') {
+      this.discard(i < j ? [i, j] : [j, i]);
+    } else {
+      this.remove(location, i);
+      this.add('graveyard', Ids.AFeatherOfThePhoenix);
+      this.add('graveyard', this.remove('hand', j));
+    }
+    this.deck.push(`(${gid})` as DeckID);
+    this.inc();
   }
 
   // Draw cards (or the opening hand if initial = true)
