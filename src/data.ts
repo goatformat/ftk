@@ -243,7 +243,7 @@ export const DATA: { [name: string]: Data } = {
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
     can: s => !!(s.lifepoints > 500 && s.deck.length),
     score(state, location, id) {
-      return (this.can(state, location) && !ID.data(id)) ? WEIGHTS.oath : 0;
+      return WEIGHTS['Archfiend\'s Oath'][+(this.can(state, location) && !ID.data(id))];
     },
     play(state, location, i, next, card, prescient) {
       ARCHFIEND(state, location, i, next, card, prescient);
@@ -262,7 +262,6 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Equip',
     text: 'The equipped monster gains 500 ATK. If this card is sent from the field to the Graveyard: Inflict 500 damage to your opponent.',
     can: s => !!s.monsters.length,
-    score: () => WEIGHTS.pendant,
     play(state, location, i, next, card) {
       for (let j = 0; j < state.monsters.length; j++) {
         const s = state.clone();
@@ -293,7 +292,7 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Continuous',
     text: 'Both players must turn their Decks upside down.',
     can: s => !!s.deck.length,
-    score: s => +(s.deck.length && !s.reversed),
+    score: s => WEIGHTS['Convulsion of Nature'][+(s.deck.length && !s.reversed)],
     play: SPELL(s => s.reverse()),
   },
   'Cyber Jar': {
@@ -304,7 +303,7 @@ export const DATA: { [name: string]: Data } = {
     atk: 900,
     def: 900,
     text: 'Rock/Flip/Effect – FLIP: Destroy all monsters on the field, then both players reveal the top 5 cards from their Decks, then Special Summon all revealed Level 4 or lower monsters in face-up Attack Position or face-down Defense Position, also add any remaining cards to their hand. (If either player has less than 5 cards in their Deck, reveal as many as possible).',
-    score: (state, location) => (state.summoned || location === 'hand') ? 0 : WEIGHTS.jar,
+    score: (state, location) => WEIGHTS['Cyber Jar'][+!(state.summoned || location === 'hand')],
     // TODO: handle flipping Cyber Jar in multi-turn scenarios
     play: MONSTER,
   },
@@ -343,9 +342,6 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Return all Spells/Traps on the field to the hand.',
     can: (s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1),
-    score(state, location) {
-      return this.can(state, location) ? WEIGHTS.canTrunade : WEIGHTS.cantTrunade;
-    },
     play: SPELL(s => {
       // NOTE: The active Giant Trunade card has already been removed from hand/field
       for (const id of s.spells) {
@@ -370,9 +366,6 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Draw 3 cards, then discard 2 cards.',
     can: s => s.deck.length >= 3,
-    score(state, location) {
-      return this.can(state, location) ? WEIGHTS.canGraceful : WEIGHTS.cantGraceful;
-    },
     play(state, location, i, next, card) {
       if (!this.can(state, location)) return;
       const draw = state.clone();
@@ -395,8 +388,7 @@ export const DATA: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Change all face-up Level 4 or higher monsters to Defense Position.',
-    can: () => true,
-    score: (_, location) => location === 'spells' ? 0 : WEIGHTS.levelLimit,
+    can: (_, loc) => loc !== 'spells',
     play: SPELL(),
   },
   'Pot of Greed': {
@@ -405,9 +397,6 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Draw 2 cards.',
     can: s => s.deck.length >= 2,
-    score(state, location) {
-      return this.can(state, location) ? 1.5 : 0;
-    },
     play: SPELL(s => s.draw(2)),
   },
   'Premature Burial': {
@@ -419,14 +408,14 @@ export const DATA: { [name: string]: Data } = {
       return (this as any).score(state) > 0;
     },
     score(state) {
-      if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return 0;
+      if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return WEIGHTS['Premature Burial'][0];
       let max = 0;
       for (const id of state.graveyard) {
         const target = ID.decode(id);
         if (target.type !== 'Monster') continue;
         max = Math.max(max, target.score(state, 'monsters', target.id));
       }
-      return WEIGHTS.premature + max;
+      return WEIGHTS['Premature Burial'][1] + max;
     },
     play(state, location, i, next, card) {
       if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return;
@@ -457,7 +446,6 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Destroy all Spells/Traps on the field.',
     can: (s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1),
-    score: () => 0,
     play: SPELL(s => {
       // NOTE: The active Heavy Storm card has already been removed from hand/field
       for (const id of s.spells) {
@@ -501,7 +489,6 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Send all cards from your hand and your field to the Graveyard, then call Spell, Trap, or Monster; reveal the top card of your Deck. If you called it right, both players exchange Life Points.',
     can: s => !!(s.deck.length && (s.monsters.length || s.spells.length || s.hand.length)),
-    score: () => WEIGHTS.quiz,
     // State.end() already checks for using Reversal Quiz as the win condition, but Reversal Quiz
     // also has a niche use that will probably never actually be relevant where it clears the field
     // and procs Sangan. Because this ends up wiping out so many resources it will pretty much
@@ -583,7 +570,7 @@ export const DATA: { [name: string]: Data } = {
     // It is hard to know how to score this, but it's pretty much always the case that having a
     // Library is the Monster Zone is hugely beneficial and even having it in the hand is useful to
     // then be able to discard it (and bring it back via Premature Burial).
-    score: (_, location) => location === 'monsters' ? WEIGHTS.fieldLibrary : WEIGHTS.handLibrary,
+    score: (_, location) => WEIGHTS['Royal Magical Library'][+(location === 'monsters')],
     // NOTE: draw effect handled directly in State#next, and all spells use Stat#inc to update counters
     play: MONSTER,
   },
@@ -597,7 +584,7 @@ export const DATA: { [name: string]: Data } = {
     text: 'Fiend/Effect – If this card is sent from the field to the Graveyard: Add 1 monster with 1500 or less ATK from your Deck to your hand.',
     // Possibly should be lower - ultimately it is incredibly unlikely to proc Sangan and then
     // actually get the Royal Magical Library target onto the field.
-    score: (state, location) => (state.summoned || location === 'hand') ? 0 : WEIGHTS.sangan,
+    score: (state, location) => WEIGHTS['Sangan'][+!(state.summoned || location === 'hand')],
     // NOTE: graveyard effect is handled in Thunder Dragon/Reversal Quiz
     play: MONSTER,
   },
@@ -664,7 +651,7 @@ export const DATA: { [name: string]: Data } = {
     // Thunder Dragon isn't really worth anything on the field (it can indirectly proc Sangan but
     // getting value out of that is even more convoluted than the Reversal Quiz Sangan proc
     // scenario) and thus purely is useful as discard fodder / deck thinning / manipulating the deck
-    score: (state, location) => +(state.deck.length && location === 'hand'),
+    score: (state, location) => WEIGHTS['Thunder Dragon'][+(state.deck.length && location === 'hand')],
     // NOTE: discard effect handled directly in State#next
     play(state, _, i, next, self) {
       for (let j = 0; j < state.monsters.length; j++) {
@@ -768,7 +755,7 @@ export const CARDS: Record<ID, Card> = {};
 for (const name in DATA) {
   const card = DATA[name];
   const score = 'can' in card
-    ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters') => +card.can(s, loc)
+    ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters') => ((WEIGHTS as any)[name])[+card.can(s, loc)]
     : () => 0;
   CARDS[card.id] = {score, ...card, name};
 }

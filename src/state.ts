@@ -474,7 +474,7 @@ export class State {
     }
 
     const library =
-      libraries.active * WEIGHTS.activeLibraries + libraries.total * WEIGHTS.totalLibraries;
+      libraries.active * WEIGHTS.libraries[1] + libraries.total * WEIGHTS.libraries[0];
     for (const id of this.spells) {
       const card = ID.decode(id);
       const n = card.score(this, 'spells', id);
