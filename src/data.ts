@@ -607,12 +607,12 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Normal',
     text: 'Send 2 Spells from your hand to the Graveyard, then target 1 Spell in your Graveyard; add it to your hand.',
     can(state, location) {
-      const h = (location === 'hand' ? 2 : 1);
-      return !!(state.graveyard.length && state.hand.length > h && state.deck.length >= state.hand.length - h);
+      const graveyard = state.graveyard.filter(id => ID.decode(id).type === 'Spell').length;
+      const hand = state.hand.filter(id => ID.decode(id).type === 'Spell').length > (location === 'hand' ? 2 : 1);
+      return !!(graveyard && hand);
     },
     play(state, location, i, next, card) {
-      const h = (location === 'hand' ? 2 : 1);
-      if (!(state.graveyard.length && state.hand.length > h && state.deck.length >= state.hand.length - h)) return;
+      if (!(state.graveyard.length && state.hand.length > (location === 'hand' ? 2 : 1))) return;
 
       let spells!: Set<[number, number]>;
       const targets = new Set<ID>();

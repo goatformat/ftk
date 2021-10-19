@@ -6,7 +6,16 @@ import {createElement, renderState, track} from './common';
 import './swipe';
 import './ui.css';
 
-type Action = 'play' | 'target' | 'search';
+type Action = {
+  type: 'play'
+} | {
+  type: 'target' | 'search',
+  origin: {location: Location, i: number},
+  filter: (location: Location, id: FieldID) => boolean,
+  fn: (location: Location, ...j: number[]) => void,
+  num: number,
+  targets: [Location, number][],
+};
 
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) || 1;
@@ -16,37 +25,43 @@ const STATE = {
     state: start,
     banished: [] as DeckID[],
     graveyard: [] as ID[],
-    action: 'play' as Action,
+    action: {type: 'play'} as Action,
   }],
   index: 0,
 };
 // window.STATE = STATE; // DEBUG
 
-function update(push = true) {
+function update(transform?: (location: Location, id: FieldID, i: number) => string | undefined, push = true) {
   const $content = document.getElementById('content')!;
   while ($content.firstChild) $content.removeChild($content.firstChild);
-
 
   const {state: s, banished, graveyard, action} = STATE.stack[STATE.index];
   const trace = renderTrace(s, banished, graveyard);
 
-  $content.appendChild(renderState(s, banished, graveyard, handler, true));
+  $content.appendChild(renderState(s, banished, graveyard, handler, transform, true));
   if (trace) {
     $content.appendChild(trace);
     trace.scrollTop = trace.scrollHeight;
   }
 
   // FIXME
-  if (push) {
-    while (STATE.index < STATE.stack.length - 1) STATE.stack.pop();
-    STATE.stack.push({
-      state: s.clone(),
-      banished: banished.slice(),
-      graveyard: graveyard.slice(),
-      action,
-    });
-    STATE.index = STATE.stack.length - 1;
-  }
+  // if (push) {
+  //   while (STATE.index < STATE.stack.length - 1) STATE.stack.pop();
+  //   STATE.stack.push({
+  //     state: s.clone(),
+  //     banished: banished.slice(),
+  //     graveyard: graveyard.slice(),
+  //     action: action.type === 'play' ? {type: action.type} : {
+  //       type: action.type,
+  //       origin: action.origin,
+  //       filter: action.filter,
+  //       fn: action.fn,
+  //       num: action.num,
+  //       targets: action.targets.slice(),
+  //     },
+  //   });
+  //   STATE.index = STATE.stack.length - 1;
+  // }
 }
 
 function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
@@ -84,10 +99,9 @@ function renderTrace(s: State, banished: DeckID[], graveyard: ID[]) {
   ul = createElement('ul');
   trace.appendChild(p);
 
-
   if (last) {
     const activated = (last.startsWith('Activate') ? DATA[/"(.*?)"/.exec(last)![1]].id
-      : last.startsWith('Set') ? DATA[/then activate "(.*?)"/.exec(last)![1]].id
+      : last.startsWith('Set') ? DATA[/then activate(?: face-down)? "(.*?)"/.exec(last)![1]].id
       : undefined);
     track(s.banished, banished, activated);
     track(s.graveyard, graveyard, activated);
@@ -143,23 +157,33 @@ function SANGAN_TARGET(location: Location, id: FieldID) {
 function RELOAD(fn: (s: State) => void) {
   return (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     const spells = s.spells.length;
-    s.remove(location, i);
-    s.add('graveyard', card.id);
-
-    const hand = s.hand.filter(id => ID.decode(id).type === 'Spell');
-    const h = (location === 'hand' ? 1 : 0);
-    const max = Math.min(5 - spells - h, hand.length, s.hand.length - 1);
+    let max: number;
+    if (location === 'hand') {
+      const hand = s.hand.filter((id, j) => i !== j && ID.decode(id).type === 'Spell');
+      max = Math.min(5 - spells - 1, hand.length, s.hand.length - 1);
+    } else {
+      const hand = s.hand.filter(id => ID.decode(id).type === 'Spell');
+      max = Math.min(5 - spells, hand.length, s.hand.length - 1);
+    }
 
     const before = s.hand.slice();
     target({location, i}, (loc, id) => loc === 'hand' && ID.decode(id).type === 'Spell', (_, ...set) => {
+      // NOTE: if location === 'hand' we need to adjust the offsets of any cards we set!
+      s.remove(location, i);
+      s.add('graveyard', card.id);
+
       const ids = [];
       for (const [offset, j] of set.entries()) {
         const id = before[j];
         ids.push(id);
         s.add('spells', `(${id})` as FieldID);
-        s.remove('hand', j - offset);
+        s.remove('hand', j - offset - (location === 'hand' && i < j ? 1 : 0));
       }
-      s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      if (ids.length) {
+        s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      } else {
+        s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      }
       const len = s.hand.length;
       fn(s);
       s.hand = [];
@@ -237,12 +261,16 @@ const SPELLS: { [name: string]: any } = {
   'Graceful Charity': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
     s.remove(location, i);
-    i = s.add('graveyard', card.id);
+    i = s.add('spells', card.id);
     s.draw(3);
-    s.inc();
-    target({location: 'graveyard', i}, loc => loc === 'hand', (_, j, k) => {
+    update(); // FIXME bad partial state
+    // NOTE: we deliberately set the wrong index for the card so that it can't be cancelled
+    target({location: 'spells', i: -1}, loc => loc === 'hand', (_, j, k) => {
       s.minor(`Discard "${ID.decode(s.hand[j]).name}" and "${ID.decode(s.hand[k]).name}"`);
       s.discard([j, k]); // PRECONDITION: j < k
+      s.remove('spells', i);
+      s.add('graveyard', card.id);
+      s.inc();
       update();
     }, 2);
   },
@@ -381,7 +409,7 @@ const SPELLS: { [name: string]: any } = {
 function handler(location: Location, id: FieldID, i: number) {
   const action = STATE.stack[STATE.index].action;
   console.log(action, location, id, i); // DEBUG
-  switch (action) {
+  switch (action.type) {
     case 'play': return onPlay(location, id, i);
     case 'target': return onTarget(location, id, i);
     case 'search': return onSearch(location, id, i);
@@ -408,7 +436,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
       if (card.type !== 'Spell' || !card.can(state, location)) return;
       if (ID.facedown(id)) {
         const spell = SPELLS[card.name];
-        if (spell) spell(STATE, location, i, card);
+        if (spell) spell(state, location, i, card);
       } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
         ARCHFIEND(state, location, i, card);
       }
@@ -484,28 +512,81 @@ function target(
   origin: {location: Location, i: number},
   filter: (location: Location, id: FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
-  num = 1) { // FIXME if negative = optional, if reclick reload then
-    // change border of origin
-    // highlight valid discards / grey out invalid
-    // if only num then cool
-    // if reselect origin then cancel
-    // make sure each target is distinct and not the original
+  num = 1) {
+    const state = STATE.stack[STATE.index].state;
+
+    const targets: ['hand' | 'spells' | 'monsters' | 'deck', number][] = [];
+    for (const location of ['hand', 'spells', 'monsters'] as const) {
+      for (const [i, id] of state[location].entries()) {
+        if (location === origin.location && i == origin.i) continue;
+        if (filter(location, id)) targets.push([location, i]);
+      }
+
+    }
+    if (state.deck.length && filter('deck', state.deck[state.deck.length - 1] as FieldID)) {
+      targets.push(['deck', state.deck.length - 1]);
+    }
+
+    if (num > 0 && targets.length === num) {
+      // PRECONDITION: new Set(targets.map(t => t[0])).size === 1
+      return fn(targets[0][0], ...targets.map(t => t[1]).sort());
+    } else {
+      STATE.stack[STATE.index].action = {
+        type: 'target',
+        origin,
+        filter,
+        fn,
+        num,
+        targets: [],
+      };
+      update(transform);
+    }
 }
 
 function onTarget(location: Location, id: FieldID, i: number) {
-  switch (location) {
-    case 'monsters': {
-      return; // TODO tribute, equip
+  const action = STATE.stack[STATE.index].action;
+  if (action.type !== 'target') throw new Error(`Invalid action type ${action.type}`);
+
+  if (location === action.origin.location && i == action.origin.i) {
+    STATE.stack[STATE.index].action = { type: 'play'};
+    if (action.num < 0) {
+      if (action.targets.length) {
+        // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
+        return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
+      } else {
+        return action.fn(location);
+      }
+    } else {
+      update();
     }
-    case 'hand': {
-      return; // TODO discard
+  }
+  if (action.filter(location, id)) {
+    const remove = action.targets.findIndex(([loc, j]) => loc === location && j === i);
+    if (remove >= 0) {
+      action.targets.splice(remove, 1);
+    } else {
+      action.targets.push([location, i]);
     }
-    case 'deck': {
-      return; // TODO
+
+    if (action.targets.length === Math.abs(action.num)) {
+      STATE.stack[STATE.index].action = { type: 'play'};
+      // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
+      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
+    } else {
+      update(transform);
     }
   }
 }
 
+function transform(location: Location, id: FieldID, i: number) {
+  const action = STATE.stack[STATE.index].action;
+  if (action.type === 'play')  throw new Error(`Invalid action type ${action.type}`);
+  if (location === action.origin.location && i == action.origin.i) return 'selected';
+  if (!action.filter(location, id)) return 'disabled';
+  if (action.targets.find(([loc, j]) => loc === location && j === i)) return 'option';
+}
+
+// TODO CAN FAIL TO FIND
 function search(
   origin: {location: Location, i: number},
   filter: (location: Location, id: FieldID) => boolean,
@@ -542,17 +623,17 @@ update();
 // });
 
 const undo = () => {
-  if (STATE.index) {
-    STATE.index--;
-    update(false);
-  }
+  // if (STATE.index) {
+  //   STATE.index--;
+  //   update(false);
+  // }
 }
 
 const redo = () => {
-  if (STATE.index < STATE.stack.length - 1) {
-    STATE.index++;
-    update(false);
-  }
+  // if (STATE.index < STATE.stack.length - 1) {
+  //   STATE.index++;
+  //   update(false);
+  // }
 }
 
 document.addEventListener('swiped-left', undo);

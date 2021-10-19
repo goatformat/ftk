@@ -16,7 +16,7 @@
   border: var(--card-border) solid yellow;
 }
 .disabled {
-  filter: brightness(0.8);
+  filter: brightness(0.6);
 }
 tr:first-child {
   height: 3em;
