@@ -31,7 +31,7 @@ const STATE = {
 };
 // window.STATE = STATE; // DEBUG
 
-function update(transform?: (location: Location, id: FieldID, i: number) => string | undefined, push = true) {
+function update(history = true) {
   const $content = document.getElementById('content')!;
   while ($content.firstChild) $content.removeChild($content.firstChild);
 
@@ -539,7 +539,7 @@ function target(
         num,
         targets: [],
       };
-      update(transform);
+      update();
     }
 }
 
@@ -573,14 +573,14 @@ function onTarget(location: Location, id: FieldID, i: number) {
       // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
       return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
     } else {
-      update(transform);
+      update();
     }
   }
 }
 
 function transform(location: Location, id: FieldID, i: number) {
   const action = STATE.stack[STATE.index].action;
-  if (action.type === 'play')  throw new Error(`Invalid action type ${action.type}`);
+  if (action.type === 'play') return;
   if (location === action.origin.location && i == action.origin.i) return 'selected';
   if (!action.filter(location, id)) return 'disabled';
   if (action.targets.find(([loc, j]) => loc === location && j === i)) return 'option';
