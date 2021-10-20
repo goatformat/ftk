@@ -12,30 +12,13 @@ const {hhmmss, maxWorkers} = require('./utils');
 
 const TIMEOUT = 60 * 60 * 1000;
 const CUTOFF = 2e7;
+const VERBOSE = isNaN(+process.env.VERBOSE) ? +!!process.env.VERBOSE : +process.env.VERBOSE;
 
-var VERBOSE = isNaN(+process.env.VERBOSE) ? +!!process.env.VERBOSE : +process.env.VERBOSE;
-const log = (...args) => VERBOSE && console.log(...args);
-
-(async () => {
-  const seeds = [];
-  if (process.argv.length < 3) {
-    console.error('Usage: solve <seed|file of seeds>');
-    process.exit(1);
-  }
-
-  if (isNaN(+process.argv[2])) {
-    for (const line of fs.readFileSync(process.argv[2], 'utf8').split('\n')) {
-      if (!line) continue;
-      seeds.push(+line);
-    }
-  } else {
-    seeds.push(+process.argv[2]);
-    VERBOSE = true;
-  }
+async function solve(seeds, verbose = VERBOSE) {
+  const log = (...args) => verbose && console.log(...args);
 
   const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers: maxWorkers(CUTOFF)});
 
-  const start = Date.now();
   const cohorts = {};
   const searches = [];
   for (const seed of seeds) {
@@ -45,11 +28,11 @@ const log = (...args) => VERBOSE && console.log(...args);
         if (typeof cohorts[seed][0] === 'string') continue;
 
         const desc = `${prescient ? 'prescient' : 'non-prescient'} ${width === 0 ? 'best-first' : 'BULB'} search${width ? ` (width=${width})` : ''}`;
-        const search = pool.exec('search', [Random.seed(seed), CUTOFF, prescient, width, true]).timeout(TIMEOUT).then(result => {
+        const search = pool.exec('search', [Random.seed(seed), CUTOFF, prescient, width, verbose > 1]).timeout(TIMEOUT).then(result => {
           if (typeof cohorts[seed][0] === 'string') return;
 
           if (result[0] === 'success') {
-            log(`Found a path of length ${result[4].length} for seed ${seed} in ${hhmmss(result[1])} after searching ${result[3]} states using ${desc}${VERBOSE > 1 ? `:\n${State.display(result[4], result[5])}` : ''}`);
+            log(`Found a path of length ${result[4].length} for seed ${seed} in ${hhmmss(result[1])} after searching ${result[3]} states using ${desc}${verbose > 1 ? `:\n${State.display(result[4], result[5])}` : ''}`);
             for (const s of cohorts[seed]) if (s.pending && s !== search) s.cancel();
             cohorts[seed] = result;
           } else if (result[0] === 'fail') {
@@ -81,21 +64,47 @@ const log = (...args) => VERBOSE && console.log(...args);
   await Promise.all(searches);
   pool.terminate();
 
-  if (seeds.length > 1) {
-    const csv = path.join(__dirname, 'logs', 'solutions.csv');
-    const old = path.join(__dirname, 'logs', 'solutions.old.csv');
-    try {
-      fs.copyFileSync(csv, old);
-    } catch (e) {
-      if (e.code !== 'ENOENT') throw e;
+  return (Object.entries(cohorts)).map(([seed, [result, duration, hand, visited, p]]) =>
+    (typeof result === 'string'
+      ? [result, duration, hand, visited, p?.length, seed]
+      : ['exhaust', 0, undefined, undefined, undefined, seed]
+    ));
+}
+
+if (require.main === module) {
+  (async () => {
+    const seeds = [];
+    if (process.argv.length < 3) {
+      console.error('Usage: solve <seed|file of seeds>');
+      process.exit(1);
     }
-    const out = (Object.entries(cohorts)).map(([seed, [result, duration, hand, visited, p]]) =>
-      (typeof result === 'string'
-        ? [result, duration, hand, visited, p?.length, seed]
-        : ['exhaust', 0, undefined, undefined, undefined, seed]
-      ).join(','));
-    fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
-    console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);
-    execFileSync(path.join(__dirname, 'compare'), [csv], {stdio: 'inherit'});
-  }
-})();
+
+    if (isNaN(+process.argv[2])) {
+      for (const line of fs.readFileSync(process.argv[2], 'utf8').split('\n')) {
+        if (!line) continue;
+        seeds.push(+line);
+      }
+    } else {
+      seeds.push(+process.argv[2]);
+    }
+
+    const start = Date.now();
+    const results = await solve(seeds, VERBOSE || +(seeds.length === 1));
+
+    if (seeds.length > 1) {
+      const csv = path.join(__dirname, 'logs', 'solutions.csv');
+      const old = path.join(__dirname, 'logs', 'solutions.old.csv');
+      try {
+        fs.copyFileSync(csv, old);
+      } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+      }
+      const out = results.map(result => result.join(','));
+      fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
+      console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);
+      execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
+    }
+  })();
+}
+
+module.exports = {solve};

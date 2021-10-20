@@ -32,6 +32,8 @@
     "benchmark": "node tools/benchmark",
     "presolve": "npm run compile",
     "solve": "node tools/solve",
+    "preconverge": "npm run compile",
+    "converge": "node tools/converge",
     "test": "npm run compile && npm run lint"
   },
   "eslintConfig": {
