@@ -1,5 +1,6 @@
 
 import * as workerpool from 'workerpool';
+
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
 import {createElement, renderState, track} from './common';
 
@@ -36,15 +37,6 @@ const STATE = {
   } as Context],
   index: 0,
 };
-// window.STATE = STATE; // DEBUG
-
-function newContext() {
-
-}
-
-function newAction() {
-
-}
 
 function update(mutate = true) {
   const $content = document.getElementById('content')!;
@@ -58,25 +50,6 @@ function update(mutate = true) {
     $content.appendChild(trace);
     trace.scrollTop = trace.scrollHeight;
   }
-
-  // FIXME
-  // if (push) {
-  //   while (STATE.index < STATE.stack.length - 1) STATE.stack.pop();
-  //   STATE.stack.push({
-  //     state: s.clone(),
-  //     banished: banished.slice(),
-  //     graveyard: graveyard.slice(),
-  //     action: action.type === 'play' ? {type: action.type} : {
-  //       type: action.type,
-  //       origin: action.origin,
-  //       filter: action.filter,
-  //       fn: action.fn,
-  //       num: action.num,
-  //       targets: action.targets.slice(),
-  //     },
-  //   });
-  //   STATE.index = STATE.stack.length - 1;
-  // }
 }
 
 function renderTrace(s: State, banished: DeckID[], graveyard: ID[], mutate = true) {
@@ -468,7 +441,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
             // PRECONDITION: targets[0] < targets[1]
             s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
             s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
-          } else if (targets.length === 1) {
+          } else if (targets[0] >= 0) {
             s.minor(`Add "${card.name}" from Deck to hand`);
             s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
           } else {
@@ -476,7 +449,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
           }
           s.shuffle();
           update();
-        });
+        }, 2);
       };
 
       if (state.monsters.length && state.monsters.length < 5 && !state.summoned) {
@@ -528,6 +501,7 @@ function target(
   fn: (location: Location, ...j: number[]) => void,
   num = 1
 ) {
+  if (num === 0) return fn(origin.location);
   const state = STATE.stack[STATE.index].state;
 
   const targets: ['hand' | 'spells' | 'monsters' | 'deck', number][] = [];
@@ -573,8 +547,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
     } else {
       update();
     }
-  }
-  if (action.filter(location, id)) {
+  } else if (action.filter(location, id)) {
     const remove = action.targets.findIndex(([loc, j]) => loc === location && j === i);
     if (remove >= 0) {
       action.targets.splice(remove, 1);
@@ -600,28 +573,71 @@ function transform(location: Location, id: FieldID, i: number) {
   if (action.targets.find(([loc, j]) => loc === location && j === i)) return 'option';
 }
 
-// TODO CAN FAIL TO FIND
+
 function search(
   origin: {location: Location; i: number},
   filter: (location: Location, id: FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
   num = 1
-) { // FIXME: can be 1 OR 2 for thunder dragon...
-  // change border of origin
-  // highlight valid discards / grey out invalid
-  // if only num then cool
-  // if reselect origin then cancel
-  // make sure each target is distinct and not the original
+) {
+  const state = STATE.stack[STATE.index].state;
+
+  const targets: ['graveyard' | 'deck', number][] = [];
+  const ids = new Set<FieldID>();
+  for (const location of ['graveyard', 'deck'] as const) {
+    for (const [i, id] of state[location].entries()) {
+      if (location === origin.location && i === origin.i || ids.has(id as FieldID)) continue;
+      if (filter(location, id as FieldID)) {
+        if (num === 1) ids.add(id as FieldID);
+        targets.push([location, i]);
+      }
+    }
+  }
+
+  if (targets.length === 0) {
+    fn('hand', -1); // NOTE: we don't actually have a valid location...
+  } else if (targets.length === 1) {
+    return fn(targets[0][0], targets[0][1]);
+  } else {
+    STATE.stack[STATE.index].action = {
+      type: 'search',
+      origin,
+      filter,
+      fn,
+      num,
+      targets: [],
+    };
+    // FIXME need to show select box!
+    update();
+  }
 }
 
 function onSearch(location: Location, id: FieldID, i: number) {
-  switch (location) {
-  case 'graveyard': {
-    return; // TODO
-  }
-  case 'deck': {
-    return; // TODO
-  }
+  const action = STATE.stack[STATE.index].action;
+  if (action.type !== 'search') throw new Error(`Invalid action type ${action.type}`);
+
+  if (location === action.origin.location && i === action.origin.i) {
+    STATE.stack[STATE.index].action = {type: 'play'};
+    if (action.num > 1 && action.targets.length) {
+      return action.fn(action.targets[0][0], action.targets[0][1]);
+    } else {
+      update();
+    }
+  } else if (action.filter(location, id)) {
+    const remove = action.targets.findIndex(([loc, j]) => loc === location && j === i);
+    if (remove >= 0) {
+      action.targets.splice(remove, 1);
+    } else {
+      action.targets.push([location, i]);
+    }
+
+    if (action.targets.length === Math.abs(action.num)) {
+      STATE.stack[STATE.index].action = {type: 'play'};
+      // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
+      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
+    } else {
+      update();
+    }
   }
 }
 
