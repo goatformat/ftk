@@ -2,7 +2,7 @@
 import * as workerpool from 'workerpool';
 
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
-import {createElement, renderState, track} from './common';
+import {createElement, renderState, track, makeCard} from './common';
 
 import './swipe';
 import './ui.css';
@@ -608,6 +608,7 @@ function search(
       targets: [],
     };
     // FIXME need to show select box!
+    renderSearchModal(state, targets);
     update();
   }
 }
@@ -640,6 +641,15 @@ function onSearch(location: Location, id: FieldID, i: number) {
     }
   }
 }
+
+function renderSearchModal(s: State, targets: ['graveyard' | 'deck', number][]) {
+  const zone = createElement('div', 'zone', 'search');
+  for (const [location, i] of targets) {
+    const card = ID.decode(s[location][i]);
+    zone.appendChild(makeCard(card));
+  }
+  // FIXME
+};
 
 update();
 

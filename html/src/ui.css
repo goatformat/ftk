@@ -37,6 +37,12 @@ tr:first-child {
 .trace::-webkit-scrollbar{
   display: none;
 }
+.search {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
 @media(min-width: 390px) {
   #content {
     font-size: 0.65em;

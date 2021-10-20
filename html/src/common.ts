@@ -253,7 +253,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td.appendChild(div);
   tr.appendChild(td);
   td = createElement('td');
-  div = createElement('div', 'zone');
+  div = createElement('div', 'zone', 'banished');
   if (banished.length) {
     const id = banished[banished.length - 1] as FieldID;
     const top = makeCard(ID.decode(id), undefined, {
@@ -292,7 +292,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td.appendChild(div);
   tr.appendChild(td);
   td = createElement('td');
-  div = createElement('div', 'zone');
+  div = createElement('div', 'zone', 'graveyard');
   if (graveyard.length) {
     const id = graveyard[graveyard.length - 1];
     const top = makeCard(ID.decode(id), undefined, {
@@ -321,7 +321,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   td.appendChild(div);
   tr.appendChild(td);
   td = createElement('td');
-  div = createElement('div', 'zone');
+  div = createElement('div', 'zone', 'deck');
   if (state.deck.length) {
     const id = state.deck[state.deck.length - 1] as FieldID;
     const top = makeCard(ID.decode(id), undefined, {
