@@ -77,17 +77,17 @@ const sample = (a, n) => {
   const r = [];
   if (a.length < n) throw new RangeError();
   while (r.length < n) {
-    r.push(random.sample(a, true))
+    r.push(random.sample(a, true));
   }
   return r;
-}
+};
 
 const result = [
   ...sample(groups.success.full, 248),
   ...groups.success.partial,
   ...sample(groups.fail.full, 34),
   ...groups.fail.partial,
-  ...sample(groups.other, 7)
+  ...sample(groups.other, 7),
 ].sort();
 
 console.log(result.join('\n'));

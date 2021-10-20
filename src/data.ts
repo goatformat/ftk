@@ -229,7 +229,7 @@ export const DATA: { [name: string]: Data } = {
     can(state, location) {
       return !!(state.graveyard.length && (state.hand.length >= (location === 'hand' ? 2 : 1)));
     },
-    play(state, location, i, next, card) {
+    play(state, location, i, next) {
       if (!this.can(state, location)) return;
       const targets = {discard: new Set<ID>(), graveyard: new Set<ID>()};
       for (let j = 0; j < state.hand.length; j++) {
@@ -423,7 +423,7 @@ export const DATA: { [name: string]: Data } = {
         const target = ID.decode(id);
         if (target.type === 'Monster') return true;
       }
-      return false
+      return false;
     },
     score(state) {
       if (!state.graveyard.length || state.monsters.length > 4 || state.lifepoints <= 800) return WEIGHTS['Premature Burial'][0];

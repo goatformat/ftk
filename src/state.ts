@@ -554,7 +554,7 @@ export class State {
     const known = this.known(true);
     if (!known) return false;
 
-    const hand = { pendant: false, quiz: false, feather: -1, upstart: -1 };
+    const hand = {pendant: false, quiz: false, feather: -1, upstart: -1};
     let discard = -1;
     for (let i = 0; i < this.hand.length; i++) {
       const id = this.hand[i];
@@ -575,7 +575,7 @@ export class State {
     }
 
     let equip = true;
-    const spells = { pendant: false, quiz: false, feather: -1, upstart: -1 };
+    const spells = {pendant: false, quiz: false, feather: -1, upstart: -1};
     for (let i = 0; i < this.spells.length; i++) {
       const id = ID.id(this.spells[i]);
       if (id === Ids.BlackPendant) {
@@ -628,10 +628,10 @@ export class State {
 
       if (hand.upstart >= 0) {
         this.remove('hand', hand.upstart);
-        this.major(`Activate "Upstart Goblin"`);
+        this.major('Activate "Upstart Goblin"');
       } else {
         this.remove('spells', spells.upstart);
-        this.major(`Activate face-down "Upstart Goblin"`);
+        this.major('Activate face-down "Upstart Goblin"');
       }
       this.add('graveyard', Ids.UpstartGoblin);
       this.draw();
@@ -650,7 +650,7 @@ export class State {
         } else {
           this.feather('spells', spells.feather, hid, gid, discard, k);
         }
-        this.major(`Remove 3 Spell Counters from "Royal Magical Library"`);
+        this.major('Remove 3 Spell Counters from "Royal Magical Library"');
         this.mclear(i);
         this.draw();
         return this.win(known, equip, {pendant: spells.pendant, quiz: spells.quiz});
@@ -670,7 +670,7 @@ export class State {
     this.major(`Activate${facedown.quiz ? ' face-down' : ''} "Reversal Quiz"`);
     // Filter out Reversal Quiz from the messages about what gets sent to the Graveyard
     const fn = (id: ID | FieldID | DeckID) => ID.id(id) !== Ids.ReversalQuiz;
-    const hand = this.hand.filter(fn)
+    const hand = this.hand.filter(fn);
     if (hand.length) {
       this.minor(`Send ${ID.names(hand)} from hand to Graveyard`);
     }
