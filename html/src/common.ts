@@ -3,6 +3,8 @@ import 'tippy.js/dist/tippy.css';
 
 import {State, ID, DeckID, Card, FieldID, Location} from '../../src';
 
+// @ts-ignore
+import IMG from '../img/**/*';
 import './common.css';
 
 type Handler<T = void> = (location: Location, id: FieldID, i: number) => T;
@@ -128,14 +130,12 @@ export const makeCard = (
   const cardType = card.type === 'Monster' ? 'effectMonster' : card.type;
 
   root.style.backgroundImage = options.facedown
-    ? 'url(https://goatduels.com/sleeves/Default.png)'
-    : `url(https://goatduels.com/cards/bgs/${cardType}.jpg)`;
-
+    ? `url(${IMG.sleeves['Default.png']})`
+    : `url(${IMG.cards.bgs[`${cardType}.jpg`]})`;
 
   if (!options.facedown) {
     const art = createElement('div', 'art');
-    const url = `https://goatduels.com/cards/art/${compress(card.name)}.jpg`;
-    art.style.backgroundImage = `url(${url})`;
+    art.style.backgroundImage = `url(${IMG.cards.art[`${compress(card.name)}.jpg`]})`;
     root.appendChild(art);
 
     const lowerHalf = createElement('div', 'lower-half');
@@ -145,17 +145,17 @@ export const makeCard = (
     if (card.type === 'Monster') {
       for (let i = 0; i < card.level; i++) {
         const img = createElement('img', 'star');
-        img.src = 'https://goatduels.com/cards/svgs/subtypes/star.svg';
+        img.src = IMG.cards.svgs.subtypes['star.svg'];
         icon.appendChild(img);
       }
     } else if (card.subType !== 'Normal') {
       const img = createElement('img', 'subtype');
-      img.src = `https://goatduels.com/cards/svgs/subtypes/${card.subType}.svg`;
+      img.src = IMG.cards.svgs.subtypes[`${card.subType}.svg`];
       icon.appendChild(img);
     }
 
     const img = createElement('img', 'attribute');
-    img.src = `https://goatduels.com/cards/svgs/attributes/${card.type === 'Monster' ? card.attribute : card.type}.svg`;
+    img.src = IMG.cards.svgs.attributes[`${card.type === 'Monster' ? card.attribute : card.type}.svg`];
     icon.appendChild(img);
     lowerHalf.appendChild(icon);
 
@@ -180,7 +180,7 @@ export const makeCard = (
     const div = createElement('div', options.counter ? 'counter' : 'label');
     if (options.counter) {
       const img = createElement('img');
-      img.src = 'https://goatduels.com/battle/Counter.svg';
+      img.src = IMG.battle['Counter.svg'];
       div.appendChild(img);
     }
     const text = createElement('div', 'label-text');

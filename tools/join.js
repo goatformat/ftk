@@ -60,7 +60,8 @@ for (let i = 0; i < 10000; i++) {
 //   groups.fail.full.length + groups.fail.partial.length,
 //   groups.other.length);
 
-// 85.89%, 11.77% fail, 2.34%
+// 85.89% 11.77% 2.34%
+// 88.05% 11.77% 0.18%
 
 // console.log(
 //   groups.success.full.length,
