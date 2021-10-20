@@ -43,7 +43,7 @@ try {
   clearInterval(interval);
   progress.terminate();
 
-  console.log(`Completed ${complete.length}/${n} searches in ${hhmmss(Date.now() - start)}, attempting to solve ${incomplete.length}/${n} remaining searches`);
+  console.log(`Completed ${complete.length}/${n} searches in ${hhmmss(Date.now() - start)}, attempting to solve ${incomplete.length}/${n} remaining searches\n`);
 
   for (const r of await solve(incomplete, 1)) {
     complete.push(r);
