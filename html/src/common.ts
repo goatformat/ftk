@@ -224,7 +224,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   let td = createElement('td');
   td.colSpan = 2;
   let div = createElement('div', 'lifepoints');
-  const overlay = createElement('div', 'overlay');
+  const overlay = createElement('div', 'lifepoints-overlay');
   overlay.style.width = `${(1 - (state.lifepoints / 8000)) * 100}%`;
   div.appendChild(overlay);
   const text = createElement('div', 'text');

@@ -57,6 +57,7 @@ body {
   font-family: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
   margin: 1em auto;
   max-width: 95%;
+  height: 100vh;
   background-color: var(--bg-color);
   color: var(--fg-color);
 }
@@ -90,7 +91,7 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10;
+  z-index: 3;
   color: white;
   font-size: calc(var(--card-height) / 5);
   line-height: calc(var(--card-height) / 5);
@@ -101,7 +102,7 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10;
+  z-index: 2;
   padding: 16%;
   border-radius: 50%;
   width: 2em;
@@ -284,7 +285,7 @@ tr:first-child td {
   -moz-background-clip: padding;
   background-clip: padding-box;
 }
-.overlay {
+.lifepoints-overlay {
   top: 0;
   left: 0;
   width: 50%;

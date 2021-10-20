@@ -1,4 +1,3 @@
-
 import * as workerpool from 'workerpool';
 
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
@@ -10,12 +9,20 @@ import './ui.css';
 type Action = {
   type: 'play';
 } | {
-  type: 'target' | 'search';
+  type: 'target';
   origin: {location: Location; i: number};
   filter: (location: Location, id: FieldID) => boolean;
   fn: (location: Location, ...j: number[]) => void;
   num: number;
   targets: [Location, number][];
+} | {
+  type: 'search';
+  origin: {location: Location; i: number};
+  filter: (location: Location, id: FieldID) => boolean;
+  fn: (location: Location, ...j: number[]) => void;
+  num: number;
+  targets: [Location, number][];
+  options: [Location, number][];
 };
 
 interface Context {
@@ -45,7 +52,37 @@ function update(mutate = true) {
   const {state: s, banished, graveyard, action} = STATE.stack[STATE.index];
   const trace = renderTrace(s, banished, graveyard, mutate);
 
-  $content.appendChild(renderState(s, banished, graveyard, handler, transform, true));
+  const wrapper = createElement('div', 'wrapper');
+  wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true));
+
+  if (action.type === 'search') {
+    const modal = createElement('div', 'modal');
+
+    const zone = createElement('div', 'zone', 'search');
+    for (const [location, i] of action.options) {
+      const id = s[location][i] as FieldID;
+      const card = ID.decode(id);
+      zone.appendChild(makeCard(card, () => handler(location, id, i), {
+        hold: true,
+        className: transform(location, id, i, true),
+      }));
+    }
+    modal.appendChild(zone);
+
+    wrapper.appendChild(modal);
+    const overlay = createElement('div', 'modal-overlay');
+    overlay.addEventListener('click', () => {
+      STATE.stack[STATE.index].action = {type: 'play'};
+      if (action.num > 1 && action.targets.length) {
+        return action.fn(action.targets[0][0], action.targets[0][1]);
+      } else {
+        update();
+      }
+    }, {once: true});
+    wrapper.appendChild(overlay);
+  }
+
+  $content.appendChild(wrapper);
   if (trace) {
     $content.appendChild(trace);
     trace.scrollTop = trace.scrollHeight;
@@ -148,7 +185,7 @@ function RELOAD(fn: (s: State) => void) {
     let max: number;
     if (location === 'hand') {
       const hand = s.hand.filter((id, j) => i !== j && ID.decode(id).type === 'Spell');
-      max = Math.min(5 - spells - 1, hand.length, s.hand.length - 1);
+      max = Math.min(5 - spells - 1, hand.length, s.hand.length - 2);
     } else {
       const hand = s.hand.filter(id => ID.decode(id).type === 'Spell');
       max = Math.min(5 - spells, hand.length, s.hand.length - 1);
@@ -565,14 +602,19 @@ function onTarget(location: Location, id: FieldID, i: number) {
   }
 }
 
-function transform(location: Location, id: FieldID, i: number) {
+function transform(location: Location, id: FieldID, i: number, search = false) {
   const action = STATE.stack[STATE.index].action;
-  if (action.type === 'play') return;
+  if (action.type === 'play') return undefined;
   if (location === action.origin.location && i === action.origin.i) return 'selected';
   if (!action.filter(location, id)) return 'disabled';
-  if (action.targets.find(([loc, j]) => loc === location && j === i)) return 'option';
+  if (action.targets.find(([loc, j]) => loc === location && j === i)) {
+    if (!search && action.type === 'search' && location === action.options[0][0]) {
+      return undefined;
+    }
+    return 'option';
+  }
+  return undefined;
 }
-
 
 function search(
   origin: {location: Location; i: number},
@@ -606,9 +648,8 @@ function search(
       fn,
       num,
       targets: [],
+      options: targets,
     };
-    // FIXME need to show select box!
-    renderSearchModal(state, targets);
     update();
   }
 }
@@ -642,15 +683,6 @@ function onSearch(location: Location, id: FieldID, i: number) {
   }
 }
 
-function renderSearchModal(s: State, targets: ['graveyard' | 'deck', number][]) {
-  const zone = createElement('div', 'zone', 'search');
-  for (const [location, i] of targets) {
-    const card = ID.decode(s[location][i]);
-    zone.appendChild(makeCard(card));
-  }
-  // FIXME
-};
-
 update();
 
 // @ts-ignore
@@ -677,11 +709,34 @@ const redo = () => {
   // }
 };
 
+const CLICKABLE = [ 'modal', 'modal-overlay', 'card' ];
+document.addEventListener('click', e => {
+  if (e.target instanceof Element) {
+    for (let p = e.target; p; p = p.parentElement) {
+      if (CLICKABLE.some(c => p.classList.contains(c))) {
+        console.log(p);
+        return true;
+      }
+    }
+  }
+  if (STATE.stack[STATE.index].action.type !== 'play') {
+    STATE.stack[STATE.index].action = {type: 'play'};
+    update();
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  return false;
+});
 document.addEventListener('swiped-left', undo);
 document.addEventListener('swiped-right', redo);
 document.addEventListener('keydown', e => {
   const key = e.which || e.keyCode;
   switch (key) {
+  case 27:
+    if (STATE.stack[STATE.index].action.type !== 'play') {
+      STATE.stack[STATE.index].action = {type: 'play'};
+      update();
+    }
   case 37:
     undo();
     break;
