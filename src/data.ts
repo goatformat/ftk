@@ -219,7 +219,6 @@ const RELOAD: (fn: (s: State) => void) => Data['play'] =
     State.transition(next, d);
   };
 
-
 export const DATA: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
     id: Ids.AFeatherOfThePhoenix,
