@@ -32,8 +32,10 @@ interface Context {
   action: Action;
 }
 
-const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
-  (window.location.search && +window.location.search.slice(1)) || 1;
+const NUM = (window.location.hash && +window.location.hash.slice(1))
+  || (window.location.search && +window.location.search.slice(1))
+  || ~~(Math.random() * (2**31 - 1));
+console.log('Seed:', NUM);
 const START = State.create(new Random(Random.seed(NUM)), true);
 const STATE = {
   stack: [{
