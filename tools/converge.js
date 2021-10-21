@@ -13,6 +13,7 @@ const {solve} = require('./solve');
 
 (async () => {
   const n = +process.argv[2] || 1000;
+  const prescient = process.argv[3] ? false : true;
 
   const csv = path.join(__dirname, 'logs', 'results.csv');
   const old = path.join(__dirname, 'logs', 'results.old.csv');
@@ -33,7 +34,7 @@ const {solve} = require('./solve');
   const complete = [];
   const incomplete = [];
   let exit = 0;
-  for (const r of await benchmark(n, 0.5, () => progress.tick())) {
+  for (const r of await benchmark(n, 0.5, prescient, () => progress.tick())) {
     if (r[0] !== 'success' && r[0] !== 'fail') {
       if (r[0] === 'crash') exit++;
       incomplete.push(/* seed */ r[5]);
@@ -47,7 +48,7 @@ const {solve} = require('./solve');
 
   console.log(`Completed ${complete.length}/${n} searches in ${hhmmss(Date.now() - start)}, attempting to solve ${incomplete.length}/${n} remaining searches\n`);
 
-  for (const r of await solve(incomplete, 1)) {
+  for (const r of await solve(incomplete, {verbose: 1, prescient})) {
     complete.push(r);
   }
 

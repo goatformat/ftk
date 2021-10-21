@@ -14,7 +14,9 @@ const TIMEOUT = 60 * 60 * 1000;
 const CUTOFF = 2e7;
 const VERBOSE = isNaN(+process.env.VERBOSE) ? +!!process.env.VERBOSE : +process.env.VERBOSE;
 
-async function solve(seeds, verbose = VERBOSE) {
+async function solve(seeds, options = {verbose: VERBOSE, prescient: true}) {
+  const verbose = options.verbose || 0;
+  const prescience = options.prescient ? [true, false] : [false];
   const log = (...args) => verbose && console.log(...args);
 
   const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers: maxWorkers(CUTOFF)});
@@ -24,7 +26,7 @@ async function solve(seeds, verbose = VERBOSE) {
   for (const seed of seeds) {
     cohorts[seed] = [];
     for (const width of [0.5, 0, 10, 0.25, 5, 0.1, 15]) {
-      for (const prescient of [true, false]) {
+      for (const prescient of prescience) {
         if (typeof cohorts[seed][0] === 'string') continue;
 
         const desc = `${prescient ? 'prescient' : 'non-prescient'} ${width === 0 ? 'best-first' : 'BULB'} search${width ? ` (width=${width})` : ''}`;
@@ -75,7 +77,7 @@ if (require.main === module) {
   (async () => {
     const seeds = [];
     if (process.argv.length < 3) {
-      console.error('Usage: solve <seed|file of seeds>');
+      console.error('Usage: solve <seed|file of seeds> <non-prescient>?');
       process.exit(1);
     }
 
@@ -88,8 +90,10 @@ if (require.main === module) {
       seeds.push(+process.argv[2]);
     }
 
+    const prescient = process.argv[3] ? false : true;
+
     const start = Date.now();
-    const results = await solve(seeds, VERBOSE || +(seeds.length === 1));
+    const results = await solve(seeds, {verbose: VERBOSE || +(seeds.length === 1), prescient});
 
     if (seeds.length > 1) {
       console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);

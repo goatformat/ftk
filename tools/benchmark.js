@@ -14,12 +14,12 @@ const {hhmmss, maxWorkers} = require('./utils');
 const TIMEOUT = 20 * 60 * 1000;
 const CUTOFF = 1e7;
 
-async function benchmark(n, width, fn) {
+async function benchmark(n, width, prescient = true, fn) {
   const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers: maxWorkers(CUTOFF)});
 
   const results = [];
   for (let i = 0; i < n; i++) {
-    results.push(pool.exec('search', [Random.seed(i), CUTOFF, true, width]).timeout(TIMEOUT).then(result => {
+    results.push(pool.exec('search', [Random.seed(i), CUTOFF, prescient, width]).timeout(TIMEOUT).then(result => {
       if (fn) fn();
       return [...result, i];
     }).catch(err => {
@@ -41,6 +41,7 @@ async function benchmark(n, width, fn) {
 if (require.main === module) {
   const n = +process.argv[2] || 1000;
   const width = +process.argv[3] || undefined;
+  const prescient = process.argv[4] ? false : true;
 
   (async () => {
     const csv = path.join(__dirname, 'logs', 'results.csv');
@@ -58,7 +59,7 @@ if (require.main === module) {
     const interval = setInterval(() => progress.render(), 1000);
 
     const start = Date.now();
-    const results = await benchmark(n, width, () => progress.tick());
+    const results = await benchmark(n, width, prescient, () => progress.tick());
     console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
 
     // Not really much point in turning this into a write stream as we're collecting all the results
