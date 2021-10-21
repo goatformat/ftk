@@ -9,7 +9,8 @@ import './common.css';
 
 type Handler<T = void> = (location: Location, id: FieldID, i: number) => T;
 
-export function createElement<K extends keyof HTMLElementTagNameMap>(tag: K, ...classes: string[]): HTMLElementTagNameMap[K];
+export function createElement<K extends keyof HTMLElementTagNameMap>(
+  tag: K, ...classes: string[]): HTMLElementTagNameMap[K];
 export function createElement(tag: string, ...classes: string[]) {
   const element = document.createElement(tag);
   for (const c of classes) element.classList.add(c);
@@ -208,7 +209,14 @@ const wrap = <T>(a: T[], n = 5) => {
   return b;
 };
 
-export const renderState = (state: State, banished: DeckID[], graveyard: ID[], handler?: Handler, transform?: Handler<string | undefined>, hold = false) => {
+export const renderState = (
+  state: State,
+  banished: DeckID[],
+  graveyard: ID[],
+  handler?: Handler,
+  transform?: Handler<string | undefined>,
+  hold = false
+) => {
   let equip = false;
   const equips: {[i: number]: string} = {};
   for (const id of state.spells) {
@@ -256,11 +264,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   div = createElement('div', 'zone', 'banished');
   if (banished.length) {
     const id = banished[banished.length - 1] as FieldID;
-    const top = makeCard(ID.decode(id), undefined, {
-      notip: true,
-      label: banished.length,
-      className: transform?.('banished', id, banished.length - 1),
-    });
+    const top = makeCard(ID.decode(id), undefined, {notip: true, label: banished.length});
     tippy(top, {content: pileTooltip(state, 'banished')});
     div.appendChild(top);
   } else {
@@ -295,11 +299,7 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   div = createElement('div', 'zone', 'graveyard');
   if (graveyard.length) {
     const id = graveyard[graveyard.length - 1];
-    const top = makeCard(ID.decode(id), undefined, {
-      notip: true,
-      label: graveyard.length,
-      className: transform?.('graveyard', id, graveyard.length - 1),
-    });
+    const top = makeCard(ID.decode(id), undefined, {notip: true, label: graveyard.length});
     tippy(top, {content: pileTooltip(state, 'graveyard')});
     div.appendChild(top);
   } else {
@@ -324,11 +324,10 @@ export const renderState = (state: State, banished: DeckID[], graveyard: ID[], h
   div = createElement('div', 'zone', 'deck');
   if (state.deck.length) {
     const id = state.deck[state.deck.length - 1] as FieldID;
-    const top = makeCard(ID.decode(id), undefined, {
+    const top = makeCard(ID.decode(id), handler && (() => handler('deck', id, state.deck.length - 1)), {
       facedown: !state.reversed,
       notip: true,
       label: state.deck.length,
-      className: transform?.('deck', id, state.deck.length - 1),
     });
     tippy(top, {content: pileTooltip(state, 'deck')});
     div.appendChild(top);

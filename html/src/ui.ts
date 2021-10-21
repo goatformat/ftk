@@ -606,12 +606,15 @@ function onTarget(location: Location, id: FieldID, i: number) {
 
 function transform(location: Location, id: FieldID, i: number, search = false) {
   const {state, action} = STATE.stack[STATE.index];
-  if (!['monsters', 'spells', 'hand'].includes(location)) return undefined;
   if (action.type === 'play') {
     const card = ID.decode(id);
     const can = card.type === 'Spell'
-      ? ((location === 'hand' || ID.facedown(id)) ? card.can(state, location as 'hand' | 'spells') : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
-      : (location === 'hand' ? (!state.summoned || (card.id === Ids.ThunderDragon && state.deck.length)) : (ID.data(id) === 3 && state.deck.length));
+      ? ((location === 'hand' || ID.facedown(id))
+        ? card.can(state, location as 'hand' | 'spells')
+        : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
+      : (location === 'hand'
+        ? (!state.summoned || (card.id === Ids.ThunderDragon && state.deck.length))
+        : (ID.data(id) === 3 && state.deck.length));
     return can ? undefined : 'disabled';
   }
   if (location === action.origin.location && i === action.origin.i) return 'selected';
