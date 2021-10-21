@@ -29,7 +29,7 @@
     "fix": "eslint --fix src tools --ext ts,js",
     "prepare": "npm run compile",
     "start": "parcel html/index.html",
-    "build": "parcel build html/index.html",
+    "build": "parcel build --public-url=./ html/index.html",
     "prebenchmark": "npm run compile",
     "benchmark": "node tools/benchmark",
     "presolve": "npm run compile",

@@ -1,0 +1,22 @@
+name: GitHub Pages
+
+on:
+   push:
+      branches: [main]
+
+jobs:
+   deploy:
+      runs-on: ubuntu-latest
+      steps:
+         - name: Checkout
+           uses: actions/checkout@v2
+         - name: Install dependencies
+           run: npm install
+         - name: Build HTML
+           run: npm run build
+         - name: Deploy
+           uses: JamesIves/github-pages-deploy-action@4.1.5
+           with:
+             branch: gh-pages
+             folder: dist
+             clean: true
