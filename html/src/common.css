@@ -57,7 +57,6 @@ body {
   font-family: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
   max-width: 95%;
   margin: 1em auto;
-  height: calc(100vh - 2em);
   background-color: var(--bg-color);
   color: var(--fg-color);
 }
@@ -314,7 +313,6 @@ tr:first-child td {
 @media(min-width: 500px) {
   body {
     margin: 2em auto;
-    height: calc(100vh - 4em);
   }
   .lifepoints {
     border: 2px solid var(--fg-color);
