@@ -70,7 +70,7 @@ function update(mutate = true) {
     const modal = createElement('div', 'modal');
 
     const zone = createElement('div', 'zone', 'search');
-    for (const [location, i] of action.options) {
+    for (const [location, i] of action.options.sort((a, b) => s[a[0]][a[1]].localeCompare(s[b[0]][b[1]]))) {
       const id = s[location][i] as FieldID;
       const card = ID.decode(id);
       zone.appendChild(makeCard(card, () => handler(location, id, i), {
