@@ -8,7 +8,7 @@ const {execFileSync} = require('child_process');
 const workerpool = require('workerpool');
 const ProgressBar = require('progress');
 
-const {Random} = require('../build');
+const {Random} = require('../build/src');
 const {hhmmss, maxWorkers} = require('./utils');
 
 const TIMEOUT = 20 * 60 * 1000;
@@ -41,7 +41,7 @@ async function benchmark(n, width, prescient = true, fn) {
 if (require.main === module) {
   const n = +process.argv[2] || 1000;
   const width = +process.argv[3] || undefined;
-  const prescient = process.argv[4] ? false : true;
+  const prescient = !process.argv[4];
 
   (async () => {
     const csv = path.join(__dirname, 'logs', 'results.csv');

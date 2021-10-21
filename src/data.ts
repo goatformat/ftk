@@ -219,6 +219,9 @@ const RELOAD: (fn: (s: State) => void) => Data['play'] =
     State.transition(next, d);
   };
 
+// Sigh, JS defaults to sorting arrays of numbers alphabetically because logic.
+const CMP = (a: number, b: number) => a - b;
+
 export const DATA: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
     id: Ids.AFeatherOfThePhoenix,
@@ -627,7 +630,7 @@ export const DATA: { [name: string]: Data } = {
             s.minor(`Discard "${ID.decode(s.hand[j]).name}" and "${ID.decode(s.hand[k]).name}"`);
             const gid = s.remove('graveyard', g);
             if (location === 'hand') {
-              s.discard([i, j, k].sort());
+              s.discard([i, j, k].sort(CMP));
             } else {
               s.remove(location, i);
               s.add('graveyard', card.id);

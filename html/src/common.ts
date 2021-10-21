@@ -7,6 +7,9 @@ import {State, ID, DeckID, Card, FieldID, Location} from '../../src';
 import IMG from '../img/**/*';
 import './common.css';
 
+// i herd u liek proper sorts
+export const CMP = (a: number, b: number) => a - b;
+
 type Handler<T = void> = (location: Location, id: FieldID, i: number) => T;
 
 export function createElement<K extends keyof HTMLElementTagNameMap>(
@@ -82,7 +85,7 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
     li.appendChild(em);
     ul.appendChild(li);
   }
-  for (const [name, count] of Object.entries(cards).sort()) {
+  for (const [name, count] of Object.entries(cards).sort((a, b) => a[0].localeCompare(b[0]))) {
     const li = createElement('li');
     if (pile === 'deck') {
       li.textContent = `${count} × ${name} (${(count / total * 100).toFixed(2)}%)`;
@@ -131,12 +134,12 @@ export const makeCard = (
   const cardType = card.type === 'Monster' ? 'effectMonster' : card.type;
 
   root.style.backgroundImage = options.facedown
-    ? `url(${IMG.sleeves['Default.png']})`
-    : `url(${IMG.cards.bgs[`${cardType}.jpg`]})`;
+    ? `url(${IMG.sleeves['Default.png'] as string})`
+    : `url(${IMG.cards.bgs[`${cardType}.jpg`] as string})`;
 
   if (!options.facedown) {
     const art = createElement('div', 'art');
-    art.style.backgroundImage = `url(${IMG.cards.art[`${compress(card.name)}.jpg`]})`;
+    art.style.backgroundImage = `url(${IMG.cards.art[`${compress(card.name)}.jpg`] as string})`;
     root.appendChild(art);
 
     const lowerHalf = createElement('div', 'lower-half');
@@ -343,7 +346,7 @@ export const renderState = (
   return table;
 };
 
-export const track = <T>(input: T[], output: T[], activated?: T) => {
+export const track = <T extends string>(input: T[], output: T[], activated?: T) => {
   const sorted = output.slice().sort();
 
   const added: T[] = [];

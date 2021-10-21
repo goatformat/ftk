@@ -7,7 +7,7 @@ const {execFileSync} = require('child_process');
 
 const workerpool = require('workerpool');
 
-const {State, Random} = require('../build');
+const {State, Random} = require('../build/src');
 const {hhmmss, maxWorkers} = require('./utils');
 
 const TIMEOUT = 60 * 60 * 1000;
@@ -90,7 +90,7 @@ if (require.main === module) {
       seeds.push(+process.argv[2]);
     }
 
-    const prescient = process.argv[3] ? false : true;
+    const prescient = !process.argv[3];
 
     const start = Date.now();
     const results = await solve(seeds, {verbose: VERBOSE || +(seeds.length === 1), prescient});

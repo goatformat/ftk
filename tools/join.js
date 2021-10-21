@@ -4,7 +4,7 @@ require('source-map-support').install();
 const fs = require('fs');
 const path = require('path');
 
-const {Random} = require('../build');
+const {Random} = require('../build/src');
 
 const parse = line => {
   const [result, d, hand, visited, p] = line.split(',');

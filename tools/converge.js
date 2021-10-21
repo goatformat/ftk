@@ -13,7 +13,7 @@ const {solve} = require('./solve');
 
 (async () => {
   const n = +process.argv[2] || 1000;
-  const prescient = process.argv[3] ? false : true;
+  const prescient = !process.argv[3];
 
   const csv = path.join(__dirname, 'logs', 'results.csv');
   const old = path.join(__dirname, 'logs', 'results.old.csv');

@@ -1,29 +1,25 @@
-import * as workerpool from 'workerpool';
-
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
-import {createElement, renderState, track, makeCard} from './common';
+import {createElement, renderState, track, makeCard, CMP} from './common';
 
 import './swipe';
 import './ui.css';
 
 type Action = {
   type: 'play' | 'win' | 'lose';
-} | {
+} | ActionState & ({
   type: 'target';
-  origin: {location: Location; i: number};
-  filter: (location: Location, id: FieldID) => boolean;
-  fn: (location: Location, ...j: number[]) => void;
-  num: number;
-  targets: [Location, number][];
 } | {
   type: 'search';
+  options: [Location, number][];
+});
+
+interface ActionState {
   origin: {location: Location; i: number};
   filter: (location: Location, id: FieldID) => boolean;
   fn: (location: Location, ...j: number[]) => void;
   num: number;
   targets: [Location, number][];
-  options: [Location, number][];
-};
+}
 
 interface Context {
   state: State;
@@ -32,9 +28,9 @@ interface Context {
   action: Action;
 }
 
-const NUM = (window.location.hash && +window.location.hash.slice(1))
-  || (window.location.search && +window.location.search.slice(1))
-  || ~~(Math.random() * (2**31 - 1));
+const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
+  (window.location.search && +window.location.search.slice(1)) ||
+  ~~(Math.random() * (2 ** 31 - 1));
 const START = State.create(new Random(Random.seed(NUM)), true);
 const STATE = {
   stack: [{
@@ -406,7 +402,7 @@ const SPELLS: { [name: string]: any } = {
         s.minor(`Discard "${ID.decode(s.hand[j]).name}" and "${ID.decode(s.hand[k]).name}"`);
         const gid = s.remove('graveyard', g);
         if (location === 'hand') {
-          s.discard([i, j, k].sort());
+          s.discard([i, j, k].sort(CMP));
         } else {
           s.remove(location, i);
           s.add('graveyard', card.id);
@@ -565,7 +561,7 @@ function target(
 
   if (num > 0 && targets.length === num) {
     // PRECONDITION: new Set(targets.map(t => t[0])).size === 1
-    return fn(targets[0][0], ...targets.map(t => t[1]).sort());
+    return fn(targets[0][0], ...targets.map(t => t[1]).sort(CMP));
   } else {
     STATE.stack[STATE.index].action = {
       type: 'target',
@@ -588,7 +584,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
     if (action.num < 0) {
       if (action.targets.length) {
         // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
-        return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
+        return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort(CMP));
       } else {
         return action.fn(location);
       }
@@ -606,14 +602,14 @@ function onTarget(location: Location, id: FieldID, i: number) {
     if (action.targets.length === Math.abs(action.num)) {
       STATE.stack[STATE.index].action = {type: 'play'};
       // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
-      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
+      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort(CMP));
     } else {
       update();
     }
   }
 }
 
-function transform(location: Location, id: FieldID, i: number, search = false) {
+function transform(location: Location, id: FieldID, i: number, isSearch = false) {
   const {state, action} = STATE.stack[STATE.index];
   if (action.type === 'play') {
     const card = ID.decode(id);
@@ -624,21 +620,22 @@ function transform(location: Location, id: FieldID, i: number, search = false) {
           ? card.can(state, location as 'spells')
           : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
       : (location === 'hand'
-        ? ((!state.summoned && state.monsters.length < 5)
-          || (card.id === Ids.ThunderDragon && state.deck.length))
+        ? ((!state.summoned && state.monsters.length < 5) ||
+          (card.id === Ids.ThunderDragon && state.deck.length))
         : (ID.data(id) === 3 && state.deck.length));
     return can ? undefined : 'disabled';
   } else if (action.type === 'target' || action.type === 'search') {
     if (location === action.origin.location && i === action.origin.i) return 'selected';
     if (!action.filter(location, id)) return 'disabled';
     if (action.targets.find(([loc, j]) => loc === location && j === i)) {
-      if (!search && action.type === 'search' && location === action.options[0][0]) {
+      if (!isSearch && action.type === 'search' && location === action.options[0][0]) {
         return undefined;
       }
       return 'option';
     }
     return undefined;
   }
+  return undefined;
 }
 
 function search(
@@ -701,7 +698,7 @@ function onSearch(location: Location, id: FieldID, i: number) {
     if (action.targets.length === Math.abs(action.num)) {
       STATE.stack[STATE.index].action = {type: 'play'};
       // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
-      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort());
+      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort(CMP));
     } else {
       update();
     }
@@ -740,13 +737,13 @@ const cancel = () => {
     STATE.stack[STATE.index].action = {type: 'play'};
     update();
   }
-}
+};
 
-const CLICKABLE = [ 'modal', 'modal-overlay', 'card' ];
+const CLICKABLE = ['modal', 'modal-overlay', 'card'];
 document.addEventListener('click', e => {
   if (e.target instanceof Element) {
-    for (let p = e.target; p; p = p.parentElement) {
-      if (CLICKABLE.some(c => p.classList.contains(c))) {
+    for (let p: Element | null = e.target; p; p = p.parentElement) {
+      if (CLICKABLE.some(c => p!.classList.contains(c))) {
         return true;
       }
     }
@@ -763,6 +760,7 @@ document.addEventListener('keydown', e => {
   switch (key) {
   case 27:
     cancel();
+    break;
   case 37:
     undo();
     break;
