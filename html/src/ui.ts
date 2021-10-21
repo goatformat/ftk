@@ -603,8 +603,15 @@ function onTarget(location: Location, id: FieldID, i: number) {
 }
 
 function transform(location: Location, id: FieldID, i: number, search = false) {
-  const action = STATE.stack[STATE.index].action;
-  if (action.type === 'play') return undefined;
+  const {state, action} = STATE.stack[STATE.index];
+  if (!['monsters', 'spells', 'hand'].includes(location)) return undefined;
+  if (action.type === 'play') {
+    const card = ID.decode(id);
+    const can = card.type === 'Spell'
+      ? ((location === 'hand' || ID.facedown(id)) ? card.can(state, location as 'hand' | 'spells') : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
+      : (location === 'hand' ? (!state.summoned || (card.id === Ids.ThunderDragon && state.deck.length)) : (ID.data(id) === 3 && state.deck.length));
+    return can ? undefined : 'disabled';
+  }
   if (location === action.origin.location && i === action.origin.i) return 'selected';
   if (!action.filter(location, id)) return 'disabled';
   if (action.targets.find(([loc, j]) => loc === location && j === i)) {
@@ -709,20 +716,24 @@ const redo = () => {
   // }
 };
 
+const cancel = () => {
+  const action = STATE.stack[STATE.index].action;
+  if (action.type !== 'play' && action.origin.i >= 0) {
+    STATE.stack[STATE.index].action = {type: 'play'};
+    update();
+  }
+}
+
 const CLICKABLE = [ 'modal', 'modal-overlay', 'card' ];
 document.addEventListener('click', e => {
   if (e.target instanceof Element) {
     for (let p = e.target; p; p = p.parentElement) {
       if (CLICKABLE.some(c => p.classList.contains(c))) {
-        console.log(p);
         return true;
       }
     }
   }
-  if (STATE.stack[STATE.index].action.type !== 'play') {
-    STATE.stack[STATE.index].action = {type: 'play'};
-    update();
-  }
+  cancel();
   e.preventDefault();
   e.stopPropagation();
   return false;
@@ -733,10 +744,7 @@ document.addEventListener('keydown', e => {
   const key = e.which || e.keyCode;
   switch (key) {
   case 27:
-    if (STATE.stack[STATE.index].action.type !== 'play') {
-      STATE.stack[STATE.index].action = {type: 'play'};
-      update();
-    }
+    cancel();
   case 37:
     undo();
     break;

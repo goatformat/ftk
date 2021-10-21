@@ -387,7 +387,7 @@ export class State {
       if (hand.has(id)) continue;
       hand.add(id);
       const card = ID.decode(id);
-      if (id === Ids.ThunderDragon) {
+      if (id === Ids.ThunderDragon && this.deck.length) {
         const targets: number[] = [];
         for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
           if (ID.id(this.deck[j]) === Ids.ThunderDragon) targets.push(j);
@@ -719,7 +719,7 @@ export class State {
       this.add('hand', id);
     }
     if (initial) {
-      this.major(`Opening hand contains ${ID.names(ids)}`);
+      this.major(`Opening hand contains ${ID.names(ids.sort())}`);
     } else {
       this.minor(`Draw ${ID.names(ids)}`);
     }
