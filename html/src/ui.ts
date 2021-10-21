@@ -55,8 +55,8 @@ function update(mutate = true) {
   const wrapper = createElement('div', 'wrapper');
   wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true, NUM));
 
-  if (action.type === 'win' || action.type === 'lose') {
-    const modal = createElement('div', 'modal', 'end', action.type);
+  if (action.type === 'win' || !s.clone().next().length) {
+    const modal = createElement('div', 'modal', 'end', action.type === 'win' ? 'win' : 'lose');
     const end = createElement('h1');
     end.textContent = `You ${action.type === 'win' ? 'Win' : 'Lose'}`;
     modal.appendChild(end);
@@ -227,6 +227,62 @@ function RELOAD(fn: (s: State) => void) {
       update();
     }, -max);
   };
+}
+
+// TODO: allow playing if multi-turn is supported
+function CAN_QUIZ(s: State) {
+  console.log(s.known(true)); // FIXME DEBUG XXX
+  if (s.known(true)) return true; // FIXME DEBUG XXX
+  // NOTE: we have to clone for the termination check because it mutates the final state
+  if (!s.clone().end(false)) return false;
+  // The lookahead parameter only covers the A Feather of the Phoenix, end() will still return true
+  // if Black Pendant isn't actually equipped yet (but is equippable).
+  return s.spells.some(id => ID.id(id) === Ids.BlackPendant && !ID.facedown(id));
+}
+
+// TODO: allow playing if multi-turn is supported
+function QUIZ(s: State, location: 'hand' | 'spells') {
+  if (!CAN_QUIZ(s)) return;
+
+  const known = s.known(true)!;
+  // NOTE: We already checked that Black Pendant is equipped
+  s.major(`Activate${location === 'spells' ? ' face-down' : ''} "Reversal Quiz"`);
+  // Filter out Reversal Quiz from the messages about what gets sent to the Graveyard
+  const hand = s.hand.filter(id => ID.id(id) !== Ids.ReversalQuiz);
+  if (hand.length) s.minor(`Send ${ID.names(hand)} from hand to Graveyard`);
+  s.graveyard.push(...hand);
+  s.hand = [];
+
+  const ids = s.monsters.map(id => ID.id(id));
+  s.graveyard.push(...ids);
+  s.monsters = [];
+
+  for (const id of s.spells) {
+    const card = ID.decode(id);
+    if (card.id !== Ids.ReversalQuiz) {
+      continue;
+    } else if (!ID.facedown(id)) {
+      if (card.id === Ids.ConvulsionOfNature) {
+        s.reverse(true);
+      } else if (card.id === Ids.DifferentDimensionCapsule) {
+        s.banish();
+      }
+    }
+    s.graveyard.push(card.id);
+    ids.push(card.id);
+  }
+  s.spells = [];
+  s.graveyard.sort();
+  if (ids.length) s.minor(`Send ${ID.names(ids)} from field to Graveyard`);
+
+  // Reversal Quiz isn't actually in the Graveyard at the point when the game is won
+  s.add('spells', Ids.ReversalQuiz);
+  // TODO: consider visually displaying the revealed card?
+  s.minor(`Call "${ID.decode(known).type}", reveal "${ID.decode(s.deck[s.deck.length - 1]).name}"`);
+  s.major(`After exchanging Life Points, opponent has ${s.lifepoints} LP and then takes 500 damage from "Black Pendant" being sent from the field to the Graveyard`);
+
+  STATE.stack[STATE.index].action = {type: 'win'};
+  update();
 }
 
 const SPELLS: { [name: string]: any } = {
@@ -469,8 +525,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
   case 'spells': {
     if (card.type !== 'Spell' || !card.can(state, location)) return;
     if (card.id === Ids.ReversalQuiz) {
-      // FIXME: only allow playing if win condition or multi-turn
-      return;
+      QUIZ(state, location);
     } else if (ID.facedown(id)) {
       const spell = SPELLS[card.name];
       if (spell) spell(state, location, i, card);
@@ -481,8 +536,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
   }
   case 'hand': {
     if (card.id === Ids.ReversalQuiz) {
-      // FIXME: only allow playing if win condition or multi-turn
-      return;
+      QUIZ(state, location);
     } else if (card.id === Ids.ThunderDragon) {
       const find = (s: State) => {
         search({location, i}, (loc, sid) => loc === 'deck' && ID.id(sid) === Ids.ThunderDragon, (_, ...targets) => {
@@ -622,8 +676,7 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
   const {state, action} = STATE.stack[STATE.index];
   if (action.type === 'play') {
     const card = ID.decode(id);
-    // FIXME: only allow playing if win condition or multi-turn
-    if (card.id === Ids.ReversalQuiz) return 'disabled';
+    if (card.id === Ids.ReversalQuiz && !CAN_QUIZ(state)) return 'disabled';
     const can = card.type === 'Spell'
       ? (location === 'hand'
         ? state.spells.length < 5 && card.can(state, location)

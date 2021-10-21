@@ -303,7 +303,7 @@ export class State {
       types.add(card.type);
 
       if (!quiz && unknown.size > 1) return undefined;
-      if (!quiz && (unknown.size > 1 && types.size > 1)) return undefined;
+      if (quiz && (unknown.size > 1 && types.size > 1)) return undefined;
     }
 
     return (quiz && this.reversed) ? this.deck[0] : top;
@@ -554,7 +554,7 @@ export class State {
   // The search can already handle using Spell Reproduction to recover a missing piece much more
   // easily as the Spell gets added directly to the hand as opposed to having to stack the deck and
   // then draw it.
-  end() {
+  end(lookahead = true) {
     if (this.lifepoints > 500) return false;
     if (!this.monsters.length || !this.deck.length) return false;
     const known = this.known(true);
@@ -604,6 +604,8 @@ export class State {
     if (hand.quiz && this.spells.length <= 4 && spells.pendant) {
       return this.win(known, equip, {pendant: true, quiz: false});
     }
+
+    if (!lookahead) return false;
 
     // If we have one piece of the win condition AND A Feather of the Phoenix we can possibly
     // recover the missing piece if its in the Graveyard AND we have zones (0-2 required) AND draw
