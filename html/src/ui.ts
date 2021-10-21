@@ -31,7 +31,10 @@ interface Context {
 const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) ||
   ~~(Math.random() * (2 ** 31 - 1));
+console.log('Seed:', NUM);
+
 const START = State.create(new Random(Random.seed(NUM)), true);
+
 const STATE = {
   stack: [{
     state: START,
@@ -465,7 +468,10 @@ function onPlay(location: Location, id: FieldID, i: number) {
   }
   case 'spells': {
     if (card.type !== 'Spell' || !card.can(state, location)) return;
-    if (ID.facedown(id)) {
+    if (card.id === Ids.ReversalQuiz) {
+      // FIXME: only allow playing if win condition or multi-turn
+      return;
+    } else if (ID.facedown(id)) {
       const spell = SPELLS[card.name];
       if (spell) spell(state, location, i, card);
     } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
@@ -474,7 +480,10 @@ function onPlay(location: Location, id: FieldID, i: number) {
     return;
   }
   case 'hand': {
-    if (card.id === Ids.ThunderDragon) {
+    if (card.id === Ids.ReversalQuiz) {
+      // FIXME: only allow playing if win condition or multi-turn
+      return;
+    } else if (card.id === Ids.ThunderDragon) {
       const find = (s: State) => {
         search({location, i}, (loc, sid) => loc === 'deck' && ID.id(sid) === Ids.ThunderDragon, (_, ...targets) => {
           s.major(`Discard "${card.name}"`);
@@ -613,6 +622,8 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
   const {state, action} = STATE.stack[STATE.index];
   if (action.type === 'play') {
     const card = ID.decode(id);
+    // FIXME: only allow playing if win condition or multi-turn
+    if (card.id === Ids.ReversalQuiz) return 'disabled';
     const can = card.type === 'Spell'
       ? (location === 'hand'
         ? state.spells.length < 5 && card.can(state, location)

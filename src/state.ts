@@ -373,6 +373,9 @@ export class State {
       if (spells.has(id)) continue;
       spells.add(id);
       const card = ID.decode(id);
+      // Reversal Quiz can *never* lead to a win in single-turn setups so is a waste to explore
+      // TODO: allow for exploring Reversal Quiz in multi-turn
+      if (card.id === Ids.ReversalQuiz) continue;
       if (ID.facedown(id)) {
         card.play(this, 'spells', i, next, card, prescient);
       } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
@@ -386,7 +389,11 @@ export class State {
       if (hand.has(id)) continue;
       hand.add(id);
       const card = ID.decode(id);
-      if (id === Ids.ThunderDragon && this.deck.length) {
+      if (id === Ids.ReversalQuiz) {
+        // Reversal Quiz can *never* lead to a win in single-turn setups so is a waste to explore
+        // TODO: allow for exploring Reversal Quiz in multi-turn
+        continue;
+      } else if (id === Ids.ThunderDragon && this.deck.length) {
         const targets: number[] = [];
         for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
           if (ID.id(this.deck[j]) === Ids.ThunderDragon) targets.push(j);
