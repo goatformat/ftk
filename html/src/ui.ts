@@ -7,7 +7,7 @@ import './swipe';
 import './ui.css';
 
 type Action = {
-  type: 'play';
+  type: 'play' | 'win' | 'lose';
 } | {
   type: 'target';
   origin: {location: Location; i: number};
@@ -57,7 +57,17 @@ function update(mutate = true) {
   const wrapper = createElement('div', 'wrapper');
   wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true));
 
-  if (action.type === 'search') {
+  if (action.type === 'win' || action.type === 'lose') {
+    const modal = createElement('div', 'modal', 'end', action.type);
+    const end = createElement('h1');
+    end.textContent = `You ${action.type === 'win' ? 'Win' : 'Lose'}`;
+    modal.appendChild(end);
+    wrapper.appendChild(modal);
+    const overlay = createElement('div', 'modal-overlay');
+    wrapper.appendChild(overlay);
+
+    // TODO: add restart
+  } else if (action.type === 'search') {
     const modal = createElement('div', 'modal');
 
     const zone = createElement('div', 'zone', 'search');
@@ -619,16 +629,17 @@ function transform(location: Location, id: FieldID, i: number, search = false) {
           || (card.id === Ids.ThunderDragon && state.deck.length))
         : (ID.data(id) === 3 && state.deck.length));
     return can ? undefined : 'disabled';
-  }
-  if (location === action.origin.location && i === action.origin.i) return 'selected';
-  if (!action.filter(location, id)) return 'disabled';
-  if (action.targets.find(([loc, j]) => loc === location && j === i)) {
-    if (!search && action.type === 'search' && location === action.options[0][0]) {
-      return undefined;
+  } else if (action.type === 'target' || action.type === 'search') {
+    if (location === action.origin.location && i === action.origin.i) return 'selected';
+    if (!action.filter(location, id)) return 'disabled';
+    if (action.targets.find(([loc, j]) => loc === location && j === i)) {
+      if (!search && action.type === 'search' && location === action.options[0][0]) {
+        return undefined;
+      }
+      return 'option';
     }
-    return 'option';
+    return undefined;
   }
-  return undefined;
 }
 
 function search(
@@ -726,7 +737,7 @@ const redo = () => {
 
 const cancel = () => {
   const action = STATE.stack[STATE.index].action;
-  if (action.type !== 'play' && action.origin.i >= 0) {
+  if ((action.type === 'target' || action.type === 'search') && action.origin.i >= 0) {
     STATE.stack[STATE.index].action = {type: 'play'};
     update();
   }
