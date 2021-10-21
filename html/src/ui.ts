@@ -35,7 +35,6 @@ interface Context {
 const NUM = (window.location.hash && +window.location.hash.slice(1))
   || (window.location.search && +window.location.search.slice(1))
   || ~~(Math.random() * (2**31 - 1));
-console.log('Seed:', NUM);
 const START = State.create(new Random(Random.seed(NUM)), true);
 const STATE = {
   stack: [{
@@ -55,7 +54,7 @@ function update(mutate = true) {
   const trace = renderTrace(s, banished, graveyard, mutate);
 
   const wrapper = createElement('div', 'wrapper');
-  wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true));
+  wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true, NUM));
 
   if (action.type === 'win' || action.type === 'lose') {
     const modal = createElement('div', 'modal', 'end', action.type);

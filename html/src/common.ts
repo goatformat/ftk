@@ -215,7 +215,8 @@ export const renderState = (
   graveyard: ID[],
   handler?: Handler,
   transform?: Handler<string | undefined>,
-  hold = false
+  hold = false,
+  seed?: number
 ) => {
   let equip = false;
   const equips: {[i: number]: string} = {};
@@ -232,6 +233,7 @@ export const renderState = (
   let td = createElement('td');
   td.colSpan = 2;
   let div = createElement('div', 'lifepoints');
+  if (seed !== undefined) tippy(div, {content: `Seed: ${seed}`});
   const overlay = createElement('div', 'lifepoints-overlay');
   overlay.style.width = `${(1 - (state.lifepoints / 8000)) * 100}%`;
   div.appendChild(overlay);

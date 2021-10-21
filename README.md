@@ -7,10 +7,10 @@
 ["Goat Format"](https://www.goatformat.com/whatisgoat.html) refers to a legacy [Yu-Gi-Oh!
 TCG](https://en.wikipedia.org/wiki/Yu-Gi-Oh!_Trading_Card_Game) format that existed in 2005, named
 after the prevalance of the card
-[Scapegoat](https://yugioh.fandom.com/wiki/Scapegoat) during this
-time period. It is a format that is still widely played today using the same card pool, ruleset, and
-banlist, though in the intervening years a variety of new decks have surfaced, perhaps the most
-notorious of which being "[**Library FTK**](https://www.goatformat.com/home/january-31st-2019)".
+[Scapegoat](https://yugioh.fandom.com/wiki/Scapegoat) during this time period. It is a format that
+is still widely played today using the same card pool, ruleset, and banlist, though in the
+intervening years a variety of new decks have surfaced, perhaps the most notorious of which being
+"[**Library FTK**](https://www.goatformat.com/library-ftk.html)".
 "[FTK](https://yugioh.fandom.com/wiki/First_Turn_Kill)" decks are historically stigmatized by the
 community as they typically TODO
 
