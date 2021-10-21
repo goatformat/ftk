@@ -396,3 +396,4 @@ try {
 } catch (err) {
   pref.addListener(listener);
 }
+setTheme(pref.matches ? 'dark' : 'light');
