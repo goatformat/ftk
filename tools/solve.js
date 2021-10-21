@@ -100,6 +100,11 @@ if (require.main === module) {
         if (e.code !== 'ENOENT') throw e;
       }
       const out = results.map(result => result.join(','));
+      try {
+        fs.mkdirSync(path.join(__dirname, 'logs'));
+      } catch (e) {
+        if (e.code !== 'EEXIST') throw e;
+      }
       fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
       console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);
       execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
