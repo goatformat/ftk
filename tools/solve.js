@@ -92,6 +92,7 @@ if (require.main === module) {
     const results = await solve(seeds, VERBOSE || +(seeds.length === 1));
 
     if (seeds.length > 1) {
+      console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);
       const csv = path.join(__dirname, 'logs', 'solutions.csv');
       const old = path.join(__dirname, 'logs', 'solutions.old.csv');
       try {
@@ -106,7 +107,6 @@ if (require.main === module) {
         if (e.code !== 'EEXIST') throw e;
       }
       fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
-      console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);
       execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
     }
   })();

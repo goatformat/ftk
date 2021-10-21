@@ -51,15 +51,15 @@ const {solve} = require('./solve');
     complete.push(r);
   }
 
-  const out = complete.sort((a, b) => a[5] - b[5]).map(result => result.join(','));
-  fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
-
   console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
+  const out = complete.sort((a, b) => a[5] - b[5]).map(result => result.join(','));
   try {
     fs.mkdirSync(path.join(__dirname, 'logs'));
   } catch (e) {
     if (e.code !== 'EEXIST') throw e;
   }
+  fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
+
   if (fs.existsSync(old)) {
     execFileSync(path.join(__dirname, 'compare.js'), [old, csv], {stdio: 'inherit'});
   } else {

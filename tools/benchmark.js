@@ -59,22 +59,22 @@ if (require.main === module) {
 
     const start = Date.now();
     const results = await benchmark(n, width, () => progress.tick());
+    console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
 
     // Not really much point in turning this into a write stream as we're collecting all the results
     // in memory first anyway to be able to order them correctly.
     const out = results.map(result => result.join(','));
     const exit = results.filter(r => r[0] === 'crash').length;
-    fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
-
-    clearInterval(interval);
-    progress.terminate();
-
-    console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
     try {
       fs.mkdirSync(path.join(__dirname, 'logs'));
     } catch (e) {
       if (e.code !== 'EEXIST') throw e;
     }
+    fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
+
+    clearInterval(interval);
+    progress.terminate();
+
     if (fs.existsSync(old)) {
       execFileSync(path.join(__dirname, 'compare.js'), [old, csv], {stdio: 'inherit'});
     } else {
