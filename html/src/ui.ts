@@ -609,11 +609,14 @@ function transform(location: Location, id: FieldID, i: number, search = false) {
   if (action.type === 'play') {
     const card = ID.decode(id);
     const can = card.type === 'Spell'
-      ? ((location === 'hand' || ID.facedown(id))
-        ? card.can(state, location as 'hand' | 'spells')
-        : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
+      ? (location === 'hand'
+        ? state.spells.length < 5 && card.can(state, location)
+        : ID.facedown(id)
+          ? card.can(state, location as 'spells')
+          : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
       : (location === 'hand'
-        ? (!state.summoned || (card.id === Ids.ThunderDragon && state.deck.length))
+        ? ((!state.summoned && state.monsters.length < 5)
+          || (card.id === Ids.ThunderDragon && state.deck.length))
         : (ID.data(id) === 3 && state.deck.length));
     return can ? undefined : 'disabled';
   }
