@@ -332,9 +332,8 @@ export class State {
     if (DEBUG) {
       const errors = State.verify(state);
       if (errors.length) {
-        console.error(`INVALID STATE ${key}:\n\n${errors.join('\n')}`);
-        if (state.trace) console.error(state.trace.join('\n'));
-        process.exit(1);
+        const trace = state.trace ? `\n${state.trace.join('\n')}\n` : '';
+        throw new Error(`INVALID STATE ${key}:\n\n${errors.join('\n')}${trace}`);
       }
     }
   }
@@ -627,10 +626,10 @@ export class State {
       }
 
       if (hand.upstart >= 0) {
-        this.remove('hand', hand.upstart);
+        this.remove('hand', (hand.feather >= 0 && hand.feather < hand.upstart) ? hand.upstart - 1 : hand.upstart);
         this.major('Activate "Upstart Goblin"');
       } else {
-        this.remove('spells', spells.upstart);
+        this.remove('spells', (spells.feather >= 0 && spells.feather < spells.upstart) ? spells.upstart - 1 : spells.upstart);
         this.major('Activate face-down "Upstart Goblin"');
       }
       this.add('graveyard', Ids.UpstartGoblin);
@@ -945,7 +944,7 @@ export class State {
       ...s.deck.map(id => ID.id(id)),
     ].sort();
     if (!equals(start, now)) {
-      errors.push(`Mismatch: ${start.length} vs. ${now.length}\n`);
+      errors.push(`Mismatch: ${start.length} (${start.join('')}) vs. ${now.length} (${now.join('')})\n`);
     }
 
     return errors;
