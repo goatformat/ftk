@@ -231,8 +231,6 @@ function RELOAD(fn: (s: State) => void) {
 
 // TODO: allow playing if multi-turn is supported
 function CAN_QUIZ(s: State) {
-  console.log(s.known(true)); // FIXME DEBUG XXX
-  if (s.known(true)) return true; // FIXME DEBUG XXX
   // NOTE: we have to clone for the termination check because it mutates the final state
   if (!s.clone().end(false)) return false;
   // The lookahead parameter only covers the A Feather of the Phoenix, end() will still return true
