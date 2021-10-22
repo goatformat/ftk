@@ -30,7 +30,7 @@ const dec = n => {
 
 const report = (a, b) => {
   const std = n => !isNaN(n.std) ? ` ± ${dec(n.std)}` : '';
-  if (b) {
+  if (b?.cnt) {
     console.log(`count: ${dec(a.cnt)} vs ${dec(b.cnt)} (${pct(a.cnt, b.cnt)})`);
     console.log(`average: ${dec(a.avg)}${std(a)} vs ${dec(b.avg)}${std(b)} (${pct(a.avg, b.avg)})`);
     console.log(`p50: ${dec(a.p50)} vs ${dec(b.p50)} (${pct(a.p50, b.p50)})`);
