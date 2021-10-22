@@ -141,7 +141,8 @@ const CAN_RELOAD = (state: State, location: 'hand' | 'spells' | 'monsters') => {
 };
 
 // Both Reversal Quiz and tributing Thunder Dragon can potentially proc Sangan's search effect.
-const SANGAN = (s: State, next: Map<string, IState>) => {
+const SANGAN = (s: State, next: Map<string, IState>, prescient: boolean) => {
+  if (!s.allowed(prescient)) return;
   const targets = new Set<ID>();
   for (let j = 0; j < s.deck.length; j++) {
     const id = ID.id(s.deck[j]);
@@ -178,9 +179,10 @@ const SANGAN = (s: State, next: Map<string, IState>) => {
 // create very wide and heterogenous nodes (which can cause the same problems as Different Dimension
 // Capsule), though ultimately results in about a 5%+ reduction in exhaustion and increase in overall
 // success rate.
-const RELOAD: (fn: (s: State) => void) => Data['play'] =
-  (fn: (s: State) => void) => (state, location, i, next, card) => {
+const RELOAD: (fn: (s: State, check?: boolean) => void, check?: boolean) => Data['play'] =
+  (fn: (s: State) => void, check?: boolean) => (state, location, i, next, card, prescient) => {
     if (!CAN_RELOAD(state, location)) return;
+    if (check && !state.allowed(prescient)) return;
 
     const d = state.clone();
     d.remove(location, i);
@@ -329,7 +331,8 @@ export const DATA: { [name: string]: Data } = {
     text: 'After this card\'s activation, it remains on the field. When this card is activated: Banish 1 card from your Deck, face-down. During your second Standby Phase after this card\'s activation, destroy this card, and if you do, add that card to the hand.',
     can: s => !!s.deck.length,
     // TODO: support having the card actually return by adding counters to it on the field each turn
-    play(state, location, i, next, card) {
+    play(state, location, i, next, card, prescient) {
+      if (!state.allowed(prescient)) return;
       const targets = new Set<DeckID>();
       for (let j = 0; j < state.deck.length; j++) {
         const id = state.deck[j];
@@ -501,7 +504,7 @@ export const DATA: { [name: string]: Data } = {
       s.deck.push(...s.hand);
       s.minor(`Return ${ID.names(s.hand)} to Deck`);
       s.shuffle();
-    }),
+    }, true),
   },
   'Reversal Quiz': {
     id: Ids.ReversalQuiz,
@@ -515,7 +518,7 @@ export const DATA: { [name: string]: Data } = {
     // always sort to the very end of any transition set that includes it, but for completeness it
     // needs to be supported.
     // NOTE: we are not supporting the case where we actually guess correctly prematurely
-    play(state, location, _, next, self) {
+    play(state, location, _, next, self, prescient) {
       if (!this.can(state, location)) return;
       let sangan = false;
       const s = state.clone();
@@ -554,7 +557,7 @@ export const DATA: { [name: string]: Data } = {
       s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
 
       if (sangan) {
-        SANGAN(s, next);
+        SANGAN(s, next, prescient);
       } else {
         State.transition(next, s);
       }
@@ -658,7 +661,7 @@ export const DATA: { [name: string]: Data } = {
     // scenario) and thus purely is useful as discard fodder / deck thinning / manipulating the deck
     score: (state, location) => WEIGHTS['Thunder Dragon'][+(state.deck.length && location === 'hand')],
     // NOTE: discard effect handled directly in State#next
-    play(state, _, i, next, self) {
+    play(state, _, i, next, self, prescient) {
       for (let j = 0; j < state.monsters.length; j++) {
         const s = state.clone();
         const target = ID.decode(state.monsters[j]);
@@ -668,7 +671,7 @@ export const DATA: { [name: string]: Data } = {
         // in the first Zone.
         s.tribute(j, i);
         if (target.id === Ids.Sangan) {
-          SANGAN(s, next);
+          SANGAN(s, next, prescient);
         } else {
           State.transition(next, s);
         }
@@ -682,6 +685,7 @@ export const DATA: { [name: string]: Data } = {
     text: 'Add 1 "Toon" card from your Deck to your hand.',
     can: s => !!s.deck.length,
     play(state, location, i, next, card, prescient) {
+      if (!state.allowed(prescient)) return;
       const targets = new Set<ID>();
       for (let j = 0; j < state.deck.length; j++) {
         const target = ID.decode(state.deck[j]);
@@ -701,7 +705,7 @@ export const DATA: { [name: string]: Data } = {
       }
       // Failure to find
       if (!targets.size) {
-        if (prescient || state.reversed) {
+        if (state.allowed(prescient, true)) {
           const s = state.clone();
           s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
           s.minor('Fail to find "Toon" card in Deck');

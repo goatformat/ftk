@@ -344,13 +344,23 @@ export class State {
     }
   }
 
-  // Compute all unique and relevant states that can be transitioned to from this state.
   // prescient determines whether or not the search should be allowed to "Fail to find" Thunder
   // Dragon and Toon Table of Contents searches when the top card is not known - no human player
   // would ever do this, but because the search is effectively allowed to 'peek' ahead to evaluate
   // the result of its action it can potentially leverage the searches to get a more favorable draw.
-  // In addition to removing symmetrical states, next() also eliminates the possibility for states
-  // with set Spell cards where it would not be advantageous to do so. This optimization means the
+  // Similarly, it removes the possibility of causing a shuffle after stacking the deck, which
+  // someone not trying to influence the unknowable RNG would never do.
+  // BUG: Technically this still allows for prescience by stacking the deck while the deck is
+  // reversed. To avoid this we would need to add additional data to flag whether a card is known
+  // from stacking vs. being reversed, but in practice this is not too problematic a loophole.
+  allowed(prescient: boolean, fail = false) {
+    if (prescient || this.reversed || !this.deck.length) return true;
+    return !fail && !ID.known(this.deck[this.deck.length - 1]);
+  }
+
+  // Compute all unique and relevant states that can be transitioned to from this state. In addition
+  // to removing symmetrical states, next() also eliminates the possibility for states with set
+  // Spell cards where it would not be advantageous to do so. This optimization means the
   // pedantically all unique states are not representable, but correctness-wise all states which
   // could lead to a solution are. See the comment on RELOAD in data.ts for more information.
   next(prescient = true) {
@@ -400,35 +410,35 @@ export class State {
         // TODO: allow for exploring Reversal Quiz in multi-turn
         continue;
       } else if (id === Ids.ThunderDragon && this.deck.length) {
-        const targets: number[] = [];
-        for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
-          if (ID.id(this.deck[j]) === Ids.ThunderDragon) targets.push(j);
-        }
-        if (targets.length === 2) {
-          const s = this.clone();
-          s.major(`Discard "${card.name}"`);
-          s.minor(`Add 2 "${card.name}" from Deck to hand`);
-          s.remove('hand', i);
-          s.add('graveyard', card.id);
-          // PRECONDITION: targets[0] < targets[1]
-          s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
-          s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
-          s.shuffle();
-          State.transition(next, s);
-        }
-        // NOTE: This also covers the case where there are 2 targets but we only retrieve 1
-        if (targets.length) {
-          const s = this.clone();
-          s.major(`Discard "${card.name}"`);
-          s.minor(`Add "${card.name}" from Deck to hand`);
-          s.remove('hand', i);
-          s.add('graveyard', card.id);
-          // Due to symmetry it doesn't matter which we choose
-          s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
-          s.shuffle();
-          State.transition(next, s);
-        } else {
-          if (prescient || this.reversed) {
+        if (this.allowed(prescient)) {
+          const targets: number[] = [];
+          for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
+            if (ID.id(this.deck[j]) === Ids.ThunderDragon) targets.push(j);
+          }
+          if (targets.length === 2) {
+            const s = this.clone();
+            s.major(`Discard "${card.name}"`);
+            s.minor(`Add 2 "${card.name}" from Deck to hand`);
+            s.remove('hand', i);
+            s.add('graveyard', card.id);
+            // PRECONDITION: targets[0] < targets[1]
+            s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
+            s.add('hand', ID.id(s.deck.splice(targets[1] - 1, 1)[0]));
+            s.shuffle();
+            State.transition(next, s);
+          }
+          // NOTE: This also covers the case where there are 2 targets but we only retrieve 1
+          if (targets.length) {
+            const s = this.clone();
+            s.major(`Discard "${card.name}"`);
+            s.minor(`Add "${card.name}" from Deck to hand`);
+            s.remove('hand', i);
+            s.add('graveyard', card.id);
+            // Due to symmetry it doesn't matter which we choose
+            s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
+            s.shuffle();
+            State.transition(next, s);
+          } else if (this.allowed(prescient, true)) {
             // Failure to find
             const s = this.clone();
             s.major(`Discard "${card.name}"`);
@@ -439,6 +449,7 @@ export class State {
             State.transition(next, s);
           }
         }
+
         // Thunder Dragon can also possibly be Tribute Summoned
         if (this.monsters.length && this.monsters.length < 5 && !this.summoned) {
           card.play(this, 'hand', i, next, card, prescient);
