@@ -49,7 +49,7 @@
     "extends": "@pkmn",
     "parserOptions": {
       "sourceType": "module"
-  },
+    },
     "rules": {
       "max-len": "off"
     },
