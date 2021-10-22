@@ -288,8 +288,14 @@ export class State {
   known(quiz = false) {
     if (!this.deck.length) return undefined;
     const top = this.deck[this.deck.length - 1];
-    if (!quiz && this.reversed) return top;
-    if (!this.reversed && ID.known(this.deck[this.deck.length - 1])) return top;
+    const bottom = this.deck[0];
+
+    if (this.reversed) {
+      if (!quiz) return top;
+      if (ID.known(bottom)) return bottom;
+    } else {
+      if (ID.known(top)) return top;
+    }
 
     const unknown = new Set<ID>();
     const types = new Set<Type>();
@@ -306,7 +312,7 @@ export class State {
       if (quiz && (unknown.size > 1 && types.size > 1)) return undefined;
     }
 
-    return (quiz && this.reversed) ? this.deck[0] : top;
+    return (quiz && this.reversed) ? bottom : top;
   }
 
   // Search for path from this state to the win condition. The cutoff should pretty much always be
@@ -725,6 +731,9 @@ export class State {
       const id = ID.id(this.deck.pop()!);
       ids.push(id);
       this.add('hand', id);
+    }
+    if (this.reversed && this.deck.length && !ID.known(this.deck[this.deck.length - 1])) {
+      this.deck[this.deck.length - 1] = `(${this.deck[this.deck.length - 1]})` as DeckID;
     }
     if (initial) {
       this.major(`Opening hand contains ${ID.names(ids.sort())}`);

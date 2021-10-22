@@ -64,12 +64,10 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
   const cards: {[name: string]: number} = {};
   let unknown = false;
   const known: {top: string[]; bottom: string[]} = {top: [], bottom: []};
-  let reversed = state.reversed;
   for (const id of state[pile].slice().reverse()) {
     const name = ID.decode(id).name;
-    if (pile === 'deck' && (reversed || ID.known(id))) {
+    if (pile === 'deck' && ID.known(id)) {
       known[unknown ? 'bottom' : 'top'].push(name);
-      reversed = false;
     } else {
       unknown = true;
       cards[name] = (cards[name] || 0) + 1;
@@ -85,15 +83,24 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
     li.appendChild(em);
     ul.appendChild(li);
   }
+
+  const inferred = Object.keys(cards).length === 1;
   for (const [name, count] of Object.entries(cards).sort((a, b) => a[0].localeCompare(b[0]))) {
     const li = createElement('li');
     if (pile === 'deck') {
-      li.textContent = `${count} × ${name} (${(count / total * 100).toFixed(2)}%)`;
+      if (inferred) {
+        const em = createElement('em');
+        em.textContent = `${count} × ${name}`;
+        li.appendChild(em);
+      } else {
+        li.textContent = `${count} × ${name} (${(count / total * 100).toFixed(2)}%)`;
+      }
     } else {
       li.textContent = `${count} × ${name}`;
     }
     ul.appendChild(li);
   }
+
   for (const card of known.bottom) {
     const li = createElement('li');
     const em = createElement('em');
