@@ -1,6 +1,6 @@
 import {Ids, ID, DeckID, FieldID} from './ids';
 import {State, IState} from './state';
-import * as WEIGHTS from './weights.json';
+import WEIGHTS from './weights.json';
 
 // Type/SubType/Attribute are pruned to just the values used by Library FTK
 // (also note that all monster cards in the deck are actually Effect Monsters)

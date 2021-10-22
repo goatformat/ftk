@@ -1,15 +1,17 @@
-#!/usr/bin/env node
-require('source-map-support').install();
+#!/usr/bin/env node --no-warnings --experimental-specifier-resolution=node
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install();
 
-const fs = require('fs');
-const path = require('path');
-const {execFileSync} = require('child_process');
+import * as fs from 'fs';
+import * as path from 'path';
+import {execFileSync} from 'child_process';
+import {fileURLToPath} from 'url';
 
-const ProgressBar = require('progress');
+import ProgressBar from 'progress';
 
-const {hhmmss} = require('./utils');
-const {benchmark} = require('./benchmark');
-const {solve} = require('./solve');
+import {hhmmss, benchmark, solve} from './utils';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 (async () => {
   const n = +process.argv[2] || 1000;
@@ -68,4 +70,4 @@ const {solve} = require('./solve');
   }
 
   process.exit(exit);
-})();
+})().catch(console.error);

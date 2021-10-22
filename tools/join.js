@@ -1,10 +1,14 @@
-#!/usr/bin/env node
-require('source-map-support').install();
+#!/usr/bin/env node --no-warnings --experimental-specifier-resolution=node
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install();
 
-const fs = require('fs');
-const path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
+import {fileURLToPath} from 'url';
 
-const {Random} = require('../build/src');
+import {Random} from '../build/src';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const parse = line => {
   const [result, d, hand, visited, p] = line.split(',');

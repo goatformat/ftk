@@ -1,6 +1,7 @@
 {
   "name": "@goatformat/ftk",
   "repository": "github:goatformat/ftk",
+  "type": "module",
   "license": "MIT",
   "devDependencies": {
     "@pkmn/eslint-config": "^1.9.0",
@@ -34,18 +35,21 @@
     "fix": "eslint --fix html src tools --ext ts,js",
     "prepare": "npm run compile",
     "start": "parcel serve",
-    "build": "parcel build --public-url=./",
+    "build": "parcel build --public-url=/ftk",
     "postbuild": "ncp html/favicon.ico dist && ncp html/img/icon dist",
     "prebenchmark": "npm run compile",
-    "benchmark": "node tools/benchmark",
+    "benchmark": "node --no-warnings --experimental-specifier-resolution=node tools/benchmark",
     "presolve": "npm run compile",
-    "solve": "node tools/solve",
+    "solve": "node --no-warnings --experimental-specifier-resolution=node tools/solve",
     "preconverge": "npm run compile",
-    "converge": "node tools/converge",
+    "converge": "node --no-warnings --experimental-specifier-resolution=node tools/converge",
     "test": "npm run compile && npm run lint"
   },
   "eslintConfig": {
     "extends": "@pkmn",
+    "parserOptions": {
+      "sourceType": "module"
+  },
     "rules": {
       "max-len": "off"
     },

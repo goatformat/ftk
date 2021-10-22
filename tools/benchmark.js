@@ -1,89 +1,61 @@
-#!/usr/bin/env node
-require('source-map-support').install();
+#!/usr/bin/env node --no-warnings --experimental-specifier-resolution=node
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install();
 
-const fs = require('fs');
-const path = require('path');
-const {execFileSync} = require('child_process');
+import * as fs from 'fs';
+import * as path from 'path';
+import {execFileSync} from 'child_process';
+import {fileURLToPath} from 'url';
 
-const workerpool = require('workerpool');
-const ProgressBar = require('progress');
+import ProgressBar from 'progress';
 
-const {Random} = require('../build/src');
-const {hhmmss, maxWorkers} = require('./utils');
+import {hhmmss, benchmark} from './utils';
 
-const TIMEOUT = 20 * 60 * 1000;
-const CUTOFF = 1e7;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function benchmark(n, width, prescient = true, fn) {
-  const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers: maxWorkers(CUTOFF)});
+const n = +process.argv[2] || 1000;
+const width = +process.argv[3] || undefined;
+const prescient = !process.argv[4];
 
-  const results = [];
-  for (let i = 0; i < n; i++) {
-    results.push(pool.exec('search', [Random.seed(i), CUTOFF, prescient, width]).timeout(TIMEOUT).then(result => {
-      if (fn) fn();
-      return [...result, i];
-    }).catch(err => {
-      if (fn) fn();
-      if (err instanceof workerpool.Promise.TimeoutError) {
-        return ['exhaust', TIMEOUT, undefined, undefined, undefined, i];
-      } else {
-        return ['crash', 0, undefined, undefined, undefined, i];
-      }
-    }));
+(async () => {
+  const csv = path.join(__dirname, 'logs', 'results.csv');
+  const old = path.join(__dirname, 'logs', 'results.old.csv');
+  try {
+    fs.copyFileSync(csv, old);
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
   }
 
-  const r = (await Promise.all(results)).map(([result, duration, hand, visited, p, seed]) =>
-    [result, duration, hand, visited, p?.length, seed]);
-  pool.terminate();
-  return r;
-}
+  const progress = new ProgressBar('[:bar] :current/:total (:percent) | :elapsed/:etas', {
+    total: n,
+    incomplete: ' ',
+  });
+  const interval = setInterval(() => progress.render(), 1000);
 
-if (require.main === module) {
-  const n = +process.argv[2] || 1000;
-  const width = +process.argv[3] || undefined;
-  const prescient = !process.argv[4];
+  const start = Date.now();
 
-  (async () => {
-    const csv = path.join(__dirname, 'logs', 'results.csv');
-    const old = path.join(__dirname, 'logs', 'results.old.csv');
-    try {
-      fs.copyFileSync(csv, old);
-    } catch (e) {
-      if (e.code !== 'ENOENT') throw e;
-    }
+  const results = await benchmark(n, width, prescient, () => progress.tick());
+  console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
 
-    const progress = new ProgressBar('[:bar] :current/:total (:percent) | :elapsed/:etas', {
-      total: n,
-      incomplete: ' ',
-    });
-    const interval = setInterval(() => progress.render(), 1000);
+  // Not really much point in turning this into a write stream as we're collecting all the results
+  // in memory first anyway to be able to order them correctly.
+  const out = results.map(result => result.join(','));
+  const exit = results.filter(r => r[0] === 'crash').length;
+  try {
+    fs.mkdirSync(path.join(__dirname, 'logs'));
+  } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+  }
+  fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
 
-    const start = Date.now();
-    const results = await benchmark(n, width, prescient, () => progress.tick());
-    console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
+  clearInterval(interval);
+  progress.terminate();
 
-    // Not really much point in turning this into a write stream as we're collecting all the results
-    // in memory first anyway to be able to order them correctly.
-    const out = results.map(result => result.join(','));
-    const exit = results.filter(r => r[0] === 'crash').length;
-    try {
-      fs.mkdirSync(path.join(__dirname, 'logs'));
-    } catch (e) {
-      if (e.code !== 'EEXIST') throw e;
-    }
-    fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
+  if (fs.existsSync(old)) {
+    execFileSync(path.join(__dirname, 'compare.js'), [old, csv], {stdio: 'inherit'});
+  } else {
+    execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
+  }
 
-    clearInterval(interval);
-    progress.terminate();
-
-    if (fs.existsSync(old)) {
-      execFileSync(path.join(__dirname, 'compare.js'), [old, csv], {stdio: 'inherit'});
-    } else {
-      execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
-    }
-
-    process.exit(exit);
-  })();
-}
-
-module.exports = {benchmark};
+  process.exit(exit);
+})().catch(console.error);

@@ -2,8 +2,8 @@ import {ARCHFIEND, DATA, Type, Location} from './data';
 import {Ids, ID, DeckID, FieldID} from './ids';
 import {Random} from './random';
 import {bestFirstSearch, bulbSearch, SearchResult} from './search';
-import * as deckJSON from './deck.json';
-import * as WEIGHTS from './weights.json';
+import deckJSON from './deck.json';
+import WEIGHTS from './weights.json';
 
 const DECK: {[name: string]: number} = deckJSON;
 

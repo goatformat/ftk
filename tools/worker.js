@@ -1,8 +1,9 @@
-require('source-map-support').install();
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install();
 
-const workerpool = require('workerpool');
+import * as workerpool from 'workerpool';
 
-const {State, Random} = require('../build/src');
+import {State, Random} from '../build/src';
 
 workerpool.worker({
   search: (seed, cutoff, prescient, width, trace) => {

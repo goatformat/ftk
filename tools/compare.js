@@ -1,9 +1,10 @@
-#!/usr/bin/env node
-require('source-map-support').install();
+#!/usr/bin/env node --no-warnings --experimental-specifier-resolution=node
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install();
 
-const fs = require('fs');
+import * as fs from 'fs';
 
-const trakr = require('trakr');
+import * as trakr from 'trakr';
 
 const stats = {
   before: {success: [], fail: [], exhaust: [], crash: []},
