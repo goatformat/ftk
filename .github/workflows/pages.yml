@@ -17,7 +17,11 @@ jobs:
          - name: Convert README
            uses: docker://pandoc/core:2.9
            with:
-              args: "pandoc -s README.md -o dist/index.html"
+              args: >-
+                --template=html/template.html
+                --metadata=title="Library FTK"
+                --outpu=dist/index.html
+                README.md
          - name: Deploy
            uses: JamesIves/github-pages-deploy-action@4.1.5
            with:

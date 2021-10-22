@@ -770,15 +770,6 @@ function onSearch(location: Location, id: FieldID, i: number) {
 
 update();
 
-const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
-pool.exec('search', [START.toString(), 42, 1e6, false, 0.5]).then(r => {
-  console.log('Path:', r);
-}).catch(e => {
-  console.error(e);
-}).then(() => {
-  pool.terminate();
-});
-
 const undo = () => {
   // if (STATE.index) {
   //   STATE.index--;
@@ -836,4 +827,14 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
   e.stopPropagation();
   return false;
+});
+
+/* eslint-disable @typescript-eslint/no-floating-promises */
+const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+pool.exec('search', [START.toString(), 42, 1e6, false, 0.5]).then(r => {
+  console.log('Path:', r);
+}).catch(e => {
+  console.error(e);
+}).then(() => {
+  pool.terminate();
 });

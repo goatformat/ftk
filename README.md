@@ -1,15 +1,7 @@
----
-pagetitle: Library FTK
-header-includes:
-    <link rel="apple-touch-icon" sizes="180x180" href="./img/icon/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="./img/icon/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="./img/icon/favicon-16x16.png">
----
-
 # Library FTK
 
 <p align="center">
-  <img alt="pkmn/ps" src="https://user-images.githubusercontent.com/117249/134454031-9836e216-8cb5-4648-a288-dde569e9fca3.png" />
+  <img alt="Library FTK Decklist" src="https://user-images.githubusercontent.com/117249/134454031-9836e216-8cb5-4648-a288-dde569e9fca3.png" />
 </p>
 
 ["Goat Format"](https://www.goatformat.com/whatisgoat.html) refers to a legacy [Yu-Gi-Oh!
@@ -25,6 +17,7 @@ community as they typically TODO
 The project exists to fully explore "Library FTK"
 
 TODO stats
+
 - theoretical win rates
   - comparing options
 - chance of going off on turn 1 (2, 3, etc)

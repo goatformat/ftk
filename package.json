@@ -7,15 +7,16 @@
     "@types/node": "^16.11.1",
     "@typescript-eslint/eslint-plugin": "^5.1.0",
     "@typescript-eslint/parser": "^5.1.0",
+    "eslint": "^8.0.1",
     "eslint-plugin-import": "^2.25.2",
     "eslint-plugin-jest": "^25.2.2",
-    "eslint": "^8.0.1",
     "typescript": "^4.4.4"
   },
   "optionalDependencies": {
     "@parcel/config-default": "^2.0.0",
     "@parcel/resolver-glob": "^2.0.0",
     "@types/workerpool": "^6.1.0",
+    "ncp": "^2.0.0",
     "parcel": "2.0.0",
     "progress": "^2.0.3",
     "source-map-support": "^0.5.20",
@@ -23,7 +24,10 @@
     "trakr": "^0.2.0",
     "workerpool": "^6.1.5"
   },
-  "source": ["html/trace/index.html", "html/sim/index.html"],
+  "source": [
+    "html/trace/index.html",
+    "html/sim/index.html"
+  ],
   "scripts": {
     "compile": "tsc -p .",
     "lint": "eslint --cache html src tools --ext ts,js",
@@ -31,6 +35,7 @@
     "prepare": "npm run compile",
     "start": "parcel serve",
     "build": "parcel build --public-url=./",
+    "postbuild": "ncp html/favicon.ico dist && ncp html/img/icon dist",
     "prebenchmark": "npm run compile",
     "benchmark": "node tools/benchmark",
     "presolve": "npm run compile",
@@ -46,10 +51,17 @@
     },
     "overrides": [
       {
-        "files": ["**/*.ts"],
+        "files": [
+          "**/*.ts"
+        ],
         "parser": "@typescript-eslint/parser",
         "rules": {
-          "@typescript-eslint/require-array-sort-compare": ["error", {"ignoreStringArrays": true}]
+          "@typescript-eslint/require-array-sort-compare": [
+            "error",
+            {
+              "ignoreStringArrays": true
+            }
+          ]
         }
       }
     ]
