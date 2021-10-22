@@ -102,6 +102,9 @@ tr:first-child {
   display: block;
   font-weight: normal;
 }
+.modal a {
+  text-decoration: none;
+}
 .win h1 {
   font-size: 9vh;
 }

@@ -1,7 +1,32 @@
 import {State, Random, ID, DeckID, DATA} from '../../src';
 import {createElement, track, renderState} from '../common';
 
-const render = (path: string[], trace: string[]) => {
+const render = (s: State, rendered: HTMLElement, banished: DeckID[] = [], graveyard: ID[] = []) => {
+  rendered.appendChild(renderState(s, banished, graveyard));
+
+  const wrapper = createElement('div', 'wrapper');
+  const details = createElement('details');
+  const summary = createElement('summary');
+
+  let code = createElement('code');
+  let pre = createElement('pre');
+  pre.textContent = s.toString();
+  code.appendChild(pre);
+  summary.appendChild(code);
+  details.appendChild(summary);
+
+  code = createElement('code');
+  pre = createElement('pre');
+  pre.textContent = s.next().map(({key, score}) => `${key} = ${score.toFixed(2)}`).join('\n');
+  code.appendChild(pre);
+  details.appendChild(code);
+  wrapper.appendChild(details);
+  rendered.appendChild(wrapper);
+
+  return rendered;
+};
+
+const win = (path: string[], trace: string[]) => {
   const banished: DeckID[] = [];
   const graveyard: ID[] = [];
 
@@ -31,28 +56,7 @@ const render = (path: string[], trace: string[]) => {
         track(s.graveyard, graveyard, activated);
 
         const rendered = createElement('div', 'state');
-        rendered.appendChild(renderState(s, banished, graveyard));
-
-        const wrapper = createElement('div', 'wrapper');
-        const details = createElement('details');
-        const summary = createElement('summary');
-
-        let code = createElement('code');
-        let pre = createElement('pre');
-        pre.textContent = path[major - 1];
-        code.appendChild(pre);
-        summary.appendChild(code);
-        details.appendChild(summary);
-
-        code = createElement('code');
-        pre = createElement('pre');
-        pre.textContent = s.next().map(({key, score}) => `${key} = ${score.toFixed(2)}`).join('\n');
-        code.appendChild(pre);
-        details.appendChild(code);
-        wrapper.appendChild(details);
-        rendered.appendChild(wrapper);
-
-        root.appendChild(rendered);
+        root.appendChild(render(s, rendered, banished, graveyard));
       }
       last = line;
       major++;
@@ -71,18 +75,36 @@ const render = (path: string[], trace: string[]) => {
   return root;
 };
 
+const lose = (s: State) => {
+  const rendered = createElement('div', 'state');
+
+  const div = createElement('div', 'trace');
+  const span = createElement('span');
+  span.innerHTML = s.trace![0].replace(/"(.*?)"/g, (_, g: string) => `"<b>${g}</b>"`);
+  div.appendChild(span);
+  rendered.appendChild(div);
+  return render(s, rendered);
+};
+
 const num = (window.location.hash && +window.location.hash.slice(1)) ||
   (window.location.search && +window.location.search.slice(1)) ||
   ~~(Math.random() * (2 ** 31 - 1));
 const state = State.create(new Random(Random.seed(num)), true);
 const result = state.search({cutoff: 1e7, prescient: false, width: 0.5});
+
+const content = document.getElementById('content')!;
+while (content.firstChild) content.removeChild(content.firstChild);
+
 if (!('path' in result)) {
-  console.error(`Unsuccessfully searched ${result.visited} states`);
+  const div = createElement('div');
+  div.textContent = `Unsuccessfully searched ${result.visited} states.`;
+  content.appendChild(div);
+  content.appendChild(createElement('br'));
+  content.appendChild(lose(state));
 } else {
-  const content = document.getElementById('content')!;
   const div = createElement('div');
   div.textContent = `Found a path of length ${result.path.length} after searching ${result.visited} states:`;
   content.appendChild(div);
   content.appendChild(createElement('br'));
-  content.appendChild(render(result.path, result.trace!));
+  content.appendChild(win(result.path, result.trace!));
 }

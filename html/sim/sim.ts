@@ -58,9 +58,12 @@ function update(mutate = true) {
 
   if (action.type === 'win' || !s.clone().next().length) {
     const modal = createElement('div', 'modal', 'end', action.type === 'win' ? 'win' : 'lose');
+    const a = createElement('a');
+    a.href = `../trace?${NUM}`;
     const end = createElement('h1');
     end.textContent = `You ${action.type === 'win' ? 'Win' : 'Lose'}`;
-    modal.appendChild(end);
+    a.appendChild(end);
+    modal.appendChild(a);
     wrapper.appendChild(modal);
     const overlay = createElement('div', 'modal-overlay');
     wrapper.appendChild(overlay);
