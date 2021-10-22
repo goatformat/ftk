@@ -1,3 +1,11 @@
+---
+pagetitle: Library FTK
+header-includes:
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/icon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/icon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./img/icon/favicon-16x16.png">
+---
+
 # Library FTK
 
 <p align="center">

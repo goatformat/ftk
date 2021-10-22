@@ -1,8 +1,9 @@
+import * as workerpool from 'workerpool';
+
 import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
-import {createElement, renderState, track, makeCard, CMP} from './common';
+import {createElement, renderState, track, makeCard, CMP} from '../common';
 
 import './swipe';
-import './ui.css';
 
 type Action = {
   type: 'play' | 'win' | 'lose';
@@ -769,15 +770,14 @@ function onSearch(location: Location, id: FieldID, i: number) {
 
 update();
 
-// @ts-ignore
-// const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
-// pool.exec('search', [STATE.toString(), RANDOM.seed, 1e6, 0.5]).then(r => {
-//   console.log(r);
-// }).catch(e => {
-//   console.error(e);
-// }).then(() => {
-//   pool.terminate();
-// });
+const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+pool.exec('search', [START.toString(), 42, 1e6, false, 0.5]).then(r => {
+  console.log('Path:', r);
+}).catch(e => {
+  console.error(e);
+}).then(() => {
+  pool.terminate();
+});
 
 const undo = () => {
   // if (STATE.index) {

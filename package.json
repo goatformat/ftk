@@ -23,13 +23,14 @@
     "trakr": "^0.2.0",
     "workerpool": "^6.1.5"
   },
+  "source": ["html/trace/index.html", "html/sim/index.html"],
   "scripts": {
     "compile": "tsc -p .",
     "lint": "eslint --cache html src tools --ext ts,js",
     "fix": "eslint --fix html src tools --ext ts,js",
     "prepare": "npm run compile",
-    "start": "parcel html/index.html",
-    "build": "parcel build --public-url=./ html/index.html",
+    "start": "parcel serve",
+    "build": "parcel build --public-url=./",
     "prebenchmark": "npm run compile",
     "benchmark": "node tools/benchmark",
     "presolve": "npm run compile",
