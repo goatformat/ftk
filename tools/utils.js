@@ -1,5 +1,7 @@
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import {execFileSync} from 'child_process';
 import {fileURLToPath} from 'url';
 
 import * as workerpool from 'workerpool';
@@ -116,5 +118,18 @@ export async function solve(seeds, options = {verbose: false, prescient: true}) 
       ? [result, duration, hand, visited, p?.length, seed]
       : ['exhaust', 0, undefined, undefined, undefined, seed]
     ));
+}
+
+export function compare(csv, old) {
+  const CMP = [
+    '--no-warnings',
+    '--experimental-specifier-resolution=node',
+    path.join(__dirname, 'compare.js'),
+  ];
+  if (fs.existsSync(old)) {
+    execFileSync('node', [...CMP, old, csv], {stdio: 'inherit'});
+  } else {
+    execFileSync('node', [...CMP, csv], {stdio: 'inherit'});
+  }
 }
 

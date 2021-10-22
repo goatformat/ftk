@@ -4,12 +4,11 @@ sourceMapSupport.install();
 
 import * as fs from 'fs';
 import * as path from 'path';
-import {execFileSync} from 'child_process';
 import {fileURLToPath} from 'url';
 
 import ProgressBar from 'progress';
 
-import {hhmmss, benchmark, solve} from './utils';
+import {hhmmss, benchmark, solve, compare} from './utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,10 +47,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
   clearInterval(interval);
   progress.terminate();
 
-  console.log(`Completed ${complete.length}/${n} searches in ${hhmmss(Date.now() - start)}, attempting to solve ${incomplete.length}/${n} remaining searches\n`);
+  if (incomplete.length) {
+    console.log(`Completed ${complete.length}/${n} searches in ${hhmmss(Date.now() - start)}, attempting to solve ${incomplete.length}/${n} remaining searches\n`);
 
-  for (const r of await solve(incomplete, {verbose: 1, prescient})) {
-    complete.push(r);
+    for (const r of await solve(incomplete, {verbose: 1, prescient})) {
+      complete.push(r);
+    }
   }
 
   console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
@@ -63,11 +64,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
   }
   fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
 
-  if (fs.existsSync(old)) {
-    execFileSync(path.join(__dirname, 'compare.js'), [old, csv], {stdio: 'inherit'});
-  } else {
-    execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
-  }
+  compare(csv, old);
 
   process.exit(exit);
 })().catch(console.error);

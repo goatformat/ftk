@@ -4,12 +4,11 @@ sourceMapSupport.install();
 
 import * as fs from 'fs';
 import * as path from 'path';
-import {execFileSync} from 'child_process';
 import {fileURLToPath} from 'url';
 
 import ProgressBar from 'progress';
 
-import {hhmmss, benchmark} from './utils';
+import {hhmmss, benchmark, compare} from './utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,8 +32,11 @@ const prescient = !process.argv[4];
   const interval = setInterval(() => progress.render(), 1000);
 
   const start = Date.now();
-
   const results = await benchmark(n, width, prescient, () => progress.tick());
+
+  clearInterval(interval);
+  progress.terminate();
+
   console.log(`Finished all ${n} searches in ${hhmmss(Date.now() - start)}`);
 
   // Not really much point in turning this into a write stream as we're collecting all the results
@@ -48,14 +50,7 @@ const prescient = !process.argv[4];
   }
   fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
 
-  clearInterval(interval);
-  progress.terminate();
-
-  if (fs.existsSync(old)) {
-    execFileSync(path.join(__dirname, 'compare.js'), [old, csv], {stdio: 'inherit'});
-  } else {
-    execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
-  }
+  compare(csv, old);
 
   process.exit(exit);
 })().catch(console.error);

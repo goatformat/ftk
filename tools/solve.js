@@ -4,10 +4,9 @@ sourceMapSupport.install();
 
 import * as fs from 'fs';
 import * as path from 'path';
-import {execFileSync} from 'child_process';
 import {fileURLToPath} from 'url';
 
-import {hhmmss, solve} from './utils';
+import {hhmmss, solve, compare} from './utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +49,7 @@ const VERBOSE = isNaN(+process.env.VERBOSE) ? +!!process.env.VERBOSE : +process.
       if (e.code !== 'EEXIST') throw e;
     }
     fs.writeFileSync(csv, `result,duration,hand,visited,path,seed\n${out.join('\n')}`);
-    execFileSync(path.join(__dirname, 'compare.js'), [csv], {stdio: 'inherit'});
+
+    compare(csv);
   }
 })().catch(console.error);
