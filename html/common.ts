@@ -78,9 +78,7 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
   const ul = createElement('ul');
   for (const card of known.top) {
     const li = createElement('li');
-    const em = createElement('em');
-    em.textContent = card;
-    li.appendChild(em);
+    li.textContent = card;
     ul.appendChild(li);
   }
 
@@ -90,14 +88,14 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
       if (inferred) {
         for (let i = 0; i < count; i++) {
           const li = createElement('li');
-          const em = createElement('em');
-          em.textContent = name;
-          li.appendChild(em);
+          li.textContent = name;
           ul.appendChild(li);
         }
       } else {
         const li = createElement('li');
-        li.textContent = `${count} × ${name} (${(count / total * 100).toFixed(2)}%)`;
+        const em = createElement('em');
+        em.textContent = `${count} × ${name} (${(count / total * 100).toFixed(2)}%)`;
+        li.appendChild(em);
         ul.appendChild(li);
       }
     } else {
@@ -109,9 +107,7 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
 
   for (const card of known.bottom) {
     const li = createElement('li');
-    const em = createElement('em');
-    em.textContent = card;
-    li.appendChild(em);
+    li.textContent = card;
     ul.appendChild(li);
   }
 

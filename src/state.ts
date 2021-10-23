@@ -276,7 +276,9 @@ export class State {
       this.reversed = true;
       if (this.deck.length) {
         this.deck.reverse();
-        this.minor(`Turn Deck face-up ("${ID.decode(this.deck[this.deck.length - 1]).name}" now on top)`);
+        const top = this.deck.length - 1;
+        if (!ID.known(this.deck[top])) this.deck[top] = `(${this.deck[top]})` as DeckID;
+        this.minor(`Turn Deck face-up ("${ID.decode(this.deck[top]).name}" now on top)`);
       }
     }
   }
