@@ -86,19 +86,25 @@ export const pileTooltip = (state: State, pile: 'banished' | 'graveyard' | 'deck
 
   const inferred = Object.keys(cards).length === 1;
   for (const [name, count] of Object.entries(cards).sort((a, b) => a[0].localeCompare(b[0]))) {
-    const li = createElement('li');
     if (pile === 'deck') {
       if (inferred) {
-        const em = createElement('em');
-        em.textContent = `${count} × ${name}`;
-        li.appendChild(em);
+        for (let i = 0; i < count; i++) {
+          const li = createElement('li');
+          const em = createElement('em');
+          em.textContent = name;
+          li.appendChild(em);
+          ul.appendChild(li);
+        }
       } else {
+        const li = createElement('li');
         li.textContent = `${count} × ${name} (${(count / total * 100).toFixed(2)}%)`;
+        ul.appendChild(li);
       }
     } else {
+      const li = createElement('li');
       li.textContent = `${count} × ${name}`;
+      ul.appendChild(li);
     }
-    ul.appendChild(li);
   }
 
   for (const card of known.bottom) {
