@@ -36,7 +36,7 @@ tr {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-.wrapper::-webkit-scrollbar{
+.wrapper::-webkit-scrollbar {
   display: none;
 }
 .text {

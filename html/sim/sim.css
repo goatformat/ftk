@@ -16,6 +16,7 @@
 }
 .wrapper {
   position: relative;
+  overflow: visible;
 }
 .stats {
   top: 79%;
