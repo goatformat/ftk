@@ -105,8 +105,9 @@ function update(mutate = true) {
 
 function transform(location: Location, id: FieldID, i: number, isSearch = false) {
   const {state, action} = STATE.stack[STATE.index];
+  const pile = (['banished', 'graveyard', 'deck'].includes(location));
   if (action.type === 'play') {
-    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
+    if (pile) return undefined;
     const card = ID.decode(id);
     if (card.id === Ids.ReversalQuiz && !CAN_QUIZ(state)) return 'disabled';
     const can = card.type === 'Monster'
@@ -122,8 +123,7 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
     return can ? undefined : 'disabled';
   } else if (action.type === 'target' || action.type === 'search') {
     if (location === action.origin.location && i === action.origin.i) return 'selected';
-    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
-    if (!action.filter(location, id)) return 'disabled';
+    if (!action.filter(location, id)) return pile ? undefined : 'disabled';
     if (action.targets.find(([loc, j]) => loc === location && j === i)) {
       if (!isSearch && action.type === 'search' && location === action.options[0][0]) {
         return undefined;
