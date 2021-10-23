@@ -16,7 +16,7 @@ type Action = {
 
 interface ActionState {
   origin: {location: Location; i: number};
-  filter: (location: Location, id: FieldID) => boolean;
+  filter: (location: Location, id: DeckID | FieldID) => boolean;
   fn: (location: Location, ...j: number[]) => void;
   num: number;
   targets: [Location, number][];
@@ -101,6 +101,38 @@ function update(mutate = true) {
     $content.appendChild(trace);
     trace.scrollTop = trace.scrollHeight;
   }
+}
+
+function transform(location: Location, id: FieldID, i: number, isSearch = false) {
+  const {state, action} = STATE.stack[STATE.index];
+  if (action.type === 'play') {
+    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
+    const card = ID.decode(id);
+    if (card.id === Ids.ReversalQuiz && !CAN_QUIZ(state)) return 'disabled';
+    const can = card.type === 'Monster'
+      ? (location === 'hand'
+        ? ((!state.summoned && state.monsters.length < 5) ||
+          (card.id === Ids.ThunderDragon && state.deck.length))
+        : (ID.data(id) === 3 && state.deck.length))
+      : (location === 'hand'
+        ? state.spells.length < 5 && card.can(state, location)
+        : ID.facedown(id)
+          ? card.can(state, location as 'spells')
+          : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length));
+    return can ? undefined : 'disabled';
+  } else if (action.type === 'target' || action.type === 'search') {
+    if (location === action.origin.location && i === action.origin.i) return 'selected';
+    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
+    if (!action.filter(location, id)) return 'disabled';
+    if (action.targets.find(([loc, j]) => loc === location && j === i)) {
+      if (!isSearch && action.type === 'search' && location === action.options[0][0]) {
+        return undefined;
+      }
+      return 'option';
+    }
+    return undefined;
+  }
+  return undefined;
 }
 
 function renderTrace(s: State, banished: DeckID[], graveyard: ID[], mutate = true) {
@@ -190,7 +222,7 @@ function ARCHFIEND(s: State, location: 'hand' | 'spells', i: number, card: Card)
   update();
 }
 
-function SANGAN_TARGET(location: Location, id: FieldID) {
+function SANGAN_TARGET(location: Location, id: DeckID | FieldID) {
   const card = ID.decode(id);
   return location === 'deck' && card.type === 'Monster' && card.atk <= 1500;
 }
@@ -622,7 +654,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
 
 function target(
   origin: {location: Location; i: number},
-  filter: (location: Location, id: FieldID) => boolean,
+  filter: (location: Location, id: DeckID | FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
   num = 1
 ) {
@@ -690,53 +722,22 @@ function onTarget(location: Location, id: FieldID, i: number) {
   }
 }
 
-function transform(location: Location, id: FieldID, i: number, isSearch = false) {
-  const {state, action} = STATE.stack[STATE.index];
-  if (action.type === 'play') {
-    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
-    const card = ID.decode(id);
-    if (card.id === Ids.ReversalQuiz && !CAN_QUIZ(state)) return 'disabled';
-    const can = card.type === 'Monster'
-      ? (location === 'hand'
-        ? ((!state.summoned && state.monsters.length < 5) ||
-          (card.id === Ids.ThunderDragon && state.deck.length))
-        : (ID.data(id) === 3 && state.deck.length))
-      : (location === 'hand'
-        ? state.spells.length < 5 && card.can(state, location)
-        : ID.facedown(id)
-          ? card.can(state, location as 'spells')
-          : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length));
-    return can ? undefined : 'disabled';
-  } else if (action.type === 'target' || action.type === 'search') {
-    if (location === action.origin.location && i === action.origin.i) return 'selected';
-    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
-    if (!action.filter(location, id)) return 'disabled';
-    if (action.targets.find(([loc, j]) => loc === location && j === i)) {
-      if (!isSearch && action.type === 'search' && location === action.options[0][0]) {
-        return undefined;
-      }
-      return 'option';
-    }
-    return undefined;
-  }
-  return undefined;
-}
-
 function search(
   origin: {location: Location; i: number},
-  filter: (location: Location, id: FieldID) => boolean,
+  filter: (location: Location, id: DeckID | FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
   num = 1
 ) {
   const state = STATE.stack[STATE.index].state;
 
   const targets: ['graveyard' | 'deck', number][] = [];
-  const ids = new Set<FieldID>();
+  const ids = new Set<ID>();
   for (const location of ['graveyard', 'deck'] as const) {
-    for (const [i, id] of state[location].entries()) {
-      if (location === origin.location && i === origin.i || ids.has(id as FieldID)) continue;
-      if (filter(location, id as FieldID)) {
-        if (num === 1) ids.add(id as FieldID);
+    for (const [i, did] of state[location].entries()) {
+      const id = ID.id(did);
+      if (location === origin.location && i === origin.i || ids.has(id)) continue;
+      if (filter(location, id)) {
+        if (num === 1) ids.add(id);
         targets.push([location, i]);
       }
     }
