@@ -56,7 +56,7 @@ function update(mutate = true) {
   const wrapper = createElement('div', 'wrapper');
   wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true, NUM));
 
-  if (action.type === 'win' || !s.clone().next().length) {
+  if (action.type === 'win' || (action.type === 'play' && !s.clone().next().length)) {
     const modal = createElement('div', 'modal', 'end', action.type === 'win' ? 'win' : 'lose');
     const a = createElement('a');
     a.href = `../trace?${NUM}`;
