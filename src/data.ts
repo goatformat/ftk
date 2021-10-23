@@ -4,7 +4,7 @@ import WEIGHTS from './weights.json';
 
 // Type/SubType/Attribute are pruned to just the values used by Library FTK
 // (also note that all monster cards in the deck are actually Effect Monsters)
-export type Type = 'Monster' | 'Spell';
+export type Type = 'Monster' | 'Spell' | 'Trap';
 export type SubType = 'Continuous' | 'Equip' | 'Normal' | 'Quick-Play';
 export type Attribute = 'Dark' | 'Light';
 
@@ -39,7 +39,7 @@ export type Data = {
     prescient: boolean,
   ): void;
 } & ({
-  type: 'Spell';
+  type: 'Spell' | 'Trap';
   subType: SubType;
   can(state: Readonly<State>, location: 'hand' | 'spells' | 'monsters'): boolean;
 } | {
@@ -189,11 +189,11 @@ const RELOAD: (fn: (s: State, check?: boolean) => void, check?: boolean) => Data
     d.add('graveyard', card.id);
 
     // We can only set at most max cards before reloading, dependent on open zones and hand size
-    const hand = d.hand.filter(id => ID.decode(id).type === 'Spell');
+    const hand = d.hand.filter(id => ID.decode(id).type !== 'Monster');
     const h = (location === 'hand' ? 1 : 0);
     const max = Math.min(5 - state.spells.length - h, hand.length, d.hand.length - 1);
     for (let n = 1; n <= max; n++) {
-      for (const set of isubsets(d.hand, n, id => ID.decode(id).type === 'Spell')) {
+      for (const set of isubsets(d.hand, n, id => ID.decode(id).type !== 'Monster')) {
         const s = d.clone();
         const ids = [];
         for (const [offset, j] of set.entries()) {
@@ -554,13 +554,35 @@ export const DATA: { [name: string]: Data } = {
 
       const reveal = s.deck[s.deck.length - 1];
       if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
-      s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
+      // BUG: we are deliberately peeking here to ensure we call it wrong!
+      const card = ID.decode(reveal);
+      s.minor(`Call "${card.type === 'Trap' ? 'Monster' : 'Trap'}", reveal "${card.name}"`);
 
       if (sangan) {
         SANGAN(s, next, prescient);
       } else {
         State.transition(next, s);
       }
+    },
+  },
+  'Royal Decree': {
+    id: Ids.RoyalDecree,
+    type: 'Trap',
+    subType: 'Continuous',
+    text: 'Negate all other Trap effects on the field.',
+    // TODO: handle flipping Royal Decree in multi-turn scenarios
+    can: (_, loc) => loc === 'hand',
+    play(state, location, i, next, card) {
+      const s = state.clone();
+      s.remove(location, i);
+      if (location === 'hand') {
+        s.major(`Set "${card.name}" face-down`);
+        s.add('spells', `(${card.id})` as FieldID);
+      } // else {
+      //   s.major(`Activate face-down' "${card.name}"`);
+      //   s.add('spells', card.id);
+      // }
+      State.transition(next, s);
     },
   },
   'Royal Magical Library': {

@@ -48,16 +48,17 @@ export const ID = new class {
 // TODO: consider using the numeric values here as they would then get treated as Smis?
 export const Ids = {
   LevelLimitAreaB: 'A' as ID,
-  BlackPendant: 'B' as ID,
+  BlackPendant: 'B' as ID, // 0 1 2 3 4 5
   CardDestruction: 'C' as ID,
-  DifferentDimensionCapsule: 'D' as ID,
+  DifferentDimensionCapsule: 'D' as ID, // * +
+  RoyalDecree: 'E' as ID,
   AFeatherOfThePhoenix: 'F' as ID,
   GracefulCharity: 'G' as ID,
   HeavyStorm: 'H' as ID,
   CyberJar: 'J' as ID,
-  PrematureBurial: 'K' as ID,
-  RoyalMagicalLibrary: 'L' as ID,
-  ArchfiendsOath: 'O' as ID,
+  PrematureBurial: 'K' as ID, // 5 6 7 8 9
+  RoyalMagicalLibrary: 'L' as ID, // < = >
+  ArchfiendsOath: 'O' as ID, // @
   PotOfGreed: 'P' as ID,
   ReversalQuiz: 'Q' as ID,
   Reload: 'R' as ID,

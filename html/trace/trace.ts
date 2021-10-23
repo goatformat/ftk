@@ -48,10 +48,11 @@ const win = (path: string[], trace: string[]) => {
 
       if (path[major - 1]) {
         const s = State.fromString(path[major - 1]);
-        const activated =
-          last.startsWith('Activate') ? DATA[/"(.*?)"/.exec(last)![1]].id
-          : last.startsWith('Set') ? DATA[/then activate(?: face-down)? "(.*?)"/.exec(last)![1]].id
-          : undefined;
+        const activated = last.startsWith('Activate')
+          ? DATA[/"(.*?)"/.exec(last)![1]].id
+          : (last.startsWith('Set') && !last.endsWith('face-down'))
+            ? DATA[/then activate(?: face-down)? "(.*?)"/.exec(last)![1]].id
+            : undefined;
         track(s.banished, banished, activated);
         track(s.graveyard, graveyard, activated);
 

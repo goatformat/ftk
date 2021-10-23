@@ -74,7 +74,7 @@ TODO stats
   - should be able to judge next state after trunade was played to tell how positive
 - [**Graceful Charity**](https://yugioh.fandom.com/wiki/Graceful_Charity) (`G`):
   - can use to get more cards and get rid of bad cards = ie. graceful - 2 TD = "+3"
-- [**Level Limit - Area B**](https://yugioh.fandom.com/wiki/Level_Limit_-_Area_B): Level Limit -
+- [**Level Limit - Area B**](https://yugioh.fandom.com/wiki/Level_Limit_-_Area_B)(`A`): Level Limit -
   Area B is one of the least valuable Spell cards, serving simply as a reusable way to increment
   Spell Counters on any face-up Royal Magical Library cards, however, in the event the deck is not
   able to win on the first turn Level Limit - Area B exists as the sole source of protection for
@@ -149,6 +149,7 @@ TODO stats
   Storm is one of the cards most likely to be sided in for Games 1 and 2, as seeing it in the early
   game can allow you to wipe out an opponent's opportunities for interruption (eg. in the form of
   Solem Judgement) that might otherwise disrupt your game plan.
+- [**Royal Decree**](https://yugioh.fandom.com/wiki/Royal_Decree) (`E`): TODO
 
 ## Heuristics
 

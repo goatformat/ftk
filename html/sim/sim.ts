@@ -35,7 +35,7 @@ const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
 console.log('Seed:', NUM);
 
 const START = State.create(new Random(Random.seed(NUM)), true);
-START.madd('S' as FieldID);
+
 const STATE = {
   stack: [{
     state: START,
@@ -139,9 +139,11 @@ function renderTrace(s: State, banished: DeckID[], graveyard: ID[], mutate = tru
   trace.appendChild(p);
 
   if (last && mutate) {
-    const activated = (last.startsWith('Activate') ? DATA[/"(.*?)"/.exec(last)![1]].id
-      : last.startsWith('Set') ? DATA[/then activate(?: face-down)? "(.*?)"/.exec(last)![1]].id
-      : undefined);
+    const activated = last.startsWith('Activate')
+      ? DATA[/"(.*?)"/.exec(last)![1]].id
+      : (last.startsWith('Set') && !last.endsWith('face-down'))
+        ? DATA[/then activate(?: face-down)? "(.*?)"/.exec(last)![1]].id
+        : undefined;
     track(s.banished, banished, activated);
     track(s.graveyard, graveyard, activated);
   }
@@ -198,15 +200,15 @@ function RELOAD(fn: (s: State) => void) {
     const spells = s.spells.length;
     let max: number;
     if (location === 'hand') {
-      const hand = s.hand.filter((id, j) => i !== j && ID.decode(id).type === 'Spell');
+      const hand = s.hand.filter((id, j) => i !== j && ID.decode(id).type !== 'Monster');
       max = Math.min(5 - spells - 1, hand.length, s.hand.length - 2);
     } else {
-      const hand = s.hand.filter(id => ID.decode(id).type === 'Spell');
+      const hand = s.hand.filter(id => ID.decode(id).type !== 'Monster');
       max = Math.min(5 - spells, hand.length, s.hand.length - 1);
     }
 
     const before = s.hand.slice();
-    target({location, i}, (loc, id) => loc === 'hand' && ID.decode(id).type === 'Spell', (_, ...set) => {
+    target({location, i}, (loc, id) => loc === 'hand' && ID.decode(id).type !== 'Monster', (_, ...set) => {
       // NOTE: if location === 'hand' we need to adjust the offsets of any cards we set!
       s.remove(location, i);
       s.add('graveyard', card.id);
@@ -441,7 +443,9 @@ const SPELLS: { [name: string]: any } = {
 
     const reveal = s.deck[s.deck.length - 1];
     if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
-    s.minor(`Call "Trap", reveal "${ID.decode(reveal).name}"`);
+    // BUG: we are deliberately peeking here to ensure we call it wrong!
+    const card = ID.decode(reveal);
+    s.minor(`Call "${card.type === 'Trap' ? 'Monster' : 'Trap'}", reveal "${card.name}"`);
     if (!sangan) return update();
 
     search({location, i}, SANGAN_TARGET, (_, j) => {
@@ -455,6 +459,18 @@ const SPELLS: { [name: string]: any } = {
       s.shuffle();
       update();
     });
+  },
+  // TODO: handle flipping Royal Decree in multi-turn scenarios
+  'Royal Decree': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
+    s.remove(location, i);
+    if (location === 'hand') {
+      s.major(`Set "${card.name}" face-down`);
+      s.add('spells', `(${card.id})` as FieldID);
+    } // else {
+    //   s.major(`Activate face-down' "${card.name}"`);
+    //   s.add('spells', card.id);
+    // }
+    update();
   },
   'Spell Reproduction': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     target({location, i}, (loc, id) => loc === 'hand' && ID.decode(id).type === 'Spell', (_, j, k) => {
@@ -525,7 +541,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
     return;
   }
   case 'spells': {
-    if (card.type !== 'Spell' || !card.can(state, location)) return;
+    if (card.type === 'Monster' || !card.can(state, location)) return;
     if (card.id === Ids.ReversalQuiz) {
       QUIZ(state, location);
     } else if (ID.facedown(id)) {
@@ -680,16 +696,16 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
     if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
     const card = ID.decode(id);
     if (card.id === Ids.ReversalQuiz && !CAN_QUIZ(state)) return 'disabled';
-    const can = card.type === 'Spell'
+    const can = card.type === 'Monster'
       ? (location === 'hand'
+        ? ((!state.summoned && state.monsters.length < 5) ||
+          (card.id === Ids.ThunderDragon && state.deck.length))
+        : (ID.data(id) === 3 && state.deck.length))
+      : (location === 'hand'
         ? state.spells.length < 5 && card.can(state, location)
         : ID.facedown(id)
           ? card.can(state, location as 'spells')
-          : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length))
-      : (location === 'hand'
-        ? ((!state.summoned && state.monsters.length < 5) ||
-          (card.id === Ids.ThunderDragon && state.deck.length))
-        : (ID.data(id) === 3 && state.deck.length));
+          : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length));
     return can ? undefined : 'disabled';
   } else if (action.type === 'target' || action.type === 'search') {
     if (location === action.origin.location && i === action.origin.i) return 'selected';

@@ -465,7 +465,7 @@ export class State {
         //   set.remove('hand', i);
         //   next.set(set.toString(), set);
         // }
-      } else if (card.type === 'Spell' && this.spells.length < 5) {
+      } else if (card.type !== 'Monster' && this.spells.length < 5) {
         card.play(this, 'hand', i, next, card, prescient);
       }
     }
@@ -539,7 +539,7 @@ export class State {
     const open = this.spells.length < 5;
     for (const id of this.hand) {
       const card = ID.decode(id);
-      if (card.type === 'Spell' && !open) continue;
+      if (card.type !== 'Monster' && !open) continue;
       if (card.type === 'Monster' && this.summoned) continue;
       score += card.score(this, 'hand', id);
       if (card.type === 'Spell') score += library;
@@ -913,10 +913,9 @@ export class State {
         const card = ID.decode(id);
         const facedown = ID.facedown(id);
         const data = ID.data(id);
-        if (card.type !== 'Spell' || (facedown && data) ||
+        if (card.type === 'Monster' || (facedown && data) ||
           (card.id === Ids.ArchfiendsOath && data > 1) ||
-          (!facedown && card.type === 'Spell' &&
-            (!(['Continuous', 'Equip'].includes(card.subType) ||
+          (!facedown && (!(['Continuous', 'Equip'].includes(card.subType) ||
               card.id === Ids.DifferentDimensionCapsule)))) {
           errors.push(`Spells: ${pretty(s.spells)}`);
           break;
