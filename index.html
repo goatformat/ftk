@@ -8,16 +8,36 @@
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
   <title>Library FTK - Simulator</title>
   <style>
+    :root {
+      --bg-color: #FFF;
+      --fg-color: #000;
+      --link-color: #00E;
+      --link-active-color: #F00;
+      --link-visited-color: #551A8B;
+    }
+    [data-theme="dark"] {
+      --bg-color: #000;
+      --fg-color: #DDD;
+      --link-color: #9E9EFF;
+      --link-active-color: #FF9E9E;
+      --link-visited-color: #D0ADF0;
+    }
     body {
       font-family: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
       margin: 4em auto;
       max-width: 690px;
       line-height: 1.4em;
+      overflow-x: hidden;
+      background-color: var(--bg-color);
+      color: var(--fg-color);
     }
     var, code {
       font-family: "Roboto Mono", "Monaco", monospace;
       font-style: normal;
     }
+    a { color: var(--link-color); }
+    a:active { color: var(--link-active-color); }
+    a:visited { color: var(--link-visited-color); }
     h1 {
       margin-bottom: 0.8em;
       text-align: center;
@@ -179,5 +199,20 @@
 <li>ui generates only legal games, lets you play out (or reset/undo)</li>
 <li>click and play available options, auto tracks counters and convulsion etc = fully automated simulator for very confined space</li>
 </ul>
+<script>
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  function listener(e) {
+    setTheme(e.matches ? 'dark' : 'light');
+  }
+  var pref = window.matchMedia('(prefers-color-scheme: dark)');
+  try {
+    pref.addEventListener('change', listener);
+  } catch (err) {
+    pref.addListener(listener);
+  }
+  setTheme(pref.matches ? 'dark' : 'light');
+</script>
 </body>
 </html>
