@@ -30,7 +30,7 @@
   border: var(--card-border) solid yellow;
 }
 .disabled {
-  filter: brightness(0.6);
+  filter: brightness(0.65);
 }
 tr:first-child {
   height: 3em;

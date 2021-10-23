@@ -35,7 +35,7 @@ const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
 console.log('Seed:', NUM);
 
 const START = State.create(new Random(Random.seed(NUM)), true);
-
+START.madd('S' as FieldID);
 const STATE = {
   stack: [{
     state: START,
@@ -570,7 +570,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
             state.major(`Tribute "${t.name}" to Summon "${self.name}"`);
             state.tribute(j, i);
             if (t.id === Ids.Sangan) {
-              search({location, i}, SANGAN_TARGET, (_, k) => {
+              search({location: 'graveyard', i: -1}, SANGAN_TARGET, (_, k) => {
                 if (k < 0) {
                   state.minor('Fail to find "Sangan" target in Deck');
                 } else {
@@ -677,6 +677,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
 function transform(location: Location, id: FieldID, i: number, isSearch = false) {
   const {state, action} = STATE.stack[STATE.index];
   if (action.type === 'play') {
+    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
     const card = ID.decode(id);
     if (card.id === Ids.ReversalQuiz && !CAN_QUIZ(state)) return 'disabled';
     const can = card.type === 'Spell'
@@ -692,6 +693,7 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
     return can ? undefined : 'disabled';
   } else if (action.type === 'target' || action.type === 'search') {
     if (location === action.origin.location && i === action.origin.i) return 'selected';
+    if (['banished', 'graveyard', 'deck'].includes(location)) return undefined;
     if (!action.filter(location, id)) return 'disabled';
     if (action.targets.find(([loc, j]) => loc === location && j === i)) {
       if (!isSearch && action.type === 'search' && location === action.options[0][0]) {

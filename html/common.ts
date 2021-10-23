@@ -276,7 +276,11 @@ export const renderState = (
   div = createElement('div', 'zone', 'banished');
   if (banished.length) {
     const id = banished[banished.length - 1] as FieldID;
-    const top = makeCard(ID.decode(id), undefined, {notip: true, label: banished.length});
+    const top = makeCard(ID.decode(id), undefined, {
+      notip: true,
+      label: banished.length,
+      className: transform?.('banished', id, -1),
+    });
     tippy(top, {content: pileTooltip(state, 'banished')});
     div.appendChild(top);
   } else {
@@ -311,7 +315,11 @@ export const renderState = (
   div = createElement('div', 'zone', 'graveyard');
   if (graveyard.length) {
     const id = graveyard[graveyard.length - 1];
-    const top = makeCard(ID.decode(id), undefined, {notip: true, label: graveyard.length});
+    const top = makeCard(ID.decode(id), undefined, {
+      notip: true,
+      label: graveyard.length,
+      className: transform?.('graveyard', id, -1),
+    });
     tippy(top, {content: pileTooltip(state, 'graveyard')});
     div.appendChild(top);
   } else {
@@ -340,6 +348,7 @@ export const renderState = (
       facedown: !state.reversed,
       notip: true,
       label: state.deck.length,
+      className: transform?.('deck', id, -1),
     });
     tippy(top, {content: pileTooltip(state, 'deck')});
     div.appendChild(top);
