@@ -53,4 +53,7 @@ const prescient = !process.argv[4];
   compare(csv, old);
 
   process.exit(exit);
-})().catch(console.error);
+})().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -67,4 +67,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
   compare(csv, old);
 
   process.exit(exit);
-})().catch(console.error);
+})().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
+
