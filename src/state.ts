@@ -1,5 +1,5 @@
 import {ARCHFIEND, DATA, Type, Location} from './data';
-import {Ids, ID, DeckID, FieldID} from './ids';
+import {Formatter, Ids, ID, DeckID, FieldID} from './ids';
 import {Random} from './random';
 import {bestFirstSearch, bulbSearch, SearchResult} from './search';
 import DECK from './deck.json';
@@ -27,6 +27,10 @@ export const OPTIONS = [
 ] as const;
 export type Option = typeof OPTIONS[number];
 
+// Order the main locations are encoded when serialized (banished is handled separately)
+const LOCATIONS = ['hand', 'monsters', 'spells', 'graveyard', 'deck'] as const;
+
+
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
 // where handlers clone a State object, mutate it, and then 'freeze' it as an immutable IState.
 // State contains all the fields required for Library FTK (though note this is obviously not a
@@ -46,7 +50,6 @@ export type Option = typeof OPTIONS[number];
 export class State {
   random: Random;
   lifepoints: number;
-  turn: number;
   summoned: boolean;
   monsters: FieldID[];
   spells: FieldID[];
@@ -69,7 +72,7 @@ export class State {
     random.shuffle(deck);
 
     const state = new State(
-      random, 8000, 1, false, [], [], [], [], [], deck, false, trace ? [] : undefined
+      random, 8000, false, [], [], [], [], [], deck, false, trace ? [] : undefined
     );
     state.draw(6, true);
     return state;
@@ -78,7 +81,6 @@ export class State {
   constructor(
     random: Random,
     lifepoints: number,
-    turn: number,
     summoned: boolean,
     monsters: FieldID[],
     spells: FieldID[],
@@ -91,7 +93,6 @@ export class State {
   ) {
     this.random = random;
     this.lifepoints = lifepoints;
-    this.turn = turn;
     this.summoned = summoned;
     this.monsters = monsters;
     this.spells = spells;
@@ -142,9 +143,10 @@ export class State {
     for (let i = 0; i < this.spells.length; i++) {
       const card = ID.decode(this.spells[i]);
       if (!ID.facedown(this.spells[i]) && card.type === 'Spell' && card.subType === 'Equip') {
-        const data = ID.data(this.spells[i]);
+        const data = ID.get(this.spells[i]);
         // NOTE: only one of each equip so don't need to worry about sort order being affected
-        if (data >= zone) this.spells[i] = `${card.id}${data + 1}` as FieldID;
+        // PRECONDITION: ALL IDs for one equip while equipped sort ahead of the other while equipped
+        if (data >= zone) this.spells[i] = ID.set(card.id, data + 1);
       }
     }
     return zone;
@@ -161,10 +163,11 @@ export class State {
     for (const spell of this.spells) {
       const card = ID.decode(spell);
       if (!ID.facedown(spell) && card.type === 'Spell' && card.subType === 'Equip') {
-        const data = ID.data(spell);
+        const data = ID.get(spell);
         // NOTE: only one of each equip so don't need to worry about sort order being affected
+        // PRECONDITION: ALL IDs for one equip while equipped sort ahead of the other while equipped
         if (data > i) {
-          spells.push(`${card.id}${data - 1}` as FieldID);
+          spells.push(ID.set(card.id, data - 1));
         } else if (data === i) {
           equips.push(card.id);
         } else {
@@ -179,13 +182,13 @@ export class State {
     return {id, equips};
   }
 
-  // Wipe the data of the monster at index i. This may affect the sort order of the monster in
+  // Set the data of the monster at index i. This may affect the sort order of the monster in
   // question which might also affect the data of any Equip Cards that may be equipped to it.
-  mclear(i: number) {
+  mset(i: number, data = 0) {
     const {id, equips} = this.mremove(i);
-    const zone = this.madd(ID.id(id));
+    const zone = this.madd(ID.set(id, data));
     for (const equip of equips) {
-      this.add('spells', `${equip}${zone}` as FieldID);
+      this.add('spells', ID.set(equip, zone));
     }
   }
 
@@ -208,7 +211,7 @@ export class State {
       this.add('graveyard', equip);
     }
     if (equips.length) {
-      this.minor(`Sending ${ID.names(equips)} equipped to "${ID.decode(id).name}" to the Graveyard`);
+      this.minor(`Sending ${Formatter.names(equips)} equipped to "${ID.decode(id).name}" to the Graveyard`);
     }
     const h = this.remove('hand', hi);
     return this.summon(h);
@@ -250,14 +253,28 @@ export class State {
   // Royal Magical Library on the turn it gets Special Summoned by Premature Burial).
   inc(ignore?: number) {
     for (let i = 0; i < this.monsters.length; i++) {
-      if (typeof ignore === 'number' && ignore === i) continue;
+      if (ignore === i) continue;
       const id = this.monsters[i];
       const card = ID.decode(id);
       if (ID.facedown(id) || card.name !== 'Royal Magical Library') continue;
-      const data = ID.data(id);
-      // NOTE: since we are incrementing *all* Library counter cards we don't alter the ordering
+      const data = ID.get(id);
       if (data < 3) {
-        this.monsters[i] = `${card.id}${data + 1}` as FieldID;
+        // Unfortunately, because the ID range is non-contiguous we theoretically might need to
+        // remove then add (and possibly juggle equips) each time (ie. mset) to guarantee the
+        // monsters array stays sorted and all the equips stay pointing to the correct targets.
+        // However, we can do a little better by noticing that the ID range *is* contiguous for all
+        // the IDs that already have data (ie. when incrementing from 1 -> 2 and 2 -> 3), so we can
+        // get away with modifying them in place. It would seem that for the ignore case we would
+        // need to fall back on doing an mset as well, but given that a card returned by Premature
+        // Burial cannot have counters the moment it is added as long as the raw ID sorts before or
+        // after the all the IDs of the same type with counters this is still safe (ie. the raw ID
+        // does not partition the data IDs, which is true in this case because the data IDs are
+        // contiguous)
+        if (data) {
+          this.monsters[i] = ID.set(card.id, data + 1);
+        } else {
+          this.mset(i, data + 1);
+        }
         this.minor(`Add Spell Counter to "${card.name}" (${data} -> ${data + 1})`);
       }
     }
@@ -265,7 +282,7 @@ export class State {
 
   // Shuffle the deck, wiping out any knowledge of where cards were in the deck.
   shuffle() {
-    this.deck = this.deck.map(id => ID.id(id));
+    this.deck = this.deck.map(ID.id);
     this.random.shuffle(this.deck);
     this.minor('Shuffle Deck');
   }
@@ -278,7 +295,7 @@ export class State {
       this.reversed = false;
       if (this.deck.length) {
         this.deck.reverse();
-        if (!ID.known(this.deck[0])) this.deck[0] = `(${this.deck[0]})` as DeckID;
+        if (!ID.known(this.deck[0])) this.deck[0] = ID.toggle(this.deck[0]) as DeckID;
         this.minor(`Turn Deck back face-down ("${ID.decode(this.deck[0]).name}" now on bottom)`);
       }
     } else {
@@ -287,7 +304,7 @@ export class State {
       if (this.deck.length) {
         this.deck.reverse();
         const top = this.deck.length - 1;
-        if (!ID.known(this.deck[top])) this.deck[top] = `(${this.deck[top]})` as DeckID;
+        if (!ID.known(this.deck[top])) this.deck[top] = ID.toggle(this.deck[top]) as DeckID;
         this.minor(`Turn Deck face-up ("${ID.decode(this.deck[top]).name}" now on top)`);
       }
     }
@@ -335,6 +352,7 @@ export class State {
   search(
     options: {cutoff?: number; prescient?: boolean; width?: number} = {}
   ): {visited: number} | SearchResult & {visited: number} {
+    // FIXME encode(false)
     const node = {key: this.toString(), state: this, score: this.score()};
     if (options.width) {
       return bulbSearch(node, options.width, options.cutoff, options.prescient);
@@ -345,13 +363,14 @@ export class State {
 
   // Add fully-built-and-never-to-be-mutated-again state to the transition map
   static transition(next: Map<string, IState>, state: Readonly<State>) {
+    // FIXME encode(false)
     const key = state.toString();
     next.set(key, {key, state, score: state.score()});
     if (DEBUG) {
       const errors = State.verify(state);
       if (errors.length) {
-        const trace = state.trace ? `\n${state.trace.join('\n')}\n` : '';
-        throw new Error(`INVALID STATE ${key}:\n\n${errors.join('\n')}${trace}`);
+        const trace = state.trace ? `\n\n${state.trace.join('\n')}\n` : '';
+        throw new Error(`INVALID STATE ${state.encode(true)}:\n\n${errors.join('\n')}${trace}`);
       }
     }
   }
@@ -386,10 +405,10 @@ export class State {
       const id = this.monsters[i];
       const card = ID.decode(id);
       if (card.id !== Ids.RoyalMagicalLibrary) continue;
-      if (!ID.facedown(id) && ID.data(id) === 3 && this.deck.length) {
+      if (!ID.facedown(id) && ID.get(id) === 3 && this.deck.length) {
         const s = this.clone();
         s.major(`Remove 3 Spell Counters from "${card.name}"`);
-        s.mclear(i);
+        s.mset(i);
         s.draw();
         State.transition(next, s);
       }
@@ -406,7 +425,7 @@ export class State {
       if (card.id === Ids.ReversalQuiz) continue;
       if (ID.facedown(id)) {
         card.play(this, 'spells', i, next, card, prescient);
-      } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
+      } else if (card.id === Ids.ArchfiendsOath && !ID.get(id)) {
         ARCHFIEND(this, 'spells', i, next, card, prescient);
       }
     }
@@ -522,7 +541,7 @@ export class State {
   score() {
     // If we have reached a winning state we can simply ensure this gets sorted
     // to the front to ensure we don't bother expanding any sibling states.
-    if (this.end()) return Infinity;
+    if (this.end()) return Infinity; // TODO: Number.MAX_VALUE and then use enable -fast-math
     let score = 0;
 
     const libraries = {active: 0, total: 0};
@@ -530,7 +549,7 @@ export class State {
       const card = ID.decode(id);
       if (card.id === Ids.RoyalMagicalLibrary) {
         libraries.total++;
-        if (ID.data(id) < 3) libraries.active++;
+        if (ID.get(id) < 3) libraries.active++;
       }
       score += card.score(this, 'monsters', id);
     }
@@ -683,14 +702,14 @@ export class State {
       const id = ID.id(this.monsters[i]);
       // Since we will be playing A Feather of the Phoenix we only need a Library with 2 counters.
       // TODO: we actually only need 1 counter if Black Pendant is face down...
-      if (id === Ids.RoyalMagicalLibrary && ID.data(this.monsters[i]) >= 2) {
+      if (id === Ids.RoyalMagicalLibrary && ID.get(this.monsters[i]) >= 2) {
         if (hand.feather >= 0) {
           this.feather('hand', hand.feather, hid, gid, discard, k);
         } else {
           this.feather('spells', spells.feather, hid, gid, discard, k);
         }
         this.major('Remove 3 Spell Counters from "Royal Magical Library"');
-        this.mclear(i);
+        this.mset(i);
         this.draw();
         return this.win(known, equip, {pendant: spells.pendant, quiz: spells.quiz});
       }
@@ -711,12 +730,12 @@ export class State {
     const fn = (id: ID | FieldID | DeckID) => ID.id(id) !== Ids.ReversalQuiz;
     const hand = this.hand.filter(fn);
     if (hand.length) {
-      this.minor(`Send ${ID.names(hand)} from hand to Graveyard`);
+      this.minor(`Send ${Formatter.names(hand)} from hand to Graveyard`);
     }
     const monsters = this.monsters.filter(fn);
     const spells = this.spells.filter(fn);
     if (monsters.length || spells.length) {
-      this.minor(`Send ${ID.names([...monsters, ...spells])} from field to Graveyard`);
+      this.minor(`Send ${Formatter.names([...monsters, ...spells])} from field to Graveyard`);
     }
     for (const id of this.spells) {
       const card = ID.decode(id);
@@ -744,7 +763,7 @@ export class State {
       this.add('graveyard', Ids.AFeatherOfThePhoenix);
       this.add('graveyard', this.remove('hand', j));
     }
-    this.deck.push(`(${gid})` as DeckID);
+    this.deck.push(ID.toggle(gid) as DeckID);
     this.inc();
   }
 
@@ -757,13 +776,14 @@ export class State {
       ids.push(id);
       this.add('hand', id);
     }
-    if (this.reversed && this.deck.length && !ID.known(this.deck[this.deck.length - 1])) {
-      this.deck[this.deck.length - 1] = `(${this.deck[this.deck.length - 1]})` as DeckID;
+    const top = this.deck.length - 1;
+    if (this.reversed && this.deck.length && !ID.known(this.deck[top])) {
+      this.deck[top] = ID.toggle(this.deck[top]) as DeckID;
     }
     if (initial) {
-      this.major(`Opening hand contains ${ID.names(ids.sort())}`);
+      this.major(`Opening hand contains ${Formatter.names(ids.sort(CMP))}`);
     } else {
-      this.minor(`Draw ${ID.names(ids)}`);
+      this.minor(`Draw ${Formatter.names(ids)}`);
     }
   }
 
@@ -771,7 +791,6 @@ export class State {
     return new State(
       new Random(this.random.seed),
       this.lifepoints,
-      this.turn,
       this.summoned,
       this.monsters.slice(),
       this.spells.slice(),
@@ -784,10 +803,24 @@ export class State {
     );
   }
 
-  equals(s: State) {
+  debug(s: State, trace = true) {
+    if (this.random.seed !== s.random.seed) return 'random';
+    if (this.lifepoints !== s.lifepoints) return 'LP';
+    if (this.summoned !== s.summoned) return 'summoned';
+    if (this.reversed !== s.reversed) return 'reversed';
+    if (!equals(this.monsters, s.monsters)) return 'monsters';
+    if (!equals(this.spells, s.spells)) return 'spells';
+    if (!equals(this.hand, s.hand)) return 'hand';
+    if (!equals(this.banished, s.banished)) return 'banished';
+    if (!equals(this.graveyard, s.graveyard)) return 'graveyard';
+    if (!equals(this.deck, s.deck)) return 'monsters';
+    if (!(!trace || (this.trace === s.trace || (this.trace && s.trace && equals(this.trace, s.trace))))) return 'trace';
+    return '';
+  }
+
+  equals(s: State, trace = true) {
     return (this.random.seed === s.random.seed &&
       this.lifepoints === s.lifepoints &&
-      this.turn === s.turn &&
       this.summoned === s.summoned &&
       this.reversed === s.reversed &&
       equals(this.monsters, s.monsters) &&
@@ -796,20 +829,106 @@ export class State {
       equals(this.banished, s.banished) &&
       equals(this.graveyard, s.graveyard) &&
       equals(this.deck, s.deck) &&
-      (this.trace === s.trace ||
-        (this.trace && s.trace && equals(this.trace, s.trace))));
+      (!trace || (this.trace === s.trace ||
+        (this.trace && s.trace && equals(this.trace, s.trace)))));
   }
 
-  toString() {
+  // The encoding of State is actually the single most impactful function for performance as it
+  // is called on every State and, more importantly, is stored for the entirety of the search. It
+  // needs to be fast to create, fast to compare, and as small as possible as it directly impacts
+  // both memory usage and GC pressure.
+  //
+  // The returned string is ordered so that that the elements with the most entropy come first,
+  // meaning that equality checks can abort early when comparing strings. All the IDs are already
+  // guaranteed to be in the ASCII range (though are stored as numbers within State to benefit from
+  // V8 optimizations around Smis like PACKED_SMI_ELEMENTS), jowever, there are several additional
+  // choices made to save on space:
+  //
+  //  - We encode the random seed as hex, though keep lifepoints as decimal because 8000 still
+  //    requires 4 hex digits to encode. For self-contained play we could technically get away with
+  //    only encoding the first 2 digits of lifepoints given the deck can only spend multiples of
+  //    100 LP, but in open play its unlikely but still possible for other values to be relevant
+  //  - The summoned and reversed bits get packed into a single character which also serves as the
+  //    separator for the random seed and the lifepoints total
+  //  - banished gets appended to the very end so that it gets dropped if its empty, saving a
+  //    separator (we know banished can never contain a decimal, unlike the spells zone, so we can
+  //    always determine where lifepoints ends and banished begins)
+  //
+  // Finally, at the cost of no longer being able to decode the encoded output back to the original
+  // state, we can drop separators altogether, effectively turning the output into an elaborate hash
+  // code. This is perfectly acceptable for search, as it simply stores all of the States it
+  // encounters for deduping purposes, though we still provide the option for producing decodeable
+  // strings as this is still useful (eg. for sending States over the wire to Workers).
+  encode(decodeable = true) {
+    const sep = decodeable ? '/' : '';
     // Using `join` here on an array instead of using a template string or string concatenation
     // is deliberate as it results in V8 creating a flat string instead of a cons-string, the
     // latter of which results in significantly higher memory usage. This is a V8 implementation
     // detail and the approach to forcing a flattened string to be created may change over time.
     // https://gist.github.com/mraleph/3397008
-    return [this.random.seed, this.lifepoints, this.turn, +this.summoned,
-      this.monsters.join(''), this.spells.join(''), this.hand.join(''),
-      this.banished.join(''), this.graveyard.join(''), this.deck.join(''),
-      +this.reversed].join('|');
+    return [
+      String.fromCharCode(...this.hand), String.fromCharCode(...this.monsters),
+      String.fromCharCode(...this.spells), String.fromCharCode(...this.graveyard),
+      String.fromCharCode(...this.deck),
+      this.random.seed.toString(16) +
+      (this.summoned && this.reversed ? '-' : this.summoned ? '.' : this.reversed ? ',' : sep) +
+      this.lifepoints + String.fromCharCode(...this.banished),
+    ].join(sep);
+  }
+
+  static decode(s: string, opening?: boolean) {
+    const data: {[key in Exclude<Location, 'banished'>]: (ID | DeckID | FieldID)[]} =
+      {hand: [], monsters: [], spells: [], graveyard: [], deck: []};
+    let current = 0;
+    let i: number;
+    for (i = 0; i < s.length && current < LOCATIONS.length; i++) {
+      if (s[i] === '/') {
+        current++;
+        continue;
+      }
+      data[LOCATIONS[current]].push(s.charCodeAt(i) as (ID | DeckID | FieldID));
+    }
+
+    // indexOf from index i, but we don't know the actual separator...
+    let j = i;
+    while (j < s.length && s[j] > '/') j++;
+    const random = new Random(parseInt(s.slice(i, j), 16));
+
+    const summoned = s[j] === '-' || s[j] === '.';
+    const reversed = s[j] === '-' || s[j] === ',';
+
+    i = j + 1;
+    j = s.indexOf('/', i);
+
+    const lifepoints = +s.slice(i, j < 0 ? undefined : j);
+    const banished: DeckID[] = [];
+    if (j >= 0) for (i = j + 1; i < s.length; i++) banished.push(s.charCodeAt(i) as DeckID);
+
+    const trace = opening ? [`Opening hand contains ${Formatter.names(data.hand)}`] : undefined;
+
+    return new State(
+      random,
+      lifepoints,
+      summoned,
+      data.monsters as FieldID[],
+      data.spells as FieldID[],
+      data.hand as ID[],
+      banished,
+      data.graveyard as ID[],
+      data.deck as DeckID[],
+      reversed,
+      trace
+    );
+  }
+
+  toString() {
+    // See above about `join`, though for this encoding performance shouldn't really matter
+    return [
+      this.random.seed.toString(16).toUpperCase(), this.lifepoints, +this.summoned,
+      Formatter.encode(this.monsters), Formatter.encode(this.spells), Formatter.encode(this.hand),
+      Formatter.encode(this.banished), Formatter.encode(this.graveyard), Formatter.encode(this.deck),
+      +this.reversed,
+    ].join('|');
   }
 
   // Decodes State which was encoded from State.toString. Because the trace is not encoding in the
@@ -818,51 +937,46 @@ export class State {
   static fromString(s: string, opening?: boolean) {
     let i = 0;
     let j = s.indexOf('|');
-    const random = new Random(+s.slice(0, j));
+    const random = new Random(parseInt(s.slice(0, j), 16));
 
     i = j + 1;
     j = s.indexOf('|', i);
     const lifepoints = +s.slice(i, j);
 
     i = j + 1;
-    j = s.indexOf('|', i);
-    const turn = +s.slice(i, j);
+    const summoned = s[i] === '1';
 
-    i = j + 1;
-    j = j + 2;
-    const summoned = s.slice(i, j) === '1';
-
-    i = j + 1;
+    i = i + 2;
     j = s.indexOf('|', i);
-    const monsters = this.parse(s.slice(i, j)) as FieldID[];
+    const monsters = Formatter.decode(s.slice(i, j)) as FieldID[];
 
     i = j + 1;
     j = s.indexOf('|', i);
-    const spells = this.parse(s.slice(i, j)) as FieldID[];
+    const spells = Formatter.decode(s.slice(i, j)) as FieldID[];
 
     i = j + 1;
     j = s.indexOf('|', i);
-    const hand = s.slice(i, j).split('') as ID[];
+    const hand = Formatter.decode(s.slice(i, j)) as ID[];
 
     i = j + 1;
     j = s.indexOf('|', i);
-    const banished = this.parse(s.slice(i, j)) as DeckID[];
+    const banished = Formatter.decode(s.slice(i, j)) as DeckID[];
 
     i = j + 1;
     j = s.indexOf('|', i);
-    const graveyard = s.slice(i, j).split('') as ID[];
+    const graveyard = Formatter.decode(s.slice(i, j)) as ID[];
 
     i = j + 1;
     j = s.indexOf('|', i);
-    const deck = this.parse(s.slice(i, j)) as DeckID[];
+    const deck = Formatter.decode(s.slice(i, j)) as DeckID[];
 
     i = j + 1;
-    const reversed = s.slice(i) === '1';
+    const reversed = s[i] === '1';
 
-    const trace = opening ? [`Opening hand contains ${ID.names(hand)}`] : undefined;
+    const trace = opening ? [`Opening hand contains ${Formatter.names(hand)}`] : undefined;
 
     return new State(
-      random, lifepoints, turn, summoned, monsters, spells, hand, banished, graveyard, deck, reversed, trace
+      random, lifepoints, summoned, monsters, spells, hand, banished, graveyard, deck, reversed, trace
     );
   }
 
@@ -883,54 +997,36 @@ export class State {
     return buf.join('\n');
   }
 
-  // Parse string s string into an array of ids (really Field[] | DeckID[])
-  private static parse(s: string): (FieldID | DeckID)[] {
-    const ids: (FieldID | DeckID)[] = [];
-    let id = '';
-    let ok = true;
-    for (let i = 0; i < s.length; i++) {
-      if (ok && id) {
-        ids.push(id as FieldID | DeckID);
-        id = '';
-      }
-      id += s[i];
-      ok = i < s.length - 1 && s[i + 1] === '(' ||
-        (id[0] === '(' ? id[id.length - 1] === ')' : (s[i + 1] >= 'A' && s[i + 1] <= 'Z'));
-    }
-    if (id) ids.push(id as FieldID | DeckID);
-    return ids;
-  }
-
   // Perform basic (slow) sanity checks on State
   static verify(s: State) {
     const errors: string[] = [];
-    const pretty = (ids: (ID | FieldID | DeckID)[]) => ids.map(id => ID.pretty(id)).join(', ');
+    const pretty = (ids: (ID | FieldID | DeckID)[]) => ids.map(Formatter.pretty).join(', ');
 
     if (s.lifepoints > 8000 || s.lifepoints <= 0) {
       errors.push(`LP: ${s.lifepoints}`);
     }
 
-    if (s.monsters.length > 5 || !equals(s.monsters.slice().sort(), s.monsters)) {
+    if (s.monsters.length > 5 || !equals(s.monsters.slice().sort(CMP), s.monsters)) {
       errors.push(`Monsters: ${pretty(s.monsters)}`);
     } else {
       for (const id of s.monsters) {
         const card = ID.decode(id);
         if (card.type !== 'Monster' ||
-          ((ID.facedown(id) || card.id !== Ids.RoyalMagicalLibrary) && ID.data(id)) ||
-          ID.data(id) > 3) {
+          ((ID.facedown(id) || card.id !== Ids.RoyalMagicalLibrary) && ID.get(id)) ||
+          ID.get(id) > 3) {
           errors.push(`Monsters: ${pretty(s.monsters)}`);
           break;
         }
       }
     }
 
-    if (s.spells.length > 5 || !equals(s.spells.slice().sort(), s.spells)) {
+    if (s.spells.length > 5 || !equals(s.spells.slice().sort(CMP), s.spells)) {
       errors.push(`Spells: ${pretty(s.spells)}`);
     } else {
       for (const id of s.spells) {
         const card = ID.decode(id);
         const facedown = ID.facedown(id);
-        const data = ID.data(id);
+        const data = ID.get(id);
         if (card.type === 'Monster' || (facedown && data) ||
           (card.id === Ids.ArchfiendsOath && data > 1) ||
           (!facedown && (!(['Continuous', 'Equip'].includes(card.subType) ||
@@ -945,19 +1041,19 @@ export class State {
       }
     }
 
-    if (s.hand.filter(i => i.length > 1).length || !equals(s.hand.slice().sort(), s.hand)) {
+    if (s.hand.some(i => i !== ID.id(i)) || !equals(s.hand.slice().sort(CMP), s.hand)) {
       errors.push(`Hand: ${pretty(s.hand)}`);
     }
 
     if (s.banished.length > 40 ||
-      !equals(s.banished.slice().sort(), s.banished) ||
-      s.banished.filter(i => ID.facedown(i)).length > 1) {
+      !equals(s.banished.slice().sort(CMP), s.banished) ||
+      s.banished.filter(ID.facedown).length > 1) {
       errors.push(`Banished: ${pretty(s.banished)}`);
     }
 
     if (s.graveyard.length > 40 ||
-      s.graveyard.filter(i => i.length > 1).length ||
-      !equals(s.graveyard.slice().sort(), s.graveyard)) {
+      s.graveyard.some(i => i !== ID.id(i)) ||
+      !equals(s.graveyard.slice().sort(CMP), s.graveyard)) {
       errors.push(`Graveyard: ${pretty(s.graveyard)}`);
     }
 
@@ -976,20 +1072,28 @@ export class State {
       }
     }
 
+    const t = s.toString();
+    const f = State.fromString(t);
+    if (!f.equals(s, false)) errors.push(`toString/fromString: ${t} vs. ${f.toString()}`);
+
+    const e = s.encode();
+    const d = State.decode(e);
+    if (!d.equals(s, false)) errors.push(`encode/decode: ${e} vs. ${d.encode()}`);
+
     const start = [];
     for (const n in DECK) {
       const name = n as keyof typeof DECK;
       for (let i = 0; i < DECK[name]; i++) start.push(DATA[name].id);
     }
-    start.sort();
+    start.sort(CMP);
     const now = [
-      ...s.monsters.map(id => ID.id(id)),
-      ...s.spells.map(id => ID.id(id)),
+      ...s.monsters.map(ID.id),
+      ...s.spells.map(ID.id),
       ...s.hand,
-      ...s.banished.map(id => ID.id(id)),
+      ...s.banished.map(ID.id),
       ...s.graveyard,
-      ...s.deck.map(id => ID.id(id)),
-    ].sort();
+      ...s.deck.map(ID.id),
+    ].sort(CMP);
     if (!match(start, now)) {
       errors.push(`Mismatch: ${start.length} (${start.join('')}) vs. ${now.length} (${now.join('')})\n`);
     }
@@ -1023,3 +1127,6 @@ function equals<T>(a: T[], b: T[]) {
   }
   return true;
 }
+
+// Sigh, JS defaults to sorting arrays of numbers alphabetically because logic.
+export const CMP = (a: number, b: number) => a - b;

@@ -3,12 +3,12 @@ sourceMapSupport.install();
 
 import * as workerpool from 'workerpool';
 
-import {State, Random} from '../build/src';
+import {State, Random, Formatter} from '../build/src';
 
 workerpool.worker({
   search: (option, seed, cutoff, prescient, width, trace) => {
-    const state = State.create(option, new Random(seed), trace);
-    const hand = state.hand.slice().sort().join('');
+    const state = State.create(option.charCodeAt(0), new Random(seed), trace);
+    const hand = Formatter.encode(state.hand.slice().sort());
     const start = Date.now();
     try {
       const search = state.search({cutoff, prescient, width});

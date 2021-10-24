@@ -1,5 +1,5 @@
-import {Ids, ID, DeckID, FieldID} from './ids';
-import {State, IState} from './state';
+import {Formatter, Ids, ID, DeckID, FieldID} from './ids';
+import {State, IState, CMP} from './state';
 import WEIGHTS from './weights.json';
 
 // Type/SubType/Attribute are pruned to just the values used by Library FTK
@@ -112,7 +112,7 @@ export const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
     known.minor(`Declare "${ID.decode(known.deck[known.deck.length - 1]).name}"`);
     known.lifepoints -= 500;
     known.remove(location, i);
-    known.add('spells', `${card.id}1` as FieldID);
+    known.add('spells', ID.set(card.id, 1));
     known.draw();
     if (play) known.inc();
     State.transition(next, known);
@@ -124,7 +124,7 @@ export const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
   unknown.minor('Declare "Blue-Eyes White Dragon"');
   unknown.lifepoints -= 500;
   unknown.remove(location, i);
-  unknown.add('spells', `${card.id}1` as FieldID);
+  unknown.add('spells', ID.set(card.id, 1));
   const reveal = ID.decode(unknown.deck.pop()!);
   unknown.minor(`Excavate "${reveal.name}"`);
   unknown.add('graveyard', reveal.id);
@@ -198,10 +198,10 @@ const RELOAD: (fn: (s: State, check?: boolean) => void, check?: boolean) => Data
         for (const [offset, j] of set.entries()) {
           const id = d.hand[j];
           ids.push(id);
-          s.add('spells', `(${id})` as FieldID);
+          s.add('spells', ID.toggle(id) as FieldID);
           s.remove('hand', j - offset);
         }
-        s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+        s.major(`Set ${Formatter.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
         const len = s.hand.length;
         fn(s);
         s.hand = [];
@@ -219,9 +219,6 @@ const RELOAD: (fn: (s: State, check?: boolean) => void, check?: boolean) => Data
     d.inc();
     State.transition(next, d);
   };
-
-// Sigh, JS defaults to sorting arrays of numbers alphabetically because logic.
-const CMP = (a: number, b: number) => a - b;
 
 export const DATA: { [name: string]: Data } = {
   'A Feather of the Phoenix': {
@@ -261,7 +258,7 @@ export const DATA: { [name: string]: Data } = {
     score(state, location, id) {
       const w = WEIGHTS['Archfiend\'s Oath'];
       const activatable =
-        location === 'spells' && state.lifepoints > 500 && state.deck.length && !ID.data(id);
+        location === 'spells' && state.lifepoints > 500 && state.deck.length && !ID.get(id);
       return activatable ? w[2] : location === 'hand' ? w[1] : w[0];
     },
     play(state, location, i, next, card, prescient) {
@@ -286,7 +283,7 @@ export const DATA: { [name: string]: Data } = {
         const s = state.clone();
         s.remove(location, i);
         s.major(`${location === 'spells' ? `Flip face-down "${card.name}" and equip` : `Equip "${card.name}"`} to "${ID.decode(s.monsters[j]).name}"`);
-        s.add('spells', `${card.id}${j}` as FieldID);
+        s.add('spells', ID.set(card.id, j));
         s.inc();
         State.transition(next, s);
       }
@@ -302,7 +299,7 @@ export const DATA: { [name: string]: Data } = {
       for (const id of s.hand) {
         s.add('graveyard', id);
       }
-      s.minor(`Discard ${ID.names(s.hand)}`);
+      s.minor(`Discard ${Formatter.names(s.hand)}`);
     }),
   },
   'Convulsion of Nature': {
@@ -342,14 +339,14 @@ export const DATA: { [name: string]: Data } = {
         const s = state.clone();
         s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
         s.remove(location, i);
-        s.add('spells', `${card.id}${state.turn}` as FieldID);
+        s.add('spells', card.id);
         s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
         // In this deck, all banishing is face-down banished, so the (ID) notation merely indicates
         // that the card could possibly return from play if Different Dimension Capsule actually
         // resolves. Reversal Quiz / Heavy Storm / Giant Trunade which prevent Different Dimension
         // Capsule from resolving are responsible for clearing this data, resulting in the card
         // being banished for good.
-        s.add('banished', `(${ID.id(s.deck.splice(j, 1)[0])})` as DeckID);
+        s.add('banished', ID.toggle(ID.id(s.deck.splice(j, 1)[0])) as DeckID);
         s.shuffle();
         s.inc();
         State.transition(next, s);
@@ -376,7 +373,7 @@ export const DATA: { [name: string]: Data } = {
           s.banish();
         }
       }
-      s.minor(`Return ${ID.names(s.spells)} to hand`);
+      s.minor(`Return ${Formatter.names(s.spells)} to hand`);
       s.spells = [];
     }),
   },
@@ -458,7 +455,7 @@ export const DATA: { [name: string]: Data } = {
           s.remove('graveyard', j);
           const zone = s.summon(id, true);
           s.remove(location, i);
-          s.add('spells', `${card.id}${zone}` as FieldID);
+          s.add('spells', ID.set(card.id, zone));
           s.inc(zone);
           State.transition(next, s);
         }
@@ -483,16 +480,16 @@ export const DATA: { [name: string]: Data } = {
         if (card.id === Ids.ConvulsionOfNature) {
           s.reverse(true);
         } else if (card.id === Ids.BlackPendant) {
-          s.mclear(ID.data(id));
+          s.mset(ID.get(id));
         } else if (card.id === Ids.PrematureBurial) {
-          const removed = s.mremove(ID.data(id));
+          const removed = s.mremove(ID.get(id));
           s.add('graveyard', removed.id);
           s.minor(`Sending "${ID.decode(removed.id).name}" to the Graveyard after its equipped "${ID.decode(id).name}" was destroyed`);
         } else if (card.id === Ids.DifferentDimensionCapsule) {
           s.banish();
         }
       }
-      s.minor(`Send ${ID.names(s.spells)} to Graveyard`);
+      s.minor(`Send ${Formatter.names(s.spells)} to Graveyard`);
       s.spells = [];
     }),
   },
@@ -504,7 +501,7 @@ export const DATA: { [name: string]: Data } = {
     can: CAN_RELOAD,
     play: RELOAD(s => {
       s.deck.push(...s.hand);
-      s.minor(`Return ${ID.names(s.hand)} to Deck`);
+      s.minor(`Return ${Formatter.names(s.hand)} to Deck`);
       s.shuffle();
     }, true),
   },
@@ -526,10 +523,10 @@ export const DATA: { [name: string]: Data } = {
       const s = state.clone();
       s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${self.name}"`);
       if (s.hand.length) {
-        s.minor(`Send ${ID.names(s.hand)} from hand to Graveyard`);
+        s.minor(`Send ${Formatter.names(s.hand)} from hand to Graveyard`);
       }
       if (s.monsters.length || s.spells.length) {
-        s.minor(`Send ${ID.names([...s.monsters, ...s.spells])} from field to Graveyard`);
+        s.minor(`Send ${Formatter.names([...s.monsters, ...s.spells])} from field to Graveyard`);
       }
 
       s.graveyard.push(...s.hand);
@@ -552,10 +549,10 @@ export const DATA: { [name: string]: Data } = {
         s.graveyard.push(card.id);
       }
       s.spells = [];
-      s.graveyard.sort();
+      s.graveyard.sort(CMP);
 
       const reveal = s.deck[s.deck.length - 1];
-      if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
+      if (!ID.known(reveal)) s.deck[s.deck.length - 1] = ID.toggle(reveal) as DeckID;
       // BUG: we are deliberately peeking here to ensure we call it wrong!
       const card = ID.decode(reveal);
       s.minor(`Call "${card.type === 'Trap' ? 'Monster' : 'Trap'}", reveal "${card.name}"`);
@@ -579,7 +576,7 @@ export const DATA: { [name: string]: Data } = {
       s.remove(location, i);
       if (location === 'hand') {
         s.major(`Set "${card.name}" face-down`);
-        s.add('spells', `(${card.id})` as FieldID);
+        s.add('spells', ID.toggle(card.id) as FieldID);
       } // else {
       //   s.major(`Activate face-down' "${card.name}"`);
       //   s.add('spells', card.id);

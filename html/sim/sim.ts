@@ -1,6 +1,6 @@
 import * as workerpool from 'workerpool';
 
-import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids, Option, OPTIONS} from '../../src';
+import {State, Random, ID, Formatter, DeckID, Card, DATA, FieldID, Location, Ids, Option, OPTIONS} from '../../src';
 import {createElement, renderState, track, makeCard, CMP} from '../common';
 
 import './swipe';
@@ -73,7 +73,6 @@ function update(mutate = true) {
     // TODO: add restart
   } else if (action.type === 'search') {
     const modal = createElement('div', 'modal');
-
     const zone = createElement('div', 'zone', 'search');
 
     if (action.fallback) {
@@ -83,8 +82,8 @@ function update(mutate = true) {
         update();
       }, {hold: true}));
     }
-
-    for (const [location, i] of action.options.sort((a, b) => s[a[0]][a[1]].localeCompare(s[b[0]][b[1]]))) {
+    for (const [location, i] of action.options.sort((a, b) =>
+      ID.decode(s[a[0]][a[1]]).name.localeCompare(ID.decode(s[b[0]][b[1]]).name))) {
       const id = s[location][i] as FieldID;
       const card = ID.decode(id);
       zone.appendChild(makeCard(card, () => handler(location, id, i), {
@@ -92,10 +91,12 @@ function update(mutate = true) {
         className: transform(location, id, i, true),
       }));
     }
-    modal.appendChild(zone);
 
+    modal.appendChild(zone);
     wrapper.appendChild(modal);
+
     const overlay = createElement('div', 'modal-overlay');
+
     overlay.addEventListener('click', () => {
       STATE.stack[STATE.index].action = {type: 'play'};
       if (action.num > 1 && action.targets.length) {
@@ -104,6 +105,7 @@ function update(mutate = true) {
         update();
       }
     }, {once: true});
+
     wrapper.appendChild(overlay);
   }
 
@@ -125,12 +127,12 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
       ? (location === 'hand'
         ? ((!state.summoned && state.monsters.length < 5) ||
           (card.id === Ids.ThunderDragon && state.deck.length))
-        : (ID.data(id) === 3 && state.deck.length))
+        : (ID.get(id) === 3 && state.deck.length))
       : (location === 'hand'
         ? state.spells.length < 5 && card.can(state, location)
         : ID.facedown(id)
           ? card.can(state, location as 'spells')
-          : (card.id === Ids.ArchfiendsOath && !ID.data(id) && state.deck.length));
+          : (card.id === Ids.ArchfiendsOath && !ID.get(id) && state.deck.length));
     return can ? undefined : 'disabled';
   } else if (action.type === 'target' || action.type === 'search') {
     if (location === action.origin.location && i === action.origin.i) return 'selected';
@@ -223,7 +225,7 @@ function ARCHFIEND(s: State, location: 'hand' | 'spells', i: number, card: Card)
     s.draw();
 
     s.remove(location, i);
-    s.add('spells', `${card.id}1` as FieldID);
+    s.add('spells', ID.set(card.id, 1));
     if (play) s.inc();
     update();
   } else {
@@ -243,7 +245,7 @@ function ARCHFIEND(s: State, location: 'hand' | 'spells', i: number, card: Card)
       }
 
       s.remove(location, i);
-      s.add('spells', `${card.id}1` as FieldID);
+      s.add('spells', ID.set(card.id, 1));
       if (play) s.inc();
       update();
     }, 1, BLUE_EYES as Card);
@@ -277,11 +279,11 @@ function RELOAD(fn: (s: State) => void) {
       for (const [offset, j] of set.entries()) {
         const id = before[j];
         ids.push(id);
-        s.add('spells', `(${id})` as FieldID);
+        s.add('spells', ID.toggle(id) as FieldID);
         s.remove('hand', j - offset - (location === 'hand' && i < j ? 1 : 0));
       }
       if (ids.length) {
-        s.major(`Set ${ID.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+        s.major(`Set ${Formatter.names(ids)} face-down then activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
       } else {
         s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
       }
@@ -313,7 +315,7 @@ function QUIZ(s: State, location: 'hand' | 'spells') {
   s.major(`Activate${location === 'spells' ? ' face-down' : ''} "Reversal Quiz"`);
   // Filter out Reversal Quiz from the messages about what gets sent to the Graveyard
   const hand = s.hand.filter(id => ID.id(id) !== Ids.ReversalQuiz);
-  if (hand.length) s.minor(`Send ${ID.names(hand)} from hand to Graveyard`);
+  if (hand.length) s.minor(`Send ${Formatter.names(hand)} from hand to Graveyard`);
   s.graveyard.push(...hand);
   s.hand = [];
 
@@ -336,8 +338,8 @@ function QUIZ(s: State, location: 'hand' | 'spells') {
     ids.push(card.id);
   }
   s.spells = [];
-  s.graveyard.sort();
-  if (ids.length) s.minor(`Send ${ID.names(ids)} from field to Graveyard`);
+  s.graveyard.sort(CMP);
+  if (ids.length) s.minor(`Send ${Formatter.names(ids)} from field to Graveyard`);
 
   // Reversal Quiz isn't actually in the Graveyard at the point when the game is won
   s.add('spells', Ids.ReversalQuiz);
@@ -364,7 +366,7 @@ const SPELLS: { [name: string]: any } = {
           s.add('graveyard', card.id);
           s.add('graveyard', s.remove('hand', j));
         }
-        s.deck.push(`(${gid})` as DeckID);
+        s.deck.push(ID.toggle(gid) as DeckID);
         s.inc();
         update();
       });
@@ -375,7 +377,7 @@ const SPELLS: { [name: string]: any } = {
     target({location, i}, loc => loc === 'monsters', (_, j) => {
       s.remove(location, i);
       s.major(`${location === 'spells' ? `Flip face-down "${card.name}" and equip` : `Equip "${card.name}"`} to "${ID.decode(s.monsters[j]).name}"`);
-      s.add('spells', `${card.id}${j}` as FieldID);
+      s.add('spells', ID.set(card.id, j));
       s.inc();
       update();
     });
@@ -384,16 +386,16 @@ const SPELLS: { [name: string]: any } = {
     for (const id of s.hand) {
       s.add('graveyard', id);
     }
-    s.minor(`Discard ${ID.names(s.hand)}`);
+    s.minor(`Discard ${Formatter.names(s.hand)}`);
   }),
   'Convulsion of Nature': SPELL(s => s.reverse()),
   'Different Dimension Capsule': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     search({location, i}, loc => loc === 'deck', (_, j) => {
       s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
       s.remove(location, i);
-      s.add('spells', `${card.id}${s.turn}` as FieldID);
+      s.add('spells', card.id);
       s.minor(`Banish ${ID.decode(s.deck[j]).name} from the deck face-down`);
-      s.add('banished', `(${ID.id(s.deck.splice(j, 1)[0])})` as DeckID);
+      s.add('banished', ID.toggle(ID.id(s.deck.splice(j, 1)[0])) as DeckID);
       s.shuffle();
       s.inc();
       update();
@@ -410,7 +412,7 @@ const SPELLS: { [name: string]: any } = {
         s.banish();
       }
     }
-    s.minor(`Return ${ID.names(s.spells)} to hand`);
+    s.minor(`Return ${Formatter.names(s.spells)} to hand`);
     s.spells = [];
   }),
   'Graceful Charity': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
@@ -439,7 +441,7 @@ const SPELLS: { [name: string]: any } = {
       const gid = s.remove('graveyard', j);
       const zone = s.summon(gid, true);
       s.remove(location, i);
-      s.add('spells', `${card.id}${zone}` as FieldID);
+      s.add('spells', ID.set(card.id, zone));
       s.inc(zone);
       update();
     });
@@ -452,31 +454,31 @@ const SPELLS: { [name: string]: any } = {
       if (card.id === Ids.ConvulsionOfNature) {
         s.reverse(true);
       } else if (card.id === Ids.BlackPendant) {
-        s.mclear(ID.data(id));
+        s.mset(ID.get(id));
       } else if (card.id === Ids.PrematureBurial) {
-        const removed = s.mremove(ID.data(id));
+        const removed = s.mremove(ID.get(id));
         s.add('graveyard', removed.id);
         s.minor(`Sending "${ID.decode(removed.id).name}" to the Graveyard after its equipped "${ID.decode(id).name}" was destroyed`);
       } else if (card.id === Ids.DifferentDimensionCapsule) {
         s.banish();
       }
     }
-    s.minor(`Send ${ID.names(s.spells)} to Graveyard`);
+    s.minor(`Send ${Formatter.names(s.spells)} to Graveyard`);
     s.spells = [];
   }),
   'Reload': RELOAD(s => {
     s.deck.push(...s.hand);
-    s.minor(`Return ${ID.names(s.hand)} to Deck`);
+    s.minor(`Return ${Formatter.names(s.hand)} to Deck`);
     s.shuffle();
   }),
   'Reversal Quiz': (s: State, location: 'hand' | 'spells', i: number, self: Card) => {
     let sangan = false;
     s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${self.name}"`);
     if (s.hand.length) {
-      s.minor(`Send ${ID.names(s.hand)} from hand to Graveyard`);
+      s.minor(`Send ${Formatter.names(s.hand)} from hand to Graveyard`);
     }
     if (s.monsters.length || s.spells.length) {
-      s.minor(`Send ${ID.names([...s.monsters, ...s.spells])} from field to Graveyard`);
+      s.minor(`Send ${Formatter.names([...s.monsters, ...s.spells])} from field to Graveyard`);
     }
 
     s.graveyard.push(...s.hand);
@@ -499,10 +501,10 @@ const SPELLS: { [name: string]: any } = {
       s.graveyard.push(card.id);
     }
     s.spells = [];
-    s.graveyard.sort();
+    s.graveyard.sort(CMP);
 
     const reveal = s.deck[s.deck.length - 1];
-    if (!ID.known(reveal)) s.deck[s.deck.length - 1] = `(${reveal})` as DeckID;
+    if (!ID.known(reveal)) s.deck[s.deck.length - 1] = ID.toggle(reveal) as DeckID;
     // BUG: we are deliberately peeking here to ensure we call it wrong!
     const card = ID.decode(reveal);
     s.minor(`Call "${card.type === 'Trap' ? 'Monster' : 'Trap'}", reveal "${card.name}"`);
@@ -525,7 +527,7 @@ const SPELLS: { [name: string]: any } = {
     s.remove(location, i);
     if (location === 'hand') {
       s.major(`Set "${card.name}" face-down`);
-      s.add('spells', `(${card.id})` as FieldID);
+      s.add('spells', ID.toggle(card.id) as FieldID);
     } // else {
     //   s.major(`Activate face-down' "${card.name}"`);
     //   s.add('spells', card.id);
@@ -577,7 +579,7 @@ const SPELLS: { [name: string]: any } = {
 
 function handler(location: Location, id: FieldID, i: number) {
   const action = STATE.stack[STATE.index].action;
-  console.log(action, location, id, i); // DEBUG
+  console.log(action, location, id, i); // Formatter
   switch (action.type) {
   case 'play': return onPlay(location, id, i);
   case 'target': return onTarget(location, id, i);
@@ -592,9 +594,9 @@ function onPlay(location: Location, id: FieldID, i: number) {
   switch (location) {
   case 'monsters': {
     if (card.id === Ids.RoyalMagicalLibrary) {
-      if (ID.facedown(id) || ID.data(id) !== 3 || !state.deck.length) return;
+      if (ID.facedown(id) || ID.get(id) !== 3 || !state.deck.length) return;
       state.major(`Remove 3 Spell Counters from "${card.name}"`);
-      state.mclear(i);
+      state.mset(i);
       state.draw();
       return update();
     }
@@ -607,7 +609,7 @@ function onPlay(location: Location, id: FieldID, i: number) {
     } else if (ID.facedown(id)) {
       const spell = SPELLS[card.name];
       if (spell) spell(state, location, i, card);
-    } else if (card.id === Ids.ArchfiendsOath && !ID.data(id)) {
+    } else if (card.id === Ids.ArchfiendsOath && !ID.get(id)) {
       ARCHFIEND(state, location, i, card);
     }
     return;
@@ -902,6 +904,7 @@ function initialize(option: Option, num: number) {
 
   /* eslint-disable @typescript-eslint/no-floating-promises */
   const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+  // FIXME encode(true)
   pool.exec('search', [STATE.start.toString(), 42, 1e6, false, 0.5]).then(r => {
     console.log('Path:', r);
   }).catch(e => {
@@ -915,9 +918,9 @@ function initialize(option: Option, num: number) {
 
 function start() {
   const arg = (window.location.hash || window.location.search).slice(1);
-  if (OPTIONS.includes(arg[0] as ID)) {
+  if (OPTIONS.includes(arg.charCodeAt(0) as ID)) {
     const n = arg.slice(1);
-    if (n && !isNaN(+n)) return initialize(arg[0] as ID, +n);
+    if (n && !isNaN(+n)) return initialize(arg.charCodeAt(0) as ID, +n);
   }
   const num = arg && !isNaN(+arg) ? +arg : ~~(Math.random() * (2 ** 31 - 1));
 

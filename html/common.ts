@@ -234,7 +234,7 @@ export const renderState = (
   for (const id of state.spells) {
     const card = ID.decode(id);
     if (!ID.facedown(id) && card.type === 'Spell' && card.subType === 'Equip') {
-      const i = ID.data(id);
+      const i = ID.get(id);
       if (!equips[i]) equips[i] = equip ? 'equip-2' : 'equip-1';
       equip = true;
     }
@@ -265,7 +265,7 @@ export const renderState = (
       div.appendChild(makeCard(ID.decode(id), handler && (() => handler('monsters', id, i!)), {
         hold,
         facedown: ID.facedown(id),
-        counter: ID.data(id),
+        counter: ID.get(id),
         equip: equips[i!],
         className: transform?.('monsters', id, i!),
       }));
@@ -300,7 +300,7 @@ export const renderState = (
     } else {
       const card = ID.decode(id);
       const facedown = ID.facedown(id);
-      const counter = ID.data(id);
+      const counter = ID.get(id);
       const fn = handler && (() => handler('spells', id, i!));
       const className = transform?.('spells', id, i!);
       if (!facedown && card.type === 'Spell' && card.subType === 'Equip') {
@@ -363,8 +363,8 @@ export const renderState = (
   return table;
 };
 
-export const track = <T extends string>(input: T[], output: T[], activated?: T) => {
-  const sorted = output.slice().sort();
+export const track = <T extends number>(input: T[], output: T[], activated?: T) => {
+  const sorted = output.slice().sort(CMP);
 
   const added: T[] = [];
   let j = 0;
