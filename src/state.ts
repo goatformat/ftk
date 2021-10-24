@@ -440,8 +440,9 @@ export class State {
             s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
             s.shuffle();
             State.transition(next, s);
-          } else if (this.allowed(prescient, true)) {
+          } else if (this.allowed(prescient, true) && this.deck.length) {
             // Failure to find
+            // TODO: determine if you can fail to find with no deck?
             const s = this.clone();
             s.major(`Discard "${card.name}"`);
             s.minor(`Fail to find "${card.name}" in Deck`);

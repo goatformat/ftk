@@ -99,8 +99,7 @@ const SPELL: (fn?: (s: State) => void) => Data['play'] = (fn?: (s: State) => voi
 // condition and to deck thin.
 // TODO: support probabilisitcally "guessing" the top card.
 export const ARCHFIEND: Data['play'] = (state, location, i, next, card) => {
-  // We know Archfiend's Oath has a can function so this case is safe.
-  if (!(card as any).can(state, location)) return;
+  if (state.lifepoints <= 500 || !state.deck.length) return;
 
   const play = location === 'hand' || ID.facedown(state[location][i]);
   const prefix = play
@@ -258,9 +257,9 @@ export const DATA: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
-    can: s => !!(s.lifepoints > 500 && s.deck.length),
-    score(state, location, id) {
-      return WEIGHTS['Archfiend\'s Oath'][+(this.can(state, location) && !ID.data(id))];
+    can: (s, loc) => loc !== 'spells' || !!(s.lifepoints > 500 && s.deck.length),
+    score(state, _, id) {
+      return WEIGHTS['Archfiend\'s Oath'][+!!((state.lifepoints > 500 && state.deck.length) && !ID.data(id))];
     },
     play(state, location, i, next, card, prescient) {
       ARCHFIEND(state, location, i, next, card, prescient);
@@ -726,7 +725,8 @@ export const DATA: { [name: string]: Data } = {
         }
       }
       // Failure to find
-      if (!targets.size) {
+      // TODO: determine if you can fail to find with no deck?
+      if (!targets.size && state.deck.length) {
         if (state.allowed(prescient, true)) {
           const s = state.clone();
           s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
