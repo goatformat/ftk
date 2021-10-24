@@ -808,8 +808,12 @@ const redo = () => {
 
 const cancel = () => {
   const action = STATE.stack[STATE.index].action;
-  if ((action.type === 'target' || action.type === 'search') && action.origin.i >= 0) {
-    STATE.stack[STATE.index].action = {type: 'play'};
+  if (action.type === 'target' || action.type === 'search') {
+    if (action.origin.i >= 0) {
+      STATE.stack[STATE.index].action = {type: 'play'};
+    } else {
+      (STATE.stack[STATE.index].action as ActionState).targets = [];
+    }
     update();
   }
 };
