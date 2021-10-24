@@ -258,8 +258,11 @@ export const DATA: { [name: string]: Data } = {
     subType: 'Continuous',
     text: 'Once per turn: You can pay 500 Life Points, then declare 1 card name; excavate the top card of your Deck, and if it is the declared card, add it to your hand. Otherwise, send it to the Graveyard.',
     can: (s, loc) => loc !== 'spells' || !!(s.lifepoints > 500 && s.deck.length),
-    score(state, _, id) {
-      return WEIGHTS['Archfiend\'s Oath'][+!!((state.lifepoints > 500 && state.deck.length) && !ID.data(id))];
+    score(state, location, id) {
+      const w = WEIGHTS['Archfiend\'s Oath'];
+      const activatable =
+        location === 'spells' && state.lifepoints > 500 && state.deck.length && !ID.data(id);
+      return activatable ? w[2] : location === 'hand' ? w[1] : w[0];
     },
     play(state, location, i, next, card, prescient) {
       ARCHFIEND(state, location, i, next, card, prescient);
