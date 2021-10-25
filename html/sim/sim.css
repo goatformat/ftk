@@ -28,6 +28,9 @@ body::before {
     calc(100vh / var(--card-ratio) * 0.19)
   );
 }
+.start {
+  margin-top: calc(2 * var(--card-height));
+}
 .wrapper {
   position: relative;
   overflow: visible;

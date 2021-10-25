@@ -1,4 +1,4 @@
-import {State, Random, ID, DeckID, DATA} from '../../src';
+import {State, Random, ID, DeckID, DATA, OPTIONS, Ids} from '../../src';
 import {createElement, track, renderState} from '../common';
 
 const render = (s: State, rendered: HTMLElement, banished: DeckID[] = [], graveyard: ID[] = []) => {
@@ -89,8 +89,10 @@ const lose = (s: State) => {
 
 const state = (() => {
   const arg = (window.location.hash || window.location.search).slice(1);
-  const fallback =
-    State.create(new Random(Random.seed(+arg || ~~(Math.random() * (2 ** 31 - 1)))), true);
+  const seed = (n: string) => Random.seed(n && !isNaN(+n) ? +n : ~~(Math.random() * (2 ** 31 - 1)));
+  const fallback = OPTIONS.includes(arg[0] as ID)
+    ? State.create(arg[0] as ID, new Random(seed(arg.slice(1))), true)
+    : State.create(Ids.Sangan, new Random(seed(arg)), true);
   if (arg) {
     try {
       const s = State.fromString(decodeURIComponent(arg), true);

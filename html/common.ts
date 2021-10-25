@@ -228,7 +228,7 @@ export const renderState = (
   handler?: Handler,
   transform?: Handler<string | undefined>,
   hold = false,
-  seed?: number
+  seed?: string
 ) => {
   let equip = false;
   const equips: {[i: number]: string} = {};

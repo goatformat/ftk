@@ -1,12 +1,12 @@
 import * as workerpool from 'workerpool';
 
-import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids} from '../../src';
+import {State, Random, ID, DeckID, Card, DATA, FieldID, Location, Ids, Option, OPTIONS} from '../../src';
 import {createElement, renderState, track, makeCard, CMP} from '../common';
 
 import './swipe';
 
 type Action = {
-  type: 'play' | 'win' | 'lose';
+  type: 'start' | 'play' | 'win' | 'lose';
 } | ActionState & ({
   type: 'target';
 } | {
@@ -29,21 +29,12 @@ interface Context {
   action: Action;
 }
 
-const NUM = (window.location.hash && +window.location.hash.slice(1)) ||
-  (window.location.search && +window.location.search.slice(1)) ||
-  ~~(Math.random() * (2 ** 31 - 1));
-console.log('Seed:', NUM);
-
-const START = State.create(new Random(Random.seed(NUM)), true);
-
-const STATE = {
-  stack: [{
-    state: START.clone(),
-    banished: [],
-    graveyard: [],
-    action: {type: 'play'},
-  } as Context],
-  index: 0,
+let STATE!: {
+  option: Option;
+  num: number;
+  start: State;
+  stack: Context[];
+  index: number;
 };
 
 function update(mutate = true) {
@@ -54,12 +45,12 @@ function update(mutate = true) {
   const trace = renderTrace(s, banished, graveyard, mutate);
 
   const wrapper = createElement('div', 'wrapper');
-  wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true, NUM));
+  wrapper.appendChild(renderState(s, banished, graveyard, handler, transform, true, `${STATE.option}${STATE.num}`));
 
   if (action.type === 'win' || (action.type === 'play' && !s.clone().next().length)) {
     const modal = createElement('div', 'modal', 'end', action.type === 'win' ? 'win' : 'lose');
     const a = createElement('a');
-    a.href = `../trace?${encodeURIComponent(START.toString())}`;
+    a.href = `../trace?${encodeURIComponent(STATE.start.toString())}`;
     const end = createElement('h1');
     end.textContent = `You ${action.type === 'win' ? 'Win' : 'Lose'}`;
     a.appendChild(end);
@@ -790,77 +781,117 @@ function onSearch(location: Location, id: FieldID, i: number) {
   }
 }
 
-update();
+function initialize(option: Option, num: number) {
+  console.log('Seed:', num);
 
-const undo = () => {
-  // if (STATE.index) {
-  //   STATE.index--;
-  //   update(false);
-  // }
-};
+  const state = State.create(option, new Random(Random.seed(num)), true);
+  STATE = {
+    option,
+    num,
+    start: state.clone(),
+    stack: [{
+      state,
+      banished: [],
+      graveyard: [],
+      action: {type: 'play'},
+    } as Context],
+    index: 0,
+  };
 
-const redo = () => {
-  // if (STATE.index < STATE.stack.length - 1) {
-  //   STATE.index++;
-  //   update(false);
-  // }
-};
+  const undo = () => {
+    // if (STATE.index) {
+    //   STATE.index--;
+    //   update(false);
+    // }
+  };
 
-const cancel = () => {
-  const action = STATE.stack[STATE.index].action;
-  if (action.type === 'target' || action.type === 'search') {
-    if (action.origin.i >= 0) {
-      STATE.stack[STATE.index].action = {type: 'play'};
-    } else {
-      (STATE.stack[STATE.index].action as ActionState).targets = [];
+  const redo = () => {
+    // if (STATE.index < STATE.stack.length - 1) {
+    //   STATE.index++;
+    //   update(false);
+    // }
+  };
+
+  const cancel = () => {
+    const action = STATE.stack[STATE.index].action;
+    if (action.type === 'target' || action.type === 'search') {
+      if (action.origin.i >= 0) {
+        STATE.stack[STATE.index].action = {type: 'play'};
+      } else {
+        (STATE.stack[STATE.index].action as ActionState).targets = [];
+      }
+      update();
     }
-    update();
-  }
-};
+  };
 
-const CLICKABLE = ['modal', 'modal-overlay', 'card'];
-document.addEventListener('click', e => {
-  if (e.target instanceof Element) {
-    for (let p: Element | null = e.target; p; p = p.parentElement) {
-      if (CLICKABLE.some(c => p!.classList.contains(c))) {
-        return true;
+  const CLICKABLE = ['modal', 'modal-overlay', 'card'];
+  document.addEventListener('click', e => {
+    if (e.target instanceof Element) {
+      for (let p: Element | null = e.target; p; p = p.parentElement) {
+        if (CLICKABLE.some(c => p!.classList.contains(c))) {
+          return true;
+        }
       }
     }
-  }
-  cancel();
-  e.preventDefault();
-  e.stopPropagation();
-  return false;
-});
-document.addEventListener('swiped-left', undo);
-document.addEventListener('swiped-right', redo);
-document.addEventListener('keydown', e => {
-  const key = e.which || e.keyCode;
-  switch (key) {
-  case 27:
     cancel();
-    break;
-  case 37:
-    undo();
-    break;
-  case 39:
-    redo();
-    break;
-  default:
-    return true;
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  });
+  document.addEventListener('swiped-left', undo);
+  document.addEventListener('swiped-right', redo);
+  document.addEventListener('keydown', e => {
+    const key = e.which || e.keyCode;
+    switch (key) {
+    case 27:
+      cancel();
+      break;
+    case 37:
+      undo();
+      break;
+    case 39:
+      redo();
+      break;
+    default:
+      return true;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  });
+
+  /* eslint-disable @typescript-eslint/no-floating-promises */
+  const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+  pool.exec('search', [STATE.start.toString(), 42, 1e6, false, 0.5]).then(r => {
+    console.log('Path:', r);
+  }).catch(e => {
+    console.error(e);
+  }).then(() => {
+    pool.terminate();
+  });
+
+  update();
+}
+
+function start() {
+  const arg = (window.location.hash || window.location.search).slice(1);
+  if (OPTIONS.includes(arg[0] as ID)) {
+    const n = arg.slice(1);
+    if (n && !isNaN(+n)) return initialize(arg[0] as ID, +n);
   }
+  const num = arg && !isNaN(+arg) ? +arg : ~~(Math.random() * (2 ** 31 - 1));
 
-  e.preventDefault();
-  e.stopPropagation();
-  return false;
-});
+  const $content = document.getElementById('content')!;
+  while ($content.firstChild) $content.removeChild($content.firstChild);
+  const zone = createElement('div', 'zone', 'start');
+  for (const id of OPTIONS) {
+    const card = ID.decode(id);
+    zone.appendChild(makeCard(card, () => {
+      initialize(id, num);
+    }, {hold: true}));
+  }
+  $content.appendChild(zone);
+}
 
-/* eslint-disable @typescript-eslint/no-floating-promises */
-const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
-pool.exec('search', [START.toString(), 42, 1e6, false, 0.5]).then(r => {
-  console.log('Path:', r);
-}).catch(e => {
-  console.error(e);
-}).then(() => {
-  pool.terminate();
-});
+start();

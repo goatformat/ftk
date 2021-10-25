@@ -2,10 +2,8 @@ import {ARCHFIEND, DATA, Type, Location} from './data';
 import {Ids, ID, DeckID, FieldID} from './ids';
 import {Random} from './random';
 import {bestFirstSearch, bulbSearch, SearchResult} from './search';
-import deckJSON from './deck.json';
+import DECK from './deck.json';
 import WEIGHTS from './weights.json';
-
-const DECK: {[name: string]: number} = deckJSON;
 
 // Used to enable state verification sanity checking which has a large impact on performance.
 // NOTE: set DEBUG to anything, even false and it will be turn on verification (!!'false')
@@ -19,6 +17,15 @@ export interface IState {
   state: Readonly<State>;
   score: number;
 }
+
+// The core of deck list is fixed, but the simulator requires one more card to meet the minimum deck
+// length requirement of 40 cards. NOTE: there are hardcoded assumptions about the ratios of cards
+// in the core deck list (eg. only one Black Pendant), so allowing for users to arbitrarily simulate
+// arbitrary configurations of the implemented cards is not supported.
+export const OPTIONS = [
+  Ids.CyberJar, Ids.Sangan, Ids.DifferentDimensionCapsule, Ids.HeavyStorm, Ids.RoyalDecree,
+] as const;
+export type Option = typeof OPTIONS[number];
 
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
 // where handlers clone a State object, mutate it, and then 'freeze' it as an immutable IState.
@@ -51,10 +58,13 @@ export class State {
 
   trace?: string[];
 
-  static create(random: Random, trace?: boolean) {
+  static create(option: Option, random: Random, trace?: boolean) {
     const deck: ID[] = [];
-    for (const name in DECK) {
+    for (const n in DECK) {
+      const name = n as keyof typeof DECK;
       for (let i = 0; i < DECK[name]; i++) deck.push(DATA[name].id);
+      // FIXME: move this out of the loop - only exists for compatability with legacy benchmarks
+      if (!DECK[name] && DATA[name].id === option) deck.push(option);
     }
     random.shuffle(deck);
 
@@ -967,7 +977,8 @@ export class State {
     }
 
     const start = [];
-    for (const name in DECK) {
+    for (const n in DECK) {
+      const name = n as keyof typeof DECK;
       for (let i = 0; i < DECK[name]; i++) start.push(DATA[name].id);
     }
     start.sort();
@@ -979,12 +990,29 @@ export class State {
       ...s.graveyard,
       ...s.deck.map(id => ID.id(id)),
     ].sort();
-    if (!equals(start, now)) {
+    if (!match(start, now)) {
       errors.push(`Mismatch: ${start.length} (${start.join('')}) vs. ${now.length} (${now.join('')})\n`);
     }
 
     return errors;
   }
+}
+
+function match(s: ID[], n: ID[]) {
+  if (s.length + 1 !== n.length) return false;
+  let option = undefined;
+  for (let i = 0, j = 0; i < n.length; i++) {
+    if (n[i] !== s[j]) {
+      if (!option) {
+        option = n[i];
+        continue;
+      } else {
+        return false;
+      }
+    }
+    j++;
+  }
+  return option && OPTIONS.includes(option);
 }
 
 // Fucking JS really doesn't have an Array.equals? smfh

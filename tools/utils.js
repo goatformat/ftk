@@ -33,14 +33,14 @@ export function hhmmss(ms, round = true) {
   }
 }
 
-export async function benchmark(n, width, prescient = true, fn) {
+export async function benchmark(option, n, width, prescient = true, fn) {
   const timeout = 20 * 60 * 1000;
   const cutoff = 1e7;
   const pool = workerpool.pool(path.join(__dirname, 'worker.js'), {maxWorkers: maxWorkers(cutoff)});
 
   const results = [];
   for (let i = 0; i < n; i++) {
-    results.push(pool.exec('search', [Random.seed(i), cutoff, prescient, width]).timeout(timeout).then(result => {
+    results.push(pool.exec('search', [option, Random.seed(i), cutoff, prescient, width]).timeout(timeout).then(result => {
       if (fn) fn();
       return [...result, i];
     }).catch(err => {
@@ -59,7 +59,7 @@ export async function benchmark(n, width, prescient = true, fn) {
   return r;
 }
 
-export async function solve(seeds, options = {verbose: false, prescient: true}) {
+export async function solve(option, seeds, options = {verbose: false, prescient: true}) {
   const timeout = 60 * 60 * 1000;
   const cutoff = 2e7;
   const verbose = options.verbose || 0;
@@ -77,7 +77,7 @@ export async function solve(seeds, options = {verbose: false, prescient: true}) 
         if (typeof cohorts[seed][0] === 'string') continue;
 
         const desc = `${prescient ? 'prescient' : 'non-prescient'} ${width === 0 ? 'best-first' : 'BULB'} search${width ? ` (width=${width})` : ''}`;
-        const search = pool.exec('search', [Random.seed(seed), cutoff, prescient, width, verbose > 1]).timeout(timeout).then(result => {
+        const search = pool.exec('search', [option, Random.seed(seed), cutoff, prescient, width, verbose > 1]).timeout(timeout).then(result => {
           if (typeof cohorts[seed][0] === 'string') return;
 
           if (result[0] === 'success') {

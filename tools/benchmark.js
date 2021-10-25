@@ -15,6 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const n = +process.argv[2] || 1000;
 const width = +process.argv[3] || undefined;
 const prescient = !process.argv[4];
+const option = process.argv[5] || 'S';
 
 (async () => {
   const csv = path.join(__dirname, 'logs', 'results.csv');
@@ -32,7 +33,7 @@ const prescient = !process.argv[4];
   const interval = setInterval(() => progress.render(), 1000);
 
   const start = Date.now();
-  const results = await benchmark(n, width, prescient, () => progress.tick());
+  const results = await benchmark(option, n, width, prescient, () => progress.tick());
 
   clearInterval(interval);
   progress.terminate();

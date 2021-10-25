@@ -29,9 +29,10 @@ const VERBOSE = isNaN(+process.env.VERBOSE) ? +!!process.env.VERBOSE : +process.
   }
 
   const prescient = !process.argv[3];
+  const option = process.argv[4] || 'S';
 
   const start = Date.now();
-  const results = await solve(seeds, {verbose: VERBOSE || +(seeds.length === 1), prescient});
+  const results = await solve(option, seeds, {verbose: VERBOSE || +(seeds.length === 1), prescient});
 
   if (seeds.length > 1) {
     console.log(`Finished all ${seeds.length} searches in ${hhmmss(Date.now() - start)}`);

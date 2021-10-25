@@ -6,8 +6,8 @@ import * as workerpool from 'workerpool';
 import {State, Random} from '../build/src';
 
 workerpool.worker({
-  search: (seed, cutoff, prescient, width, trace) => {
-    const state = State.create(new Random(seed), trace);
+  search: (option, seed, cutoff, prescient, width, trace) => {
+    const state = State.create(option, new Random(seed), trace);
     const hand = state.hand.slice().sort().join('');
     const start = Date.now();
     try {
