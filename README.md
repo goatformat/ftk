@@ -1,7 +1,7 @@
 # Library FTK
 
 <p align="center">
-  <img alt="Library FTK Decklist" src="https://user-images.githubusercontent.com/117249/134454031-9836e216-8cb5-4648-a288-dde569e9fca3.png" />
+  <img alt="Library FTK Decklist" src="https://user-images.githubusercontent.com/117249/138643376-0218feb1-981a-4810-8c5e-df96314b85da.png" />
 </p>
 
 "[Goat Format](https://www.goatformat.com/whatisgoat.html)" refers to a legacy [Yu-Gi-Oh!
@@ -18,7 +18,6 @@ The project exists to fully explore "Library FTK"
 
 
 ## Overview
-
 
 https://en.wikipedia.org/wiki/Yu-Gi-Oh!_Trading_Card_Game#Gameplay
 
