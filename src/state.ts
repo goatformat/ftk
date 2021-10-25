@@ -802,8 +802,10 @@ export class State {
       +this.reversed].join('|');
   }
 
-  // Decodes State which was encoded from State.toString (dropping trace)
-  static fromString(s: string) {
+  // Decodes State which was encoded from State.toString. Because the trace is not encoding in the
+  // toString representation the trace created fromString will not have a trace unless you specify
+  // that this is a state representing the opening hand and you wish to have a trace created.
+  static fromString(s: string, opening?: boolean) {
     let i = 0;
     let j = s.indexOf('|');
     const random = new Random(+s.slice(0, j));
@@ -847,8 +849,10 @@ export class State {
     i = j + 1;
     const reversed = s.slice(i) === '1';
 
+    const trace = opening ? [`Opening hand contains ${ID.names(hand)}`] : undefined;
+
     return new State(
-      random, lifepoints, turn, summoned, monsters, spells, hand, banished, graveyard, deck, reversed
+      random, lifepoints, turn, summoned, monsters, spells, hand, banished, graveyard, deck, reversed, trace
     );
   }
 

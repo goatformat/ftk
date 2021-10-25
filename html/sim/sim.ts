@@ -38,7 +38,7 @@ const START = State.create(new Random(Random.seed(NUM)), true);
 
 const STATE = {
   stack: [{
-    state: START,
+    state: START.clone(),
     banished: [],
     graveyard: [],
     action: {type: 'play'},
@@ -59,7 +59,7 @@ function update(mutate = true) {
   if (action.type === 'win' || (action.type === 'play' && !s.clone().next().length)) {
     const modal = createElement('div', 'modal', 'end', action.type === 'win' ? 'win' : 'lose');
     const a = createElement('a');
-    a.href = `../trace?${NUM}`;
+    a.href = `../trace?${encodeURIComponent(START.toString())}`;
     const end = createElement('h1');
     end.textContent = `You ${action.type === 'win' ? 'Win' : 'Lose'}`;
     a.appendChild(end);

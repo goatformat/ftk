@@ -87,10 +87,21 @@ const lose = (s: State) => {
   return render(s, rendered);
 };
 
-const num = (window.location.hash && +window.location.hash.slice(1)) ||
-  (window.location.search && +window.location.search.slice(1)) ||
-  ~~(Math.random() * (2 ** 31 - 1));
-const state = State.create(new Random(Random.seed(num)), true);
+const state = (() => {
+  const arg = (window.location.hash || window.location.search).slice(1);
+  const fallback =
+    State.create(new Random(Random.seed(+arg || ~~(Math.random() * (2 ** 31 - 1)))), true);
+  if (arg) {
+    try {
+      const s = State.fromString(decodeURIComponent(arg), true);
+      if (!State.verify(s).length) return s;
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+})();
+
 const result = state.search({cutoff: 1e7, prescient: false, width: 0.5});
 
 const content = document.getElementById('content')!;
