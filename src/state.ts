@@ -18,15 +18,6 @@ export interface IState {
   score: number;
 }
 
-// The core of deck list is fixed, but the simulator requires one more card to meet the minimum deck
-// length requirement of 40 cards. NOTE: there are hardcoded assumptions about the ratios of cards
-// in the core deck list (eg. only one Black Pendant), so allowing for users to arbitrarily simulate
-// arbitrary configurations of the implemented cards is not supported.
-export const OPTIONS = [
-  Ids.CyberJar, Ids.Sangan, Ids.DifferentDimensionCapsule, Ids.HeavyStorm, Ids.RoyalDecree,
-] as const;
-export type Option = typeof OPTIONS[number];
-
 // Order the main locations are encoded when serialized (banished is handled separately)
 const LOCATIONS = ['hand', 'monsters', 'spells', 'graveyard', 'deck'] as const;
 
@@ -38,6 +29,22 @@ const SEP = '.';
 const SUMMONED_REVERSED = '-';
 const SUMMONED = '\'';
 const REVERSED = '!';
+
+// A decklist is just a mapping from a card name to the number of cards present in the deck. While
+// the decklist is mostly flexible, the simulator requires decks conform to certain restrictions:
+//
+//  - only the cards implemented into the simulator can be used
+//  - decks *must* have a Reversal Quiz and Black Pendant
+//  - decks may only have a single Premature Burial and Black Pendant
+//  - decks must have exactly 40 cards to pass DEBUG verification
+//
+// Most Library FTK decklists will follow the same skeleton, and as such using `State.decklist`to
+// construct a decklist which just makes tweaks to the standard ratios is recommended.
+export type Decklist = Readonly<Record<string, number>>;
+
+// The default decklist needs one more card to meet the minimum deck length requirement of 40 cards
+export const OPTIONS = ['J', 'S', 'D', 'H', 'E'] as const;
+export type Option = typeof OPTIONS[number];
 
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
 // where handlers clone a State object, mutate it, and then 'freeze' it as an immutable IState.
@@ -56,6 +63,8 @@ const REVERSED = '!';
 // that this information is preserved through cloning but does *not* round trip through
 // toString/fromString.
 export class State {
+  readonly decklist?: Decklist;
+
   random: Random;
   lifepoints: number;
   summoned: boolean;
@@ -69,24 +78,38 @@ export class State {
 
   trace?: string[];
 
-  static create(option: Option, random: Random, trace?: boolean) {
-    const deck: ID[] = [];
+  static decklist(option: Option) {
+    const id = Formatter.unhuman(option);
+
+    const list: Record<string, number> = {};
     for (const n in DECK) {
       const name = n as keyof typeof DECK;
-      for (let i = 0; i < DECK[name]; i++) deck.push(DATA[name].id);
-      // FIXME: move this out of the loop - only exists for compatability with legacy benchmarks
-      if (!DECK[name] && DATA[name].id === option) deck.push(option);
+      if (DECK[name]) {
+        list[name] = DECK[name];
+      } else if (DATA[name].id === id) {
+        list[name] = 1;
+      }
+    }
+
+    return list as Decklist;
+  }
+
+  static create(decklist: Decklist, random: Random, trace?: boolean) {
+    const deck: ID[] = [];
+    for (const name in decklist) {
+      for (let i = 0; i < decklist[name]; i++) deck.push(DATA[name].id);
     }
     random.shuffle(deck);
 
     const state = new State(
-      random, 8000, false, [], [], [], [], [], deck, false, trace ? [] : undefined
+      decklist, random, 8000, false, [], [], [], [], [], deck, false, trace ? [] : undefined
     );
     state.draw(6, true);
     return state;
   }
 
   constructor(
+    decklist: Decklist | undefined,
     random: Random,
     lifepoints: number,
     summoned: boolean,
@@ -99,6 +122,7 @@ export class State {
     reversed: boolean,
     trace?: string[],
   ) {
+    this.decklist = decklist;
     this.random = random;
     this.lifepoints = lifepoints;
     this.summoned = summoned;
@@ -801,6 +825,7 @@ export class State {
 
   clone() {
     return new State(
+      this.decklist,
       new Random(this.random.seed),
       this.lifepoints,
       this.summoned,
@@ -919,6 +944,7 @@ export class State {
     const trace = opening ? [`Opening hand contains ${Formatter.names(data.hand)}`] : undefined;
 
     return new State(
+      undefined,
       random,
       lifepoints,
       summoned,
@@ -988,7 +1014,18 @@ export class State {
     const trace = opening ? [`Opening hand contains ${Formatter.names(hand)}`] : undefined;
 
     return new State(
-      random, lifepoints, summoned, monsters, spells, hand, banished, graveyard, deck, reversed, trace
+      undefined,
+      random,
+      lifepoints,
+      summoned,
+      monsters,
+      spells,
+      hand,
+      banished,
+      graveyard,
+      deck,
+      reversed,
+      trace
     );
   }
 
@@ -1093,11 +1130,12 @@ export class State {
     if (!d.equals(s, false)) errors.push(`encode/decode:\n${e} vs.\n${d.encode()}`);
 
     const start = [];
-    for (const n in DECK) {
-      const name = n as keyof typeof DECK;
-      for (let i = 0; i < DECK[name]; i++) start.push(DATA[name].id);
+    if (s.decklist) {
+      for (const name in s.decklist) {
+        for (let i = 0; i < s.decklist[name]; i++) start.push(DATA[name].id);
+      }
+      start.sort(CMP);
     }
-    start.sort(CMP);
     const now = [
       ...s.monsters.map(ID.id),
       ...s.spells.map(ID.id),
@@ -1106,29 +1144,14 @@ export class State {
       ...s.graveyard,
       ...s.deck.map(ID.id),
     ].sort(CMP);
-    if (!match(start, now)) {
+    if (start.length && !equals(start, now)) {
       errors.push(`Mismatch: ${start.length} vs. ${now.length}\n${Formatter.encode(start)}\n${Formatter.encode(now)}\n`);
+    } else if (now.length !== 40) {
+      errors.push(`Cards: ${now.length} (${Formatter.encode(now)})\n`);
     }
 
     return errors;
   }
-}
-
-function match(s: ID[], n: ID[]) {
-  if (s.length + 1 !== n.length) return false;
-  let option = undefined;
-  for (let i = 0, j = 0; i < n.length; i++) {
-    if (n[i] !== s[j]) {
-      if (!option) {
-        option = n[i];
-        continue;
-      } else {
-        return false;
-      }
-    }
-    j++;
-  }
-  return option && OPTIONS.includes(option);
 }
 
 // Fucking JS really doesn't have an Array.equals? smfh

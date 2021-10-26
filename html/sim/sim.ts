@@ -825,7 +825,7 @@ function onSearch(location: Location, id: FieldID, i: number) {
 function initialize(option: Option, num: number) {
   console.log('Seed:', num);
 
-  const state = State.create(option, new Random(Random.seed(num)), true);
+  const state = State.create(State.decklist(option), new Random(Random.seed(num)), true);
   STATE = {
     option,
     num,
@@ -917,9 +917,9 @@ function initialize(option: Option, num: number) {
 
 function start() {
   const arg = (window.location.hash || window.location.search).slice(1);
-  if (OPTIONS.includes(arg.charCodeAt(0) as ID)) {
+  if (OPTIONS.includes(arg as Option)) {
     const n = arg.slice(1);
-    if (n && !isNaN(+n)) return initialize(arg.charCodeAt(0) as ID, +n);
+    if (n && !isNaN(+n)) return initialize(arg as Option, +n);
   }
   const num = arg && !isNaN(+arg) ? +arg : ~~(Math.random() * (2 ** 31 - 1));
 
@@ -927,7 +927,7 @@ function start() {
   while ($content.firstChild) $content.removeChild($content.firstChild);
   const zone = createElement('div', 'zone', 'start');
   for (const id of OPTIONS) {
-    const card = ID.decode(id);
+    const card = ID.decode(Formatter.unhuman(id));
     zone.appendChild(makeCard(card, () => {
       initialize(id, num);
     }, {hold: true}));
