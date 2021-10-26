@@ -27,35 +27,73 @@ export type ID = number & As<'ID'>;
 export type DeckID = ID | number & As<'DeckID'>;
 export type FieldID = ID | number & As<'FieldID'>;
 
-// Alias for turning a single character into its character code - the compiler should be able to
-// turn all of these calls into constants for us so that the source file doesn't have to be littered
-// with ASCII codes...
-// TODO: confirm V8 isn't actually dumb...
-const $ = (s: string) => s.charCodeAt(0);
+// The table of character codes which represent each card. Most of these were chosen to be based off
+// of the card name, though conflicts mean some cards have less than memorable encodings. Several
+// cards have additional encodings for when then store data - these all need to be handled specially
+// in the functions above. One unfortunate side effect of this encoding is that cards with data may
+// 'jump around', as their sort order changes when activated, but finding relatively
+// readable/debuggable sequential encodings is difficult in the ASCII range and a consitent and
+// logical encoding scheme is more valuable then complete stable sorting of cards across state
+// changes.
+const LevelLimitAreaB = 65 as ID; // A
+const BlackPendant = 66 as ID; // B (0 1 2 3 4 5)
+const CardDestruction = 67 as ID; // C
+const DifferentDimensionCapsule = 68 as ID; // D (*)
+const RoyalDecree = 69 as ID; // E
+const AFeatherOfThePhoenix = 70 as ID; // F
+const GracefulCharity = 71 as ID; // G
+const HeavyStorm = 72 as ID; // H
+const CyberJar = 74 as ID; // J
+const PrematureBurial = 75 as ID; // K (5 6 7 8 9)
+const RoyalMagicalLibrary = 76 as ID; // L (< = >)
+const ArchfiendsOath = 79 as ID; // O (@)
+const PotOfGreed = 80 as ID; // P
+const ReversalQuiz = 81 as ID; // Q
+const Reload = 82 as ID; // R
+const Sangan = 83 as ID; // S
+const GiantTrunade = 84 as ID; // T
+const UpstartGoblin = 85 as ID; // U
+const ConvulsionOfNature = 86 as ID; // V
+const ToonWorld = 87 as ID; // W
+const ToonTableOfContents = 88 as ID; // X
+const ThunderDragon = 89 as ID; // Y
+const SpellReproduction = 90 as ID; // Z
 
-// The various encodings for a face-up Royal Magical Library with 0-3 Spell Counters
-const LIBRARY = [$('L'), $('<'), $('='), $('>')] as FieldID[];
+const RoyalMagicalLibrary1 = 60 as FieldID; // <
+const RoyalMagicalLibrary2 = 61 as FieldID; // =
+const RoyalMagicalLibrary3 = 62 as FieldID; // >
+const LIBRARY = [
+  RoyalMagicalLibrary, RoyalMagicalLibrary1, RoyalMagicalLibrary2, RoyalMagicalLibrary3,
+];
+
+const ArchfiendsOath1 = 64 as FieldID; // @
+const DifferentDimensionCapsule1 = 42 as FieldID; // *
+
+const BlackPendant0 = 48 as FieldID; // 0
+const BlackPendant4 = 52 as FieldID; // 4
+const PrematureBurial0 = 53 as FieldID; // 5
+const PrematureBurial4 = 57 as FieldID; // 9
 
 // Drops the data associated with a FieldID, returning the 'raw' ID
 const raw = (id: FieldID) => {
-  if (id >= $('<') && id <= $('>')) return Ids.RoyalMagicalLibrary;
-  if (id === $('@')) return Ids.ArchfiendsOath;
-  if (id >= $('0') && id <= $('4')) return Ids.BlackPendant;
-  if (id >= $('5') && id <= $('9')) return Ids.PrematureBurial;
-  if (id === $('*')) return Ids.DifferentDimensionCapsule;
-  throw new RangeError(`Invalid ID: ${String.fromCharCode(id)}`);
+  if (id >= RoyalMagicalLibrary1 && id <= RoyalMagicalLibrary3) return RoyalMagicalLibrary;
+  if (id === ArchfiendsOath1) return ArchfiendsOath;
+  if (id >= BlackPendant0 && id <= BlackPendant4) return BlackPendant;
+  if (id >= PrematureBurial0 && id <= PrematureBurial4) return PrematureBurial;
+  if (id === DifferentDimensionCapsule1) return DifferentDimensionCapsule;
+  throw new RangeError(`Invalid ID: ${id}`);
 };
 
 // Utilities for handling IDs
 export const ID = new class {
   // Determines whether an ID represents a face-down card
   facedown(this: void, id?: FieldID | DeckID) {
-    return !!id && id >= $('a') && id <= $('z');
+    return !!id && id >= 97 /* a */ && id <= 122;
   }
   // Flips a card from face-up to face-down or vice-versa. If a card had state it loses it when it
   // gets flipped down (NB: face-down cards cannot have state due to the rules of Yu-Gi-Oh!)
   toggle(this: void, id: FieldID | DeckID): ID | DeckID | FieldID {
-    return (((id >= $('A') && id <= $('Z') || id >= $('a') && id <= $('z'))
+    return (((id >= 65 /* A */ && id <= 90 /* Z */ || id >= 97 /* a */ && id <= 122 /* z */)
       ? id : raw(id as FieldID)) ^ 0x20) as ID | DeckID | FieldID;
   }
   // Determines whether an ID represents a known card in the Deck (or a card banished face-down)
@@ -66,29 +104,29 @@ export const ID = new class {
   // whether a card was activated, a bit used for counting turns, or an index of Zone the Monster an
   // Equip Spell is equipped to is located
   get(this: void, id: FieldID) {
-    if (id >= $('A') && id <= $('Z') || id >= $('a') && id <= $('z')) return 0;
-    if (id >= $('<') && id <= $('>')) return id - $('<') + 1;
-    if (id === $('@') || id === $('*')) return 1;
-    if (id >= $('0') && id <= $('9')) return (id - $('0')) % 5;
+    if (id >= 65 /* A */ && id <= 90 /* Z */ || id >= 97 /* a */ && id <= 122 /* z */) return 0;
+    if (RoyalMagicalLibrary1 && id <= RoyalMagicalLibrary3) return id - RoyalMagicalLibrary1 + 1;
+    if (id === ArchfiendsOath1 || id === DifferentDimensionCapsule1) return 1;
+    if (id >= BlackPendant0 && id <= PrematureBurial4) return (id - BlackPendant0) % 5;
     return 0;
   }
   // Sets data associated with a card
   // PRECONDITION: data is in valid range for the ID in question
   set(this: void, id: ID, data: number) {
     switch (id) {
-    case Ids.RoyalMagicalLibrary: return LIBRARY[data];
-    case Ids.ArchfiendsOath: return data ? $('@') as FieldID : Ids.ArchfiendsOath;
-    case Ids.BlackPendant: return ($('0') + data) as FieldID;
-    case Ids.PrematureBurial: return ($('5') + data) as FieldID;
-    case Ids.DifferentDimensionCapsule:
-      return data ? Ids.DifferentDimensionCapsule : $('*') as FieldID;
+    case RoyalMagicalLibrary: return LIBRARY[data];
+    case ArchfiendsOath: return data ? ArchfiendsOath1 : ArchfiendsOath;
+    case BlackPendant: return (BlackPendant0 + data) as FieldID;
+    case PrematureBurial: return (PrematureBurial0 + data) as FieldID;
+    case DifferentDimensionCapsule:
+      return data ? DifferentDimensionCapsule : DifferentDimensionCapsule1;
     }
     throw new RangeError(`Invalid ID: ${id}`);
   }
   // Returns the raw ID given an ID of any type
   id(this: void, id: ID | FieldID | DeckID) {
-    if (id >= $('A') && id <= $('Z')) return id as ID;
-    if (id >= $('a') && id <= $('z')) return (id ^ 0x20) as ID;
+    if (id >= 65 /* A */ && id <= 90 /* Z */) return id as ID;
+    if (id >= 97 /* a */ && id <= 122 /* z */) return (id ^ 0x20) as ID;
     return raw(id as FieldID);
   }
   // Determines the Card that an ID is meant to represent
@@ -128,25 +166,25 @@ export const Formatter = new class {
   // entirely different character. The IDs are still compact but are less efficient and only should
   // be used for debugging purposes.
   human(this: void, id: ID | FieldID | DeckID) {
-    if (id >= $('A') && id <= $('Z')) return String.fromCharCode(id);
-    if (id >= $('a') && id <= $('z')) return `(${String.fromCharCode((id ^ 0x20))})`;
-    if (id >= $('<') && id <= $('>')) return `L${id - $('<') + 1}`;
-    if (id === $('@')) return 'O1';
-    if (id >= $('0') && id <= $('4')) return `B${id - $('0')}`;
-    if (id >= $('5') && id <= $('9')) return `K${id - $('5')}`;
-    if (id === $('*')) return 'D1';
+    if (id >= 65 /* A */ && id <= 90 /* Z */) return String.fromCharCode(id);
+    if (id >= 97 /* a */ && id <= 122 /* z */) return `(${String.fromCharCode((id ^ 0x20))})`;
+    if (id >= RoyalMagicalLibrary1 && id <= RoyalMagicalLibrary3) return `L${id - RoyalMagicalLibrary1 + 1}`;
+    if (id === ArchfiendsOath1) return 'O1';
+    if (id >= BlackPendant0 && id <= BlackPendant4) return `B${id - BlackPendant0}`;
+    if (id >= PrematureBurial0 && id <= PrematureBurial4) return `K${id - PrematureBurial0}`;
+    if (id === DifferentDimensionCapsule1) return 'D1';
     throw new RangeError(`Invalid ID: ${String.fromCharCode(id)}`);
   }
   // Decodes an ID encoded in the human readable format
   unhuman(this: void, s: string) {
-    if (s.length === 1) return $(s[0]) as ID;
-    if (s.startsWith('(')) return ($(s[1]) ^ 0x20) as DeckID | FieldID;
+    if (s.length === 1) return s[0].charCodeAt(0) as ID;
+    if (s.startsWith('(')) return (s[1].charCodeAt(0) ^ 0x20) as DeckID | FieldID;
     switch (s[0]) {
     case 'L': return LIBRARY[+s[1]];
-    case 'O': return $('@') as FieldID;
-    case 'B': return ($('0') + +s[1]) as FieldID;
-    case 'K': return ($('5') + +s[1]) as FieldID;
-    case 'D': $('*') as FieldID;
+    case 'O': return ArchfiendsOath1;
+    case 'B': return (BlackPendant0 + +s[1]) as FieldID;
+    case 'K': return (PrematureBurial0 + +s[1]) as FieldID;
+    case 'D': return DifferentDimensionCapsule1;
     }
     throw new RangeError(`Invalid legacy ID: ${s}`);
   }
@@ -168,36 +206,29 @@ export const Formatter = new class {
   }
 };
 
-// The table of character codes which represent each card. Most of these were chosen to be based off
-// of the card name, though conflicts mean some cards have less than memorable encodings. Several
-// cards have additional encodings for when then store data - these all need to be handled specially
-// in the functions above. One unfortunate side effect of this encoding is that cards with data may
-// 'jump around', as their sort order changes when activated, but finding relatively
-// readable/debuggable sequential encodings is difficult in the ASCII range and a consitent and
-// logical encoding scheme is more valuable then complete stable sorting of cards across state
-// changes.
+// Export all of the IDs under a namespace to avoid having ugly imports
 export const Ids = {
-  LevelLimitAreaB: $('A') as ID,
-  BlackPendant: $('B') as ID, // 0 1 2 3 4 5
-  CardDestruction: $('C') as ID,
-  DifferentDimensionCapsule: $('D') as ID, // *
-  RoyalDecree: $('E') as ID,
-  AFeatherOfThePhoenix: $('F') as ID,
-  GracefulCharity: $('G') as ID,
-  HeavyStorm: $('H') as ID,
-  CyberJar: $('J') as ID,
-  PrematureBurial: $('K') as ID, // 5 6 7 8 9
-  RoyalMagicalLibrary: $('L') as ID, // < = >
-  ArchfiendsOath: $('O') as ID, // @
-  PotOfGreed: $('P') as ID,
-  ReversalQuiz: $('Q') as ID,
-  Reload: $('R') as ID,
-  Sangan: $('S') as ID,
-  GiantTrunade: $('T') as ID,
-  UpstartGoblin: $('U') as ID,
-  ConvulsionOfNature: $('V') as ID,
-  ToonWorld: $('W') as ID,
-  ToonTableOfContents: $('X') as ID,
-  ThunderDragon: $('Y') as ID,
-  SpellReproduction: $('Z') as ID,
+  LevelLimitAreaB: LevelLimitAreaB,
+  BlackPendant: BlackPendant,
+  CardDestruction: CardDestruction,
+  DifferentDimensionCapsule: DifferentDimensionCapsule,
+  RoyalDecree: RoyalDecree,
+  AFeatherOfThePhoenix: AFeatherOfThePhoenix,
+  GracefulCharity: GracefulCharity,
+  HeavyStorm: HeavyStorm,
+  CyberJar: CyberJar,
+  PrematureBurial: PrematureBurial,
+  RoyalMagicalLibrary: RoyalMagicalLibrary,
+  ArchfiendsOath: ArchfiendsOath,
+  PotOfGreed: PotOfGreed,
+  ReversalQuiz: ReversalQuiz,
+  Reload: Reload,
+  Sangan: Sangan,
+  GiantTrunade: GiantTrunade,
+  UpstartGoblin: UpstartGoblin,
+  ConvulsionOfNature: ConvulsionOfNature,
+  ToonWorld: ToonWorld,
+  ToonTableOfContents: ToonTableOfContents,
+  ThunderDragon: ThunderDragon,
+  SpellReproduction: SpellReproduction,
 };

@@ -732,7 +732,7 @@ export class State {
     // the Graveyard (we specifically add Black Pendants to the spells list).
     const fn = (raw: ID | FieldID | DeckID) => {
       const id = ID.id(raw);
-      return raw !== Ids.ReversalQuiz && raw !== Ids.BlackPendant;
+      return id !== Ids.ReversalQuiz && id !== Ids.BlackPendant;
     };
     const hand = this.hand.filter(fn);
     if (hand.length) {
