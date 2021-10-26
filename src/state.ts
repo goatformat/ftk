@@ -352,8 +352,7 @@ export class State {
   search(
     options: {cutoff?: number; prescient?: boolean; width?: number} = {}
   ): {visited: number} | SearchResult & {visited: number} {
-    // FIXME encode(false)
-    const node = {key: this.toString(), state: this, score: this.score()};
+    const node = {key: this.encode(!!this.trace), state: this, score: this.score()};
     if (options.width) {
       return bulbSearch(node, options.width, options.cutoff, options.prescient);
     } else {
@@ -363,14 +362,13 @@ export class State {
 
   // Add fully-built-and-never-to-be-mutated-again state to the transition map
   static transition(next: Map<string, IState>, state: Readonly<State>) {
-    // FIXME encode(false)
-    const key = state.toString();
+    const key = state.encode(!!state.trace);
     next.set(key, {key, state, score: state.score()});
     if (DEBUG) {
       const errors = State.verify(state);
       if (errors.length) {
         const trace = state.trace ? `\n\n${state.trace.join('\n')}\n` : '';
-        throw new Error(`INVALID STATE ${state.encode(true)}:\n\n${errors.join('\n')}${trace}`);
+        throw new Error(`INVALID STATE ${state.encode()}:\n\n${errors.join('\n')}${trace}`);
       }
     }
   }

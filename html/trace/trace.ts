@@ -17,7 +17,8 @@ const render = (s: State, rendered: HTMLElement, banished: DeckID[] = [], gravey
 
   code = createElement('code');
   pre = createElement('pre');
-  pre.textContent = s.next().map(({key, score}) => `${key} = ${score.toFixed(2)}`).join('\n');
+  pre.textContent = s.next().map(({key, score}) =>
+    `${State.decode(key).toString()} = ${score.toFixed(2)}`).join('\n');
   code.appendChild(pre);
   details.appendChild(code);
   wrapper.appendChild(details);
@@ -47,7 +48,7 @@ const win = (path: string[], trace: string[]) => {
       }
 
       if (path[major - 1]) {
-        const s = State.fromString(path[major - 1]);
+        const s = State.decode(path[major - 1], true);
         const activated = last.startsWith('Activate')
           ? DATA[/"(.*?)"/.exec(last)![1]].id
           : (last.startsWith('Set') && !last.endsWith('face-down'))
@@ -95,7 +96,7 @@ const state = (() => {
     : State.create(Ids.Sangan, new Random(seed(arg)), true);
   if (arg) {
     try {
-      const s = State.fromString(decodeURIComponent(arg), true);
+      const s = State.decode(decodeURIComponent(arg), true);
       if (!State.verify(s).length) return s;
     } catch {
       return fallback;

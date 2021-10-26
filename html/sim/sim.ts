@@ -61,7 +61,7 @@ function update(mutate = true) {
   if (action.type === 'win' || (action.type === 'play' && !s.clone().next().length)) {
     const modal = createElement('div', 'modal', 'end', action.type === 'win' ? 'win' : 'lose');
     const a = createElement('a');
-    a.href = `../trace?${encodeURIComponent(STATE.start.toString())}`;
+    a.href = `../trace?${encodeURIComponent(STATE.start.encode())}`;
     const end = createElement('h1');
     end.textContent = `You ${action.type === 'win' ? 'Win' : 'Lose'}`;
     a.appendChild(end);
@@ -904,8 +904,7 @@ function initialize(option: Option, num: number) {
 
   /* eslint-disable @typescript-eslint/no-floating-promises */
   const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
-  // FIXME encode(true)
-  pool.exec('search', [STATE.start.toString(), 42, 1e6, false, 0.5]).then(r => {
+  pool.exec('search', [STATE.start.encode(), 42, 1e6, false, 0.5]).then(r => {
     console.log('Path:', r);
   }).catch(e => {
     console.error(e);
