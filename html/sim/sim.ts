@@ -6,7 +6,7 @@ import {createElement, renderState, track, makeCard, CMP} from '../common';
 import './swipe';
 
 type Action = {
-  type: 'start' | 'play' | 'win' | 'lose';
+  type: 'play' | 'win' | 'lose';
 } | ActionState & ({
   type: 'target';
 } | {
