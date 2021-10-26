@@ -140,7 +140,7 @@ export const makeCard = (
   if (options.className) root.classList.add(options.className);
 
   const type = card.type.toLowerCase();
-  const cardType = card.type === 'Monster' ? 'effectMonster' : card.type;
+  const cardType = card.type === 'Monster' ? (card.id ? 'effectMonster' : 'normalMonster') : card.type;
 
   root.style.backgroundImage = options.facedown
     ? `url(${IMG.sleeves['Default.png'] as string})`
@@ -152,7 +152,6 @@ export const makeCard = (
     root.appendChild(art);
 
     const lowerHalf = createElement('div', 'lower-half');
-
     const icon = createElement('div', 'icon', type);
 
     if (card.type === 'Monster') {

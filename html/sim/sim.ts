@@ -12,6 +12,7 @@ type Action = {
 } | {
   type: 'search';
   options: [Location, number][];
+  fallback?: Card;
 });
 
 interface ActionState {
@@ -35,6 +36,16 @@ let STATE!: {
   start: State;
   stack: Context[];
   index: number;
+};
+
+const BLUE_EYES = {
+  name: 'Blue-Eyes White Dragon',
+  type: 'Monster',
+  attribute: 'Light',
+  level: 8,
+  atk: 3000,
+  def: 2500,
+  text: '<i>Dragon – This legendary dragon is a powerful engine of destruction. Virtually invincible, very few have faced this awesome creature and lived to tell the tale.</i>',
 };
 
 function update(mutate = true) {
@@ -64,6 +75,15 @@ function update(mutate = true) {
     const modal = createElement('div', 'modal');
 
     const zone = createElement('div', 'zone', 'search');
+
+    if (action.fallback) {
+      zone.appendChild(makeCard(action.fallback, () => {
+        STATE.stack[STATE.index].action = {type: 'play'};
+        action.fn('deck', -1);
+        update();
+      }, {hold: true}));
+    }
+
     for (const [location, i] of action.options.sort((a, b) => s[a[0]][a[1]].localeCompare(s[b[0]][b[1]]))) {
       const id = s[location][i] as FieldID;
       const card = ID.decode(id);
@@ -189,28 +209,45 @@ function SPELL(fn?: (s: State) => void) {
   };
 }
 
-// TODO: support guessing
 function ARCHFIEND(s: State, location: 'hand' | 'spells', i: number, card: Card) {
   const play = location === 'hand' || ID.facedown(s[location][i]);
   const prefix = play
     ? `Activate${location === 'spells' ? ' face-down' : ''} "${card.name}" then pay`
     : 'Pay';
-  s.major(`${prefix} 500 LP (${s.lifepoints} -> ${s.lifepoints - 500}) to activate effect of "${card.name}"`);
-  s.lifepoints -= 500;
+  const major = `${prefix} 500 LP (${s.lifepoints} -> ${s.lifepoints - 500}) to activate effect of "${card.name}"`;
   if (s.known()) {
+    s.major(major);
+    s.lifepoints -= 500;
+
     s.minor(`Declare "${ID.decode(s.deck[s.deck.length - 1]).name}"`);
     s.draw();
-  } else {
-    s.minor('Declare "Blue-Eyes White Dragon"');
-    const reveal = ID.decode(s.deck.pop()!);
-    s.minor(`Excavate "${reveal.name}"`);
-    s.add('graveyard', reveal.id);
-  }
-  s.remove(location, i);
-  s.add('spells', `${card.id}1` as FieldID);
-  if (play) s.inc();
 
-  update();
+    s.remove(location, i);
+    s.add('spells', `${card.id}1` as FieldID);
+    if (play) s.inc();
+    update();
+  } else {
+    search({location, i}, loc => loc === 'deck', (_, j) => {
+      s.major(major);
+      s.lifepoints -= 500;
+
+      const top = ID.decode(s.deck[s.deck.length - 1]);
+      if (top.id === s.deck[j]) {
+        s.minor(`Declare "${ID.decode(s.deck[s.deck.length - 1]).name}"`);
+        s.draw();
+      } else {
+        s.minor(`Declare "${j < 0 ? 'Blue-Eyes White Dragon' : ID.decode(s.deck[j]).name}"`);
+        const reveal = ID.decode(s.deck.pop()!);
+        s.minor(`Excavate "${reveal.name}"`);
+        s.add('graveyard', reveal.id);
+      }
+
+      s.remove(location, i);
+      s.add('spells', `${card.id}1` as FieldID);
+      if (play) s.inc();
+      update();
+    }, 1, BLUE_EYES as Card);
+  }
 }
 
 function SANGAN_TARGET(location: Location, id: DeckID | FieldID) {
@@ -717,7 +754,8 @@ function search(
   origin: {location: Location; i: number},
   filter: (location: Location, id: DeckID | FieldID) => boolean,
   fn: (location: Location, ...j: number[]) => void,
-  num = 1
+  num = 1,
+  fallback?: Card,
 ) {
   const state = STATE.stack[STATE.index].state;
 
@@ -747,6 +785,7 @@ function search(
       num,
       targets: [],
       options: targets,
+      fallback,
     };
     update();
   }
