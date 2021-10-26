@@ -77,7 +77,7 @@ export const ID = new class {
   set(this: void, id: ID, data: number) {
     switch (id) {
     case Ids.RoyalMagicalLibrary: return LIBRARY[data];
-    case Ids.ArchfiendsOath: return data ? Ids.ArchfiendsOath : $('@') as FieldID;
+    case Ids.ArchfiendsOath: return data ? $('@') as FieldID : Ids.ArchfiendsOath;
     case Ids.BlackPendant: return ($('0') + data) as FieldID;
     case Ids.PrematureBurial: return ($('5') + data) as FieldID;
     case Ids.DifferentDimensionCapsule:
