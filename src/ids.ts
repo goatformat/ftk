@@ -105,7 +105,7 @@ export const ID = new class {
   // Equip Spell is equipped to is located
   get(this: void, id: FieldID) {
     if (id >= 65 /* A */ && id <= 90 /* Z */ || id >= 97 /* a */ && id <= 122 /* z */) return 0;
-    if (RoyalMagicalLibrary1 && id <= RoyalMagicalLibrary3) return id - RoyalMagicalLibrary1 + 1;
+    if (id >= RoyalMagicalLibrary1 && id <= RoyalMagicalLibrary3) return id - RoyalMagicalLibrary1 + 1;
     if (id === ArchfiendsOath1 || id === DifferentDimensionCapsule1) return 1;
     if (id >= BlackPendant0 && id <= PrematureBurial4) return (id - BlackPendant0) % 5;
     return 0;

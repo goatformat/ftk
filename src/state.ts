@@ -36,7 +36,7 @@ const LOCATIONS = ['hand', 'monsters', 'spells', 'graveyard', 'deck'] as const;
 // are not URL-safe)
 const SEP = '.';
 const SUMMONED_REVERSED = '-';
-const SUMMONED = '_';
+const SUMMONED = '\'';
 const REVERSED = '!';
 
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
@@ -1086,11 +1086,11 @@ export class State {
 
     const t = s.toString();
     const f = State.fromString(t);
-    if (!f.equals(s, false)) errors.push(`toString/fromString: ${t} vs. ${f.toString()}`);
+    if (!f.equals(s, false)) errors.push(`toString/fromString:\n${t} vs.\n${f.toString()}`);
 
     const e = s.encode();
     const d = State.decode(e);
-    if (!d.equals(s, false)) errors.push(`encode/decode: ${e} vs. ${d.encode()}`);
+    if (!d.equals(s, false)) errors.push(`encode/decode:\n${e} vs.\n${d.encode()}`);
 
     const start = [];
     for (const n in DECK) {
