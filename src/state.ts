@@ -30,6 +30,14 @@ export type Option = typeof OPTIONS[number];
 // Order the main locations are encoded when serialized (banished is handled separately)
 const LOCATIONS = ['hand', 'monsters', 'spells', 'graveyard', 'deck'] as const;
 
+// Constants used when encoding/decoding State - SEP must be less than '0' and the other markers
+// must be less than SEP. URL-safe characters are prefered (though encodeURIComponent and
+// decodeURIComponent need to be used to display State encodings in general as several codes chosen
+// are not URL-safe)
+const SEP = '.';
+const SUMMONED_REVERSED = '-';
+const SUMMONED = '_';
+const REVERSED = '!';
 
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
 // where handlers clone a State object, mutate it, and then 'freeze' it as an immutable IState.
@@ -864,7 +872,7 @@ export class State {
   // encounters for deduping purposes, though we still provide the option for producing decodeable
   // strings as this is still useful (eg. for sending States over the wire to Workers).
   encode(decodeable = true) {
-    const sep = decodeable ? '/' : '';
+    const sep = decodeable ? SEP : '';
     // Using `join` here on an array instead of using a template string or string concatenation
     // is deliberate as it results in V8 creating a flat string instead of a cons-string, the
     // latter of which results in significantly higher memory usage. This is a V8 implementation
@@ -874,8 +882,8 @@ export class State {
       String.fromCharCode(...this.hand), String.fromCharCode(...this.monsters),
       String.fromCharCode(...this.spells), String.fromCharCode(...this.graveyard),
       String.fromCharCode(...this.deck),
-      this.random.seed.toString(16) +
-      (this.summoned && this.reversed ? '-' : this.summoned ? '.' : this.reversed ? ',' : sep) +
+      this.random.seed.toString(16) + (this.summoned && this.reversed
+        ? SUMMONED_REVERSED : this.summoned ? SUMMONED : this.reversed ? REVERSED : sep) +
       this.lifepoints + String.fromCharCode(...this.banished),
     ].join(sep);
   }
@@ -886,7 +894,7 @@ export class State {
     let current = 0;
     let i: number;
     for (i = 0; i < s.length && current < LOCATIONS.length; i++) {
-      if (s[i] === '/') {
+      if (s[i] === SEP) {
         current++;
         continue;
       }
@@ -895,14 +903,14 @@ export class State {
 
     // indexOf from index i, but we don't know the actual separator...
     let j = i;
-    while (j < s.length && s[j] > '/') j++;
+    while (j < s.length && s[j] > SEP) j++;
     const random = new Random(parseInt(s.slice(i, j), 16));
 
-    const summoned = s[j] === '-' || s[j] === '.';
-    const reversed = s[j] === '-' || s[j] === ',';
+    const summoned = s[j] === SUMMONED_REVERSED || s[j] === SUMMONED;
+    const reversed = s[j] === SUMMONED_REVERSED || s[j] === REVERSED;
 
     i = j + 1;
-    j = s.indexOf('/', i);
+    j = s.indexOf(SEP, i);
 
     const lifepoints = +s.slice(i, j < 0 ? undefined : j);
     const banished: DeckID[] = [];
