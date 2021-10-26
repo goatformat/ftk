@@ -684,8 +684,10 @@ export class State {
         this.feather('spells', spells.feather, hid, gid, discard, k);
       }
 
+
       if (hand.upstart >= 0) {
-        this.remove('hand', (hand.feather >= 0 && hand.feather < hand.upstart) ? hand.upstart - 1 : hand.upstart);
+        const offset = +(discard < hand.upstart);
+        this.remove('hand', (hand.feather >= 0 && hand.feather < hand.upstart) ? hand.upstart - 1 - offset : hand.upstart - offset);
         this.major('Activate "Upstart Goblin"');
       } else {
         this.remove('spells', (spells.feather >= 0 && spells.feather < spells.upstart) ? spells.upstart - 1 : spells.upstart);
@@ -726,17 +728,21 @@ export class State {
       this.major(`${facedown.pendant ? 'Flip face-down "Black Pendant" and equip' : 'Equip "Black Pendant"'}  to "${monster.name}"`);
     }
     this.major(`Activate${facedown.quiz ? ' face-down' : ''} "Reversal Quiz"`);
-    // Filter out Reversal Quiz from the messages about what gets sent to the Graveyard
-    const fn = (id: ID | FieldID | DeckID) => ID.id(id) !== Ids.ReversalQuiz;
+    // Filter out Reversal Quiz and Black Pendant from the messages about what gets sent to
+    // the Graveyard (we specifically add Black Pendants to the spells list).
+    const fn = (raw: ID | FieldID | DeckID) => {
+      const id = ID.id(raw);
+      return raw !== Ids.ReversalQuiz && raw !== Ids.BlackPendant;
+    };
     const hand = this.hand.filter(fn);
     if (hand.length) {
       this.minor(`Send ${Formatter.names(hand)} from hand to Graveyard`);
     }
     const monsters = this.monsters.filter(fn);
     const spells = this.spells.filter(fn);
-    if (monsters.length || spells.length) {
-      this.minor(`Send ${Formatter.names([...monsters, ...spells])} from field to Graveyard`);
-    }
+    spells.push(Ids.BlackPendant);
+    this.minor(`Send ${Formatter.names([...monsters, ...spells])} from field to Graveyard`);
+
     for (const id of this.spells) {
       const card = ID.decode(id);
       if (card.id === Ids.ConvulsionOfNature) {
@@ -1095,7 +1101,7 @@ export class State {
       ...s.deck.map(ID.id),
     ].sort(CMP);
     if (!match(start, now)) {
-      errors.push(`Mismatch: ${start.length} (${start.join('')}) vs. ${now.length} (${now.join('')})\n`);
+      errors.push(`Mismatch: ${start.length} vs. ${now.length}\n${Formatter.encode(start)}\n${Formatter.encode(now)}\n`);
     }
 
     return errors;
