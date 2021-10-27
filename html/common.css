@@ -1,3 +1,5 @@
+@import 'npm:tippy.js/dist/tippy.css';
+
 :root {
   --bg-color: #fff;
   --fg-color: #000;

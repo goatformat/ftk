@@ -1,11 +1,9 @@
 import tippy from 'tippy.js';
-import 'tippy.js/dist/tippy.css';
 
 import {State, ID, DeckID, Card, FieldID, Location} from '../src';
 
 // @ts-ignore
 import IMG from './img/**/*';
-import './common.css';
 
 // i herd u liek proper sorts
 export const CMP = (a: number, b: number) => a - b;
