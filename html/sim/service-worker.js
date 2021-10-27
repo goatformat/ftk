@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import {manifest, version} from '@parcel/service-worker';
 
 async function install() {
