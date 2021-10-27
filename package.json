@@ -16,6 +16,7 @@
   "optionalDependencies": {
     "@parcel/config-default": "^2.0.0",
     "@parcel/resolver-glob": "^2.0.0",
+    "@parcel/service-worker": "^2.0.0",
     "@types/workerpool": "^6.1.0",
     "ncp": "^2.0.0",
     "parcel": "2.0.0",
