@@ -498,17 +498,16 @@ export const DATA: { [name: string]: Data } = {
     can: (s, loc) => s.spells.length > (loc === 'hand' ? 0 : 1),
     play: SPELL(s => {
       // NOTE: The active Heavy Storm card has already been removed from hand/field
+      s.minor(`Send ${Formatter.names(s.spells)} to Graveyard`);
       for (const id of s.spells) {
         const card = ID.decode(id);
         s.add('graveyard', card.id);
         if (ID.facedown(id)) continue;
         // We need to revert the effects of any Convulsion of Nature / Different Dimension Capsule
         // cards that may be on the field, and also deal with destroyed monsters with Premature
-        // Burial equipped (and properly fixing up equip indices and pointers after Black Pendant)
+        // Burial equipped
         if (card.id === Ids.ConvulsionOfNature) {
           s.reverse(true);
-        } else if (card.id === Ids.BlackPendant) {
-          s.mset(ID.get(id));
         } else if (card.id === Ids.PrematureBurial) {
           const removed = s.mremove(ID.get(id));
           s.add('graveyard', removed.id);
@@ -517,7 +516,6 @@ export const DATA: { [name: string]: Data } = {
           s.banish();
         }
       }
-      s.minor(`Send ${Formatter.names(s.spells)} to Graveyard`);
       s.spells = [];
     }),
   },
