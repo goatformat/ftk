@@ -35,6 +35,7 @@
     "fix": "eslint --fix html src tools --ext ts,js",
     "prepare": "npm run compile",
     "start": "parcel serve",
+    "prebuild": "node --no-warnings --experimental-specifier-resolution=node .parcel/workaround",
     "build": "parcel build --public-url=/ftk",
     "postbuild": "ncp html/favicon.ico dist && ncp html/img/icon dist",
     "prebenchmark": "npm run compile",
