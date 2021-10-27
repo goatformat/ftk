@@ -46,6 +46,8 @@ const HeavyStorm = 72 as ID; // H
 const CyberJar = 74 as ID; // J
 const PrematureBurial = 75 as ID; // K (5 6 7 8 9)
 const RoyalMagicalLibrary = 76 as ID; // L (< = >)
+const SpellbookOrganization = 77 as ID; // M
+const CardShuffle = 78 as ID; // N (#)
 const ArchfiendsOath = 79 as ID; // O (@)
 const PotOfGreed = 80 as ID; // P
 const ReversalQuiz = 81 as ID; // Q
@@ -67,6 +69,7 @@ const LIBRARY = [
 ];
 
 const ArchfiendsOath1 = 64 as FieldID; // @
+const CardShuffle1 = 35 as FieldID; // #
 const DifferentDimensionCapsule1 = 42 as FieldID; // *
 
 const BlackPendant0 = 48 as FieldID; // 0
@@ -81,6 +84,7 @@ const raw = (id: FieldID) => {
   if (id >= BlackPendant0 && id <= BlackPendant4) return BlackPendant;
   if (id >= PrematureBurial0 && id <= PrematureBurial4) return PrematureBurial;
   if (id === DifferentDimensionCapsule1) return DifferentDimensionCapsule;
+  if (id === CardShuffle1) return CardShuffle;
   throw new RangeError(`Invalid ID: ${id}`);
 };
 
@@ -106,7 +110,7 @@ export const ID = new class {
   get(this: void, id: FieldID) {
     if (id >= 65 /* A */ && id <= 90 /* Z */ || id >= 97 /* a */ && id <= 122 /* z */) return 0;
     if (id >= RoyalMagicalLibrary1 && id <= RoyalMagicalLibrary3) return id - RoyalMagicalLibrary1 + 1;
-    if (id === ArchfiendsOath1 || id === DifferentDimensionCapsule1) return 1;
+    if (id === ArchfiendsOath1 || id === DifferentDimensionCapsule1 || id === CardShuffle1) return 1;
     if (id >= BlackPendant0 && id <= PrematureBurial4) return (id - BlackPendant0) % 5;
     return 0;
   }
@@ -118,9 +122,10 @@ export const ID = new class {
     case ArchfiendsOath: return data ? ArchfiendsOath1 : ArchfiendsOath;
     case BlackPendant: return (BlackPendant0 + data) as FieldID;
     case PrematureBurial: return (PrematureBurial0 + data) as FieldID;
-    case DifferentDimensionCapsule:
-      return data ? DifferentDimensionCapsule : DifferentDimensionCapsule1;
+    case DifferentDimensionCapsule: return data ? DifferentDimensionCapsule : DifferentDimensionCapsule1;
+    case CardShuffle: return data ? CardShuffle1 : CardShuffle;
     }
+
     throw new RangeError(`Invalid ID: ${id}`);
   }
   // Returns the raw ID given an ID of any type
@@ -173,6 +178,7 @@ export const Formatter = new class {
     if (id >= BlackPendant0 && id <= BlackPendant4) return `B${id - BlackPendant0}`;
     if (id >= PrematureBurial0 && id <= PrematureBurial4) return `K${id - PrematureBurial0}`;
     if (id === DifferentDimensionCapsule1) return 'D1';
+    if (id === CardShuffle1) return 'N1';
     throw new RangeError(`Invalid ID: ${String.fromCharCode(id)}`);
   }
   // Decodes an ID encoded in the human readable format
@@ -185,6 +191,7 @@ export const Formatter = new class {
     case 'B': return (BlackPendant0 + +s[1]) as FieldID;
     case 'K': return (PrematureBurial0 + +s[1]) as FieldID;
     case 'D': return DifferentDimensionCapsule1;
+    case 'N': return CardShuffle1;
     }
     throw new RangeError(`Invalid legacy ID: ${s}`);
   }
@@ -219,6 +226,8 @@ export const Ids = {
   CyberJar: CyberJar,
   PrematureBurial: PrematureBurial,
   RoyalMagicalLibrary: RoyalMagicalLibrary,
+  SpellbookOrganization: SpellbookOrganization,
+  CardShuffle: CardShuffle,
   ArchfiendsOath: ArchfiendsOath,
   PotOfGreed: PotOfGreed,
   ReversalQuiz: ReversalQuiz,

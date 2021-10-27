@@ -91,8 +91,8 @@ const lose = (s: State) => {
 const state = (() => {
   const arg = (window.location.hash || window.location.search).slice(1);
   const seed = (n: string) => Random.seed(n && !isNaN(+n) ? +n : ~~(Math.random() * (2 ** 31 - 1)));
-  const fallback = OPTIONS.includes(arg as Option)
-    ? State.create(State.decklist(arg as Option), new Random(seed(arg.slice(1))), true)
+  const fallback = OPTIONS.includes(arg[0] as Option)
+    ? State.create(State.decklist(arg[0] as Option), new Random(seed(arg.slice(1))), true)
     : State.create(State.decklist('S'), new Random(seed(arg)), true);
   if (arg) {
     try {

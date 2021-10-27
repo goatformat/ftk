@@ -17,7 +17,7 @@ type Action = {
 
 interface ActionState {
   origin: {location: Location; i: number};
-  filter: (location: Location, id: DeckID | FieldID) => boolean;
+  filter: (location: Location, id: DeckID | FieldID, i: number) => boolean;
   fn: (location: Location, ...j: number[]) => void;
   num: number;
   targets: [Location, number][];
@@ -47,7 +47,6 @@ const BLUE_EYES = {
   def: 2500,
   text: '<i>Dragon – This legendary dragon is a powerful engine of destruction. Virtually invincible, very few have faced this awesome creature and lived to tell the tale.</i>',
 };
-
 function update(mutate = true) {
   const $content = document.getElementById('content')!;
   while ($content.firstChild) $content.removeChild($content.firstChild);
@@ -82,8 +81,7 @@ function update(mutate = true) {
         update();
       }, {hold: true}));
     }
-    for (const [location, i] of action.options.sort((a, b) =>
-      ID.decode(s[a[0]][a[1]]).name.localeCompare(ID.decode(s[b[0]][b[1]]).name))) {
+    for (const [location, i] of action.options) {
       const id = s[location][i] as FieldID;
       const card = ID.decode(id);
       zone.appendChild(makeCard(card, () => handler(location, id, i), {
@@ -98,6 +96,17 @@ function update(mutate = true) {
     const overlay = createElement('div', 'modal-overlay');
 
     overlay.addEventListener('click', () => {
+      if (action.num < 0) {
+        const {unique, remaining} = uniqueness();
+        console.log(unique, remaining);
+        if (unique.size === 1) {
+          STATE.stack[STATE.index].action = {type: 'play'};
+          // PRECONDITION: all targets have the same location
+          const loc = (action.targets.length ? action.targets : remaining)[0][0];
+          return action.fn(loc, ...[...action.targets.map(t => t[1]), ...remaining.map(t => t[1])]);
+        }
+        return;
+      }
       STATE.stack[STATE.index].action = {type: 'play'};
       if (action.num > 1 && action.targets.length) {
         return action.fn(action.targets[0][0], action.targets[0][1]);
@@ -136,7 +145,7 @@ function transform(location: Location, id: FieldID, i: number, isSearch = false)
     return can ? undefined : 'disabled';
   } else if (action.type === 'target' || action.type === 'search') {
     if (location === action.origin.location && i === action.origin.i) return 'selected';
-    if (!action.filter(location, id)) return pile ? undefined : 'disabled';
+    if (!action.filter(location, id, i)) return pile ? undefined : 'disabled';
     if (action.targets.find(([loc, j]) => loc === location && j === i)) {
       if (!isSearch && action.type === 'search' && location === action.options[0][0]) {
         return undefined;
@@ -388,6 +397,23 @@ const SPELLS: { [name: string]: any } = {
     }
     s.minor(`Discard ${Formatter.names(s.hand)}`);
   }),
+  'Card Shuffle': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
+    const reuse = location === 'spells' && !ID.facedown(s[location][i]);
+    if (reuse) {
+      s.major(`Activate effect of "${card.name}"`);
+    } else {
+      s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+    }
+
+    s.remove(location, i);
+    s.add('spells', ID.set(card.id, 1));
+    s.minor(`Pay 300 LP (${s.lifepoints} -> ${s.lifepoints - 300})`);
+    s.lifepoints -= 300;
+    s.shuffle();
+
+    if (!reuse) s.inc();
+    update();
+  },
   'Convulsion of Nature': SPELL(s => s.reverse()),
   'Different Dimension Capsule': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     search({location, i}, loc => loc === 'deck', (_, j) => {
@@ -554,6 +580,24 @@ const SPELLS: { [name: string]: any } = {
       });
     }, 2);
   },
+  'Spellbook Organization': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
+    search({location, i: -1}, (loc, _, j) => loc === 'deck' && j >= s.deck.length - 3, (_, j, k, l) => {
+      s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      s.remove(location, i);
+      s.add('graveyard', card.id);
+      s.minor(`Reveal ${Formatter.names(s.deck.slice(s.deck.length - 3).reverse())}`);
+
+      const ordered = [s.deck[j], s.deck[k], s.deck[l]];
+      s.minor(`Return ${Formatter.names(ordered)} to the Deck`);
+      for (let m = 0; m < ordered.length; m++) {
+        s.deck[s.deck.length - 1 - m] =
+          ID.facedown(ordered[m]) ? ordered[m] : ID.toggle(ordered[m]) as DeckID;
+      }
+
+      s.inc();
+      update();
+    }, -3);
+  },
   'Toon Table of Contents': (s: State, location: 'hand' | 'spells', i: number, card: Card) => {
     search({location, i}, (loc, id) => loc === 'deck' && ID.decode(id).name.startsWith('Toon'), (_, j) => {
       s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
@@ -611,6 +655,8 @@ function onPlay(location: Location, id: FieldID, i: number) {
       if (spell) spell(state, location, i, card);
     } else if (card.id === Ids.ArchfiendsOath && !ID.get(id)) {
       ARCHFIEND(state, location, i, card);
+    } else if (card.id === Ids.CardShuffle && !ID.get(id)) {
+      SPELLS[card.name]!(state, location, i, card);
     }
     return;
   }
@@ -726,7 +772,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
     STATE.stack[STATE.index].action = {type: 'play'};
     if (action.num < 0) {
       if (action.targets.length) {
-        // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
+        // PRECONDITION: all targets have the same location
         return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort(CMP));
       } else {
         return action.fn(location);
@@ -734,7 +780,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
     } else {
       update();
     }
-  } else if (action.filter(location, id)) {
+  } else if (action.filter(location, id, i)) {
     const remove = action.targets.findIndex(([loc, j]) => loc === location && j === i);
     if (remove >= 0) {
       action.targets.splice(remove, 1);
@@ -744,7 +790,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
 
     if (action.targets.length === Math.abs(action.num)) {
       STATE.stack[STATE.index].action = {type: 'play'};
-      // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
+      // PRECONDITION: all targets have the same location
       return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort(CMP));
     } else {
       update();
@@ -754,7 +800,7 @@ function onTarget(location: Location, id: FieldID, i: number) {
 
 function search(
   origin: {location: Location; i: number},
-  filter: (location: Location, id: DeckID | FieldID) => boolean,
+  filter: (location: Location, id: DeckID | FieldID, i: number) => boolean,
   fn: (location: Location, ...j: number[]) => void,
   num = 1,
   fallback?: Card,
@@ -767,7 +813,7 @@ function search(
     for (const [i, did] of state[location].entries()) {
       const id = ID.id(did);
       if (location === origin.location && i === origin.i || ids.has(id)) continue;
-      if (filter(location, id)) {
+      if (filter(location, id, i)) {
         if (num === 1) ids.add(id);
         targets.push([location, i]);
       }
@@ -786,7 +832,8 @@ function search(
       fn,
       num,
       targets: [],
-      options: targets,
+      options: num < 0 ? targets.reverse() : targets.sort((a, b) =>
+        ID.decode(state[a[0]][a[1]]).name.localeCompare(ID.decode(state[b[0]][b[1]]).name)),
       fallback,
     };
     update();
@@ -804,7 +851,7 @@ function onSearch(location: Location, id: FieldID, i: number) {
     } else {
       update();
     }
-  } else if (action.filter(location, id)) {
+  } else if (action.filter(location, id, i)) {
     const remove = action.targets.findIndex(([loc, j]) => loc === location && j === i);
     if (remove >= 0) {
       action.targets.splice(remove, 1);
@@ -814,18 +861,41 @@ function onSearch(location: Location, id: FieldID, i: number) {
 
     if (action.targets.length === Math.abs(action.num)) {
       STATE.stack[STATE.index].action = {type: 'play'};
-      // PRECONDITION: new Set(action.targets.map(t => t[0])).size === 1
-      return action.fn(action.targets[0][0], ...action.targets.map(t => t[1]).sort(CMP));
+      // PRECONDITION: all targets have the same location
+      const targets = action.targets.map(t => t[1]);
+      return action.fn(action.targets[0][0], ...(action.num > 0 ? targets.sort(CMP) : targets));
+    } else if (action.num < 0) {
+      const {unique, remaining} = uniqueness();
+      if (unique.size === 1) {
+        STATE.stack[STATE.index].action = {type: 'play'};
+        // PRECONDITION: all targets have the same location
+        const loc = (action.targets.length ? action.targets : remaining)[0][0];
+        return action.fn(loc, ...[...action.targets.map(t => t[1]), ...remaining.map(t => t[1])]);
+      } else {
+        update();
+      }
     } else {
       update();
     }
   }
 }
 
+function uniqueness() {
+  const {state, action} = STATE.stack[STATE.index];
+  if (action.type !== 'search') throw new Error(`Bad action type: ${action.type}`);
+  const remaining = action.options.slice();
+  for (const [loc, j] of action.targets) {
+    remaining.splice(remaining.findIndex(([l, k]) => l === loc && k === j), 1);
+  }
+  const unique = new Set(remaining.map(([loc, j]) => ID.id(state[loc][j])));
+  return {remaining, unique};
+}
+
 function initialize(option: Option, num: number) {
   console.log('Seed:', num);
 
   const state = State.create(State.decklist(option), new Random(Random.seed(num)), true);
+
   STATE = {
     option,
     num,
@@ -917,9 +987,9 @@ function initialize(option: Option, num: number) {
 
 function start() {
   const arg = (window.location.hash || window.location.search).slice(1);
-  if (OPTIONS.includes(arg as Option)) {
+  if (OPTIONS.includes(arg[0] as Option)) {
     const n = arg.slice(1);
-    if (n && !isNaN(+n)) return initialize(arg as Option, +n);
+    if (n && !isNaN(+n)) return initialize(arg[0] as Option, +n);
   }
   const num = arg && !isNaN(+arg) ? +arg : ~~(Math.random() * (2 ** 31 - 1));
 

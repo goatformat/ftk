@@ -77,7 +77,8 @@ const MONSTER: Data['play'] = (state, location, i, next, card) => {
 const SPELL: (fn?: (s: State) => void) => Data['play'] = (fn?: (s: State) => void) =>
   (state, location, i, next, card) => {
     // We're avoiding doing `'can' in card` here because this is a hot function and its safe.
-    if (!(card as any).can(state, location)) return;
+    if (!(card as any).can(state, location, i)) return;
+
     const s = state.clone();
     s.remove(location, i);
     s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
@@ -178,7 +179,7 @@ const SANGAN = (s: State, next: Map<string, IState>, prescient: boolean) => {
 // create very wide and heterogenous nodes (which can cause the same problems as Different Dimension
 // Capsule), though ultimately results in about a 5%+ reduction in exhaustion and increase in overall
 // success rate.
-const RELOAD: (fn: (s: State, check?: boolean) => void, check?: boolean) => Data['play'] =
+const RELOAD: (fn: (s: State) => void, check?: boolean) => Data['play'] =
   (fn: (s: State) => void, check?: boolean) => (state, location, i, next, card, prescient) => {
     if (!CAN_RELOAD(state, location)) return;
     if (check && !state.allowed(prescient)) return;
@@ -301,6 +302,33 @@ export const DATA: { [name: string]: Data } = {
       }
       s.minor(`Discard ${Formatter.names(s.hand)}`);
     }),
+  },
+  'Card Shuffle': {
+    id: Ids.CardShuffle,
+    type: 'Spell',
+    subType: 'Continuous',
+    text: 'Once per turn: You can pay 300 Life Points; shuffle either your or your opponent\'s Deck',
+    can: s => s.lifepoints > 300,
+    play(state, location, i, next, card, prescient) {
+      if (!this.can(state, location) || !state.allowed(prescient)) return;
+
+      const reuse = location === 'spells' && !ID.facedown(state[location][i]);
+      const s = state.clone();
+      if (reuse) {
+        s.major(`Activate effect of "${card.name}"`);
+      } else {
+        s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      }
+
+      s.remove(location, i);
+      s.add('spells', ID.set(card.id, 1));
+      s.minor(`Pay 300 LP (${s.lifepoints} -> ${s.lifepoints - 300})`);
+      s.lifepoints -= 300;
+      s.shuffle();
+
+      if (!reuse) s.inc();
+      State.transition(next, s);
+    },
   },
   'Convulsion of Nature': {
     id: Ids.ConvulsionOfNature,
@@ -669,6 +697,37 @@ export const DATA: { [name: string]: Data } = {
       }
     },
   },
+  'Spellbook Organization': {
+    id: Ids.SpellbookOrganization,
+    type: 'Spell',
+    // FIXME: chaining like Reload (can both be chained at the same Spell Speed?)
+    subType: 'Quick-Play',
+    text: 'Look at the top 3 cards of your Deck, then return them to the top of the Deck in any order.',
+    can: s => s.deck.length > 2,
+    play(state, location, i, next, card) {
+      if (!this.can(state, location)) return;
+      const s = state.clone();
+      s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
+      s.remove(location, i);
+      s.add('graveyard', card.id);
+      s.minor(`Reveal ${Formatter.names(s.deck.slice(s.deck.length - 3).reverse())}`);
+      for (const [j, k, l] of PERMUTATIONS) {
+        const t = s.clone();
+        const ordered =
+          [t.deck[t.deck.length - j], t.deck[t.deck.length - k], t.deck[t.deck.length - l]];
+        t.minor(`Return ${Formatter.names(ordered)} to the Deck`);
+        for (let m = 0; m < ordered.length; m++) {
+          t.deck[t.deck.length - 1 - m] =
+            ID.facedown(ordered[m]) ? ordered[m] : ID.toggle(ordered[m]) as DeckID;
+        }
+        t.inc();
+        // We're just going off a precomputation of the permutations of 3 indexes so its entirely
+        // possibly we will be adding duplicate states that will then be deduped by the standard
+        // State deduplication logic
+        State.transition(next, t);
+      }
+    },
+  },
   'Thunder Dragon': {
     id: Ids.ThunderDragon,
     type: 'Monster',
@@ -704,7 +763,7 @@ export const DATA: { [name: string]: Data } = {
     type: 'Spell',
     subType: 'Normal',
     text: 'Add 1 "Toon" card from your Deck to your hand.',
-    can: s => !!s.deck.length,
+    can: () => true,
     play(state, location, i, next, card, prescient) {
       if (!state.allowed(prescient)) return;
       const targets = new Set<ID>();
@@ -725,8 +784,7 @@ export const DATA: { [name: string]: Data } = {
         }
       }
       // Failure to find
-      // TODO: determine if you can fail to find with no deck?
-      if (!targets.size && state.deck.length) {
+      if (!targets.size) {
         if (state.allowed(prescient, true)) {
           const s = state.clone();
           s.major(`Activate${location === 'spells' ? ' face-down' : ''} "${card.name}"`);
@@ -767,7 +825,8 @@ export const CARDS: Record<ID, Card> = {};
 for (const name in DATA) {
   const card = DATA[name];
   const score = 'can' in card
-    ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters') => ((WEIGHTS as any)[name])[+card.can(s, loc)]
+    ? (s: Readonly<State>, loc: 'hand' | 'spells' | 'monsters') =>
+      ((WEIGHTS as any)[name])[+card.can(s, loc)]
     : () => 0;
   CARDS[card.id] = {score, ...card, name};
 }
@@ -814,3 +873,11 @@ function isubsets<T>(s: T[], k: number, filter?: (t: T) => boolean): number[][] 
   }
   return subsets(is, k);
 }
+
+// Spell Reproduction always just needs the permutations of the top 3 cards of the deck. Deduping
+// by the actual cards isn't necessary in the common cases its much faster to just do less work
+// and let State deduplication logic handle dealing with symmetry.
+const PERMUTATIONS = [
+  [1, 2, 3], [2, 1, 3], [3, 1, 2],
+  [1, 3, 2], [2, 3, 1], [3, 2, 1],
+];

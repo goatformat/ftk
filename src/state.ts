@@ -42,8 +42,10 @@ const REVERSED = '!';
 // construct a decklist which just makes tweaks to the standard ratios is recommended.
 export type Decklist = Readonly<Record<string, number>>;
 
-// The default decklist needs one more card to meet the minimum deck length requirement of 40 cards
-export const OPTIONS = ['J', 'S', 'D', 'H', 'E'] as const;
+// The default decklist needs one more card to meet the minimum deck length requirement of 40 cards.
+// NOTE: unlike the other options, 'M' doesn't just swap out the one card but instead changes the
+// default decklist to instead be one which leverages Spellbook Organization and Card Shuffle.
+export const OPTIONS = ['J', 'S', 'D', 'H', 'M', 'E'] as const;
 export type Option = typeof OPTIONS[number];
 
 // The core game State. As mentioned above, this class is usually used in a pseudo-builder pattern
@@ -79,18 +81,25 @@ export class State {
   trace?: string[];
 
   static decklist(option: Option) {
-    const id = Formatter.unhuman(option);
+    const name = ID.decode(Formatter.unhuman(option)).name;
+
+    const count = (n: keyof typeof DECK) => {
+      if (option === 'M') {
+        switch (n) {
+        case 'A Feather of the Phoenix': return 2;
+        case 'Card Shuffle': return 2;
+        case 'Level Limit - Area B': return 0;
+        case 'Spell Reproduction': return 2;
+        case 'Spellbook Organization': return 3;
+        }
+      } else if (n === name) {
+        return 1;
+      }
+      return DECK[n];
+    };
 
     const list: Record<string, number> = {};
-    for (const n in DECK) {
-      const name = n as keyof typeof DECK;
-      if (DECK[name]) {
-        list[name] = DECK[name];
-      } else if (DATA[name].id === id) {
-        list[name] = 1;
-      }
-    }
-
+    for (const n in DECK) list[n] = count(n as keyof typeof DECK);
     return list as Decklist;
   }
 
@@ -414,9 +423,9 @@ export class State {
   // BUG: Technically this still allows for prescience by stacking the deck while the deck is
   // reversed. To avoid this we would need to add additional data to flag whether a card is known
   // from stacking vs. being reversed, but in practice this is not too problematic a loophole.
-  allowed(prescient: boolean, fail = false) {
+  allowed(prescient: boolean, manipulation = false) {
     if (prescient || this.reversed || !this.deck.length) return true;
-    return !fail && !ID.known(this.deck[this.deck.length - 1]);
+    return !manipulation && !ID.known(this.deck[this.deck.length - 1]);
   }
 
   // Compute all unique and relevant states that can be transitioned to from this state. In addition
@@ -457,6 +466,8 @@ export class State {
         card.play(this, 'spells', i, next, card, prescient);
       } else if (card.id === Ids.ArchfiendsOath && !ID.get(id)) {
         ARCHFIEND(this, 'spells', i, next, card, prescient);
+      } else if (card.id === Ids.CardShuffle && !ID.get(id)) {
+        card.play(this, 'spells', i, next, card, prescient);
       }
     }
 
@@ -470,7 +481,7 @@ export class State {
         // Reversal Quiz can *never* lead to a win in single-turn setups so is a waste to explore
         // TODO: allow for exploring Reversal Quiz in multi-turn
         continue;
-      } else if (id === Ids.ThunderDragon && this.deck.length) {
+      } else if (id === Ids.ThunderDragon) {
         if (this.allowed(prescient)) {
           const targets: number[] = [];
           for (let j = 0; j < this.deck.length && targets.length < 2; j++) {
@@ -499,9 +510,8 @@ export class State {
             s.add('hand', ID.id(s.deck.splice(targets[0], 1)[0]));
             s.shuffle();
             State.transition(next, s);
-          } else if (this.allowed(prescient, true) && this.deck.length) {
+          } else if (this.allowed(prescient, true)) {
             // Failure to find
-            // TODO: determine if you can fail to find with no deck?
             const s = this.clone();
             s.major(`Discard "${card.name}"`);
             s.minor(`Fail to find "${card.name}" in Deck`);
@@ -941,7 +951,11 @@ export class State {
     const banished: DeckID[] = [];
     if (j >= 0) for (i = j + 1; i < s.length; i++) banished.push(s.charCodeAt(i) as DeckID);
 
-    const trace = opening ? [`Opening hand contains ${Formatter.names(data.hand)}`] : undefined;
+    const trace = opening
+      ? data.hand.length
+        ? [`Opening hand contains ${Formatter.names(data.hand)}`]
+        : []
+      : undefined;
 
     return new State(
       undefined,
@@ -1011,7 +1025,11 @@ export class State {
     i = j + 1;
     const reversed = s[i] === '1';
 
-    const trace = opening ? [`Opening hand contains ${Formatter.names(hand)}`] : undefined;
+    const trace = opening
+      ? hand.length
+        ? [`Opening hand contains ${Formatter.names(hand)}`]
+        : []
+      : undefined;
 
     return new State(
       undefined,
