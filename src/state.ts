@@ -307,10 +307,9 @@ export class State {
         // the IDs that already have data (ie. when incrementing from 1 -> 2 and 2 -> 3), so we can
         // get away with modifying them in place. It would seem that for the ignore case we would
         // need to fall back on doing an mset as well, but given that a card returned by Premature
-        // Burial cannot have counters the moment it is added as long as the raw ID sorts before or
-        // after the all the IDs of the same type with counters this is still safe (ie. the raw ID
-        // does not partition the data IDs, which is true in this case because the data IDs are
-        // contiguous)
+        // Burial cannot have counters the moment it is added as long as the IDs for Libraries with
+        // counters sorts before the range of all monsters that could be brought back by Premature
+        // Burial this is still safe.
         if (data) {
           this.monsters[i] = ID.set(card.id, data + 1);
         } else {
