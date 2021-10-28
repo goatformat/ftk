@@ -61,16 +61,16 @@ const ToonTableOfContents = 88 as ID; // X
 const ThunderDragon = 89 as ID; // Y
 const SpellReproduction = 90 as ID; // Z
 
-const RoyalMagicalLibrary1 = 123 as FieldID; // {
-const RoyalMagicalLibrary2 = 124 as FieldID; // |
-const RoyalMagicalLibrary3 = 125 as FieldID; // }
+const RoyalMagicalLibrary1 = 60 as FieldID; // <
+const RoyalMagicalLibrary2 = 61 as FieldID; // =
+const RoyalMagicalLibrary3 = 62 as FieldID; // >
 const LIBRARY = [
   RoyalMagicalLibrary, RoyalMagicalLibrary1, RoyalMagicalLibrary2, RoyalMagicalLibrary3,
 ];
 
-const ArchfiendsOath1 = 126 as FieldID; // ~
-const CardShuffle1 = 95 as FieldID; // _
-const DifferentDimensionCapsule1 = 94 as FieldID; // ^
+const ArchfiendsOath1 = 64 as FieldID; // @
+const CardShuffle1 = 35 as FieldID; // #
+const DifferentDimensionCapsule1 = 42 as FieldID; // *
 
 const BlackPendant0 = 48 as FieldID; // 0
 const BlackPendant4 = 52 as FieldID; // 4
