@@ -49,6 +49,24 @@ tr:first-child td {
   display: flex;
   justify-content: center;
 }
+.loader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 40vh;
+}
+@keyframes spinner { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 4rem;
+  height: 4rem;
+  vertical-align: text-bottom;
+  border: .25em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  -webkit-animation: spinner 1.25s linear infinite;
+  animation: spinner 1.25s linear infinite;
+}
 @media(min-width: 500px) {
   #content {
     --width: 400px;

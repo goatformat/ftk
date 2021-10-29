@@ -233,7 +233,7 @@ export class State {
     }
   }
 
-  // Summons the monster id. This is a simple wrapper around madd which handles also updateing the
+  // Summons the monster id. This is a simple wrapper around madd which handles also updating the
   // summoned bit. NOTE: You must ensure there is room in the Monster zones and that you have not
   // already performed a Normal Summon this turn. You must also still must handle removing the id
   // from the previous location

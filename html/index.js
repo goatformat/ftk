@@ -8,7 +8,7 @@ import showdown from 'showdown';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const build = process.argv[2] === 'build';
-const worker = path.join(__dirname, '..', 'html', 'sim', 'worker.ts');
+const worker = path.join(__dirname, 'worker.ts');
 if (build) {
   const status = execFileSync('git', ['status', '--porcelain'], {encoding: 'utf8'});
   if (status) {
@@ -51,7 +51,7 @@ if (build) {
   const file = fs.readFileSync(worker, 'utf-8');
   fs.writeFileSync(worker,
     file.replace("from 'workerpool'", "from '~/.parcel/workerpool'")
-      .replace("from '../../src'", "from '~/.parcel/src'"));
+      .replace("from '../src'", "from '~/.parcel/src'"));
 }
 
 const README = path.join(__dirname, '..', 'README.md');

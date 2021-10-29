@@ -973,7 +973,7 @@ function initialize(option: Option, num: number) {
   });
 
   /* eslint-disable @typescript-eslint/no-floating-promises */
-  const pool = workerpool.pool(new URL('./worker.ts', import.meta.url).pathname);
+  const pool = workerpool.pool(new URL('../worker.ts', import.meta.url).pathname);
   pool.exec('search', [STATE.start.encode(), 42, 1e6, false, 0.5]).then(r => {
     console.log('Path:', r);
   }).catch(e => {
