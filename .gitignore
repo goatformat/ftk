@@ -5,3 +5,5 @@ node_modules/
 .eslintcache
 .parcel*
 *.csv
+html/index.html
+package-lock.json

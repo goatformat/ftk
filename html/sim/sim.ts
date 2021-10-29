@@ -1005,7 +1005,4 @@ function start() {
   $content.appendChild(zone);
 }
 
-const scope = process.env.NODE_ENV === 'production' ? '/ftk/' : undefined;
-navigator.serviceWorker.register(new URL('service-worker.js', import.meta.url), {type: 'module', scope});
-
 start();
