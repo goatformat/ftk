@@ -598,6 +598,7 @@ export const DATA: { [name: string]: Data } = {
     // TODO: handle flipping Royal Decree in multi-turn scenarios
     can: (_, loc) => loc === 'hand',
     play(state, location, i, next, card) {
+      if (!this.can(state, location)) return;
       const s = state.clone();
       s.remove(location, i);
       if (location === 'hand') {
